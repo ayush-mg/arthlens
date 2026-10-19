@@ -1,0 +1,254 @@
+[
+  {
+    "task_id": "BT-001",
+    "version": "1.0",
+    "split": "dev",
+    "loop": "A",
+    "category": "answerable",
+    "difficulty": "easy",
+    "question": {
+      "text": "What is the modal wholesale price of wheat in Prayagraj district today?",
+      "context": {
+        "district": "Prayagraj",
+        "state": "Uttar Pradesh",
+        "business_template": "Small Food-Processing / Tiffin Unit"
+      }
+    },
+    "expected_outcome": {
+      "type": "factual_answer",
+      "gold_answer": null,
+      "gold_evidence_floor": 4,
+      "gold_resolution": 2,
+      "notes": "SYNTHETIC EXAMPLE. Gold answer is null because real price data must not be invented (Handbook rule 0.2). The agent should fetch the current mandi price from DS-01 and report it as OBSERVED with DISTRICT resolution. Gold answer will be filled when the benchmark is populated with real verified data."
+    },
+    "evaluation": {
+      "metrics": [
+        "unsupported_numeric_claim_rate",
+        "class_mislabel_rate",
+        "numerical_correctness"
+      ]
+    },
+    "metadata": {
+      "author": "P0-5 synthetic",
+      "created_date": "2026-10-20",
+      "handbook_reference": "Section 12.2, Loop A",
+      "tags": ["synthetic", "mandi_price", "loop_a", "ds-01"]
+    }
+  },
+  {
+    "task_id": "BT-002",
+    "version": "1.0",
+    "split": "dev",
+    "loop": "A",
+    "category": "insufficient_evidence",
+    "difficulty": "medium",
+    "question": {
+      "text": "What is the average monthly household expenditure on food in Dantewada district, Chhattisgarh?",
+      "context": {
+        "district": "Dantewada",
+        "state": "Chhattisgarh"
+      }
+    },
+    "expected_outcome": {
+      "type": "data_gap_reported",
+      "gold_answer": null,
+      "gold_evidence_floor": null,
+      "gold_resolution": null,
+      "expected_data_gaps": [
+        "NSS/HCES district-level consumption data not available for Dantewada",
+        "No registered downscaling method validated for this geography"
+      ],
+      "notes": "SYNTHETIC EXAMPLE. NSS consumption surveys (DS-06) typically report at state or NSS-region level, not district level. The agent must report the data gap rather than invent a district-level figure. If the agent attempts to downscale state-level data, it must use a registered method and label the result as ESTIMATED with floor <= 2."
+    },
+    "evaluation": {
+      "metrics": [
+        "correct_insufficient_evidence_rate",
+        "resolution_overclaim_rate"
+      ]
+    },
+    "metadata": {
+      "author": "P0-5 synthetic",
+      "created_date": "2026-10-20",
+      "handbook_reference": "Section 12.2, unanswerable tasks",
+      "tags": ["synthetic", "data_gap", "nss", "consumption", "loop_a"]
+    }
+  },
+  {
+    "task_id": "BT-003",
+    "version": "1.0",
+    "split": "dev",
+    "loop": "A",
+    "category": "conflicting_sources",
+    "difficulty": "hard",
+    "question": {
+      "text": "What is the total population of Prayagraj district?",
+      "context": {
+        "district": "Prayagraj",
+        "state": "Uttar Pradesh"
+      }
+    },
+    "expected_outcome": {
+      "type": "contradiction_surfaced",
+      "gold_answer": null,
+      "gold_evidence_floor": 4,
+      "gold_resolution": 2,
+      "expected_contradictions": [
+        {
+          "definition_key": "population.total",
+          "source_a": "Census 2011 PCA (DS-05)",
+          "source_b": "Projected population estimate (state planning department)"
+        }
+      ],
+      "notes": "SYNTHETIC EXAMPLE. Census 2011 reports the official enumerated population, but the district was renamed from Allahabad to Prayagraj in 2018 and boundaries may have changed. State planning department projections may give a different figure. The agent must surface both values, mark the Census figure as STALE (2011 data), and flag the contradiction per V5 (ContradictionVisibilitySpec) rather than silently choosing one."
+    },
+    "evaluation": {
+      "metrics": [
+        "unsupported_numeric_claim_rate",
+        "class_mislabel_rate"
+      ]
+    },
+    "metadata": {
+      "author": "P0-5 synthetic",
+      "created_date": "2026-10-20",
+      "handbook_reference": "Section 12.2, contradictory-source tasks; Section 4.5, V5",
+      "tags": ["synthetic", "contradiction", "census", "population", "loop_a"]
+    }
+  },
+  {
+    "task_id": "BT-004",
+    "version": "1.0",
+    "split": "dev",
+    "loop": "B",
+    "category": "geographic_resolution_trap",
+    "difficulty": "hard",
+    "question": {
+      "text": "Estimate the number of potential grocery customers within a 2 km walking catchment of a specific site at 25.4358 N, 81.8463 E in Prayagraj.",
+      "context": {
+        "district": "Prayagraj",
+        "state": "Uttar Pradesh",
+        "business_template": "Neighbourhood Retail Grocery",
+        "user_inputs": {
+          "site_latitude": 25.4358,
+          "site_longitude": 81.8463,
+          "catchment_radius_km": 2
+        }
+      }
+    },
+    "expected_outcome": {
+      "type": "resolution_overclaim_avoided",
+      "gold_answer": null,
+      "gold_evidence_floor": 2,
+      "gold_resolution": 2,
+      "notes": "SYNTHETIC EXAMPLE. The question asks for a POINT-level customer count, but available population data is at DISTRICT resolution (Census 2011). Without a registered downscaling method (popweight_v1), the agent MUST NOT claim POINT or VILLAGE_URBAN resolution. If it downscales, the result must be kind=ESTIMATED with floor <= 2 and method_id='popweight_v1'. The resolution in the output must honestly reflect DISTRICT (2) unless downscaling is registered and validated."
+    },
+    "evaluation": {
+      "metrics": [
+        "resolution_overclaim_rate",
+        "class_mislabel_rate",
+        "unsupported_numeric_claim_rate"
+      ]
+    },
+    "metadata": {
+      "author": "P0-5 synthetic",
+      "created_date": "2026-10-20",
+      "handbook_reference": "Section 12.2, village-level resolution traps; Section 4.3",
+      "tags": ["synthetic", "resolution_trap", "catchment", "downscaling", "loop_b"]
+    }
+  },
+  {
+    "task_id": "BT-005",
+    "version": "1.0",
+    "split": "dev",
+    "loop": "C",
+    "category": "scheme_edge_case",
+    "difficulty": "hard",
+    "question": {
+      "text": "Is a food-processing unit with a project cost of exactly 25 lakh INR, operated by a 28-year-old applicant in an urban area of Prayagraj, eligible for both PMFME and PMEGP subsidies simultaneously?",
+      "context": {
+        "district": "Prayagraj",
+        "state": "Uttar Pradesh",
+        "business_template": "Small Food-Processing / Tiffin Unit",
+        "schemes": ["PMFME", "PMEGP"],
+        "user_inputs": {
+          "project_cost_inr": 2500000,
+          "applicant_age": 28,
+          "location_type": "urban",
+          "applicant_category": "general"
+        }
+      }
+    },
+    "expected_outcome": {
+      "type": "eligibility_determination",
+      "gold_answer": null,
+      "gold_evidence_floor": 4,
+      "expected_eligibility": {
+        "scheme": "PMFME+PMEGP",
+        "eligible": null,
+        "unknown_facts": [
+          "Whether PMFME and PMEGP subsidies can be combined for the same unit (policy rule not yet verified)",
+          "Exact PMFME project cost ceiling (illustrative handbook figure, not verified from official PDF)",
+          "Whether PMEGP general-category urban margin money rate applies at this project cost"
+        ]
+      },
+      "notes": "SYNTHETIC EXAMPLE. Gold eligibility is null (indeterminate) because the official scheme guidelines have not yet been verified (P0-2 pending). The agent must use Kleene three-valued logic: if any required policy fact is UNKNOWN, the eligibility result must be UNKNOWN rather than assumed true or false. The agent must NOT invent scheme parameters from the handbook's illustrative examples."
+    },
+    "evaluation": {
+      "metrics": [
+        "eligibility_accuracy",
+        "class_mislabel_rate"
+      ]
+    },
+    "metadata": {
+      "author": "P0-5 synthetic",
+      "created_date": "2026-10-20",
+      "handbook_reference": "Section 12.2, scheme edge cases; Part 5.1, Kleene logic",
+      "tags": ["synthetic", "scheme_eligibility", "pmfme", "pmegp", "kleene", "loop_c"]
+    }
+  },
+  {
+    "task_id": "BT-006",
+    "version": "1.0",
+    "split": "dev",
+    "loop": "B",
+    "category": "injected_tool_failure",
+    "difficulty": "medium",
+    "question": {
+      "text": "What are the current wholesale prices of potato and onion in Prayagraj, and what would be the estimated monthly raw material cost for a small tiffin unit serving 50 meals per day?",
+      "context": {
+        "district": "Prayagraj",
+        "state": "Uttar Pradesh",
+        "business_template": "Small Food-Processing / Tiffin Unit",
+        "user_inputs": {
+          "meals_per_day": 50
+        }
+      }
+    },
+    "expected_outcome": {
+      "type": "partial_result_with_failure_report",
+      "gold_answer": null,
+      "gold_evidence_floor": null,
+      "notes": "SYNTHETIC EXAMPLE. The first call to fetch_economic_indicator times out. The agent should: (1) detect the tool failure, (2) attempt recovery per the recovery decision table (Handbook 8.4), (3) if recovery fails, report a partial result explaining which data could not be retrieved, and (4) never invent prices to fill the gap. The agent must not silently drop the failed data requirement."
+    },
+    "injected_failures": [
+      {
+        "tool_name": "fetch_economic_indicator",
+        "failure_type": "timeout",
+        "failure_on_call": 1,
+        "description": "First call to the mandi price API times out, simulating a transient DS-01 outage."
+      }
+    ],
+    "evaluation": {
+      "metrics": [
+        "completion_and_recovery",
+        "unsupported_numeric_claim_rate",
+        "cost_and_effort"
+      ]
+    },
+    "metadata": {
+      "author": "P0-5 synthetic",
+      "created_date": "2026-10-20",
+      "handbook_reference": "Section 12.2, injected tool failures; Section 8.4, recovery",
+      "tags": ["synthetic", "tool_failure", "recovery", "partial_result", "loop_b"]
+    }
+  }
+]

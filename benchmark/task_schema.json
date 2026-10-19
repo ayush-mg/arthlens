@@ -1,0 +1,255 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arthlens.local/benchmark/task-schema/v1",
+  "title": "ArthLens Agent Benchmark Task",
+  "description": "Machine-readable schema for agent evaluation benchmark tasks. Handbook reference: Section 12.2. Tasks are split into development, validation, and frozen_test sets. Never tune prompts or gating rules on the frozen_test set.",
+  "type": "object",
+  "required": [
+    "task_id",
+    "version",
+    "split",
+    "loop",
+    "category",
+    "difficulty",
+    "question",
+    "expected_outcome",
+    "evaluation"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "pattern": "^BT-[0-9]{3,4}$",
+      "description": "Unique benchmark task identifier, e.g. BT-001."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "Schema version of this task definition."
+    },
+    "split": {
+      "type": "string",
+      "enum": ["dev", "validation", "frozen_test"],
+      "description": "Which evaluation split this task belongs to. Never tune on frozen_test (Handbook 12.2)."
+    },
+    "loop": {
+      "type": "string",
+      "enum": ["A", "B", "C"],
+      "description": "Which ArthLens workflow loop this task evaluates. A = Question to verified answer. B = Opportunity to decision. C = Scheme to financial impact."
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "answerable",
+        "insufficient_evidence",
+        "conflicting_sources",
+        "geographic_resolution_trap",
+        "scheme_edge_case",
+        "injected_tool_failure"
+      ],
+      "description": "The evaluation category this task targets (Handbook 12.2)."
+    },
+    "difficulty": {
+      "type": "string",
+      "enum": ["easy", "medium", "hard"],
+      "description": "Subjective difficulty rating assigned by the task author."
+    },
+    "question": {
+      "type": "object",
+      "required": ["text"],
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "The natural-language question or task instruction given to the agent."
+        },
+        "context": {
+          "type": "object",
+          "description": "Optional structured context provided alongside the question.",
+          "properties": {
+            "district": {
+              "type": "string",
+              "description": "Target district name, if applicable."
+            },
+            "state": {
+              "type": "string",
+              "description": "Target state/UT name, if applicable."
+            },
+            "business_template": {
+              "type": "string",
+              "description": "Business template name, if applicable."
+            },
+            "schemes": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Scheme names relevant to the task."
+            },
+            "user_inputs": {
+              "type": "object",
+              "description": "Simulated user-provided assumptions (investment amount, location preferences, etc.).",
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "expected_outcome": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "factual_answer",
+            "data_gap_reported",
+            "contradiction_surfaced",
+            "resolution_overclaim_avoided",
+            "eligibility_determination",
+            "partial_result_with_failure_report",
+            "financial_calculation"
+          ],
+          "description": "The expected outcome type for this task."
+        },
+        "gold_answer": {
+          "type": ["string", "number", "boolean", "null"],
+          "description": "The gold-standard answer, if the task is answerable. Null for unanswerable tasks."
+        },
+        "gold_evidence_floor": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "maximum": 4,
+          "description": "Expected evidence floor of the answer. 4=OBSERVED/POLICY_RULE, 3=USER_ASSUMED, 2=ESTIMATED, 1=SCENARIO."
+        },
+        "gold_resolution": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "maximum": 5,
+          "description": "Expected geographic resolution level. 0=NATION, 1=STATE, 2=DISTRICT, 3=SUBDISTRICT, 4=VILLAGE_URBAN, 5=POINT."
+        },
+        "expected_data_gaps": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "For insufficient_evidence tasks: which specific data gaps should be reported."
+        },
+        "expected_contradictions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "definition_key": { "type": "string" },
+              "source_a": { "type": "string" },
+              "source_b": { "type": "string" }
+            },
+            "required": ["definition_key"]
+          },
+          "description": "For conflicting_sources tasks: which contradictions should be surfaced."
+        },
+        "expected_eligibility": {
+          "type": "object",
+          "properties": {
+            "scheme": { "type": "string" },
+            "eligible": { "type": ["boolean", "null"] },
+            "unknown_facts": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Facts that are unknown, making eligibility indeterminate (Kleene three-valued logic)."
+            }
+          },
+          "description": "For scheme_edge_case tasks: expected eligibility determination."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Author notes explaining the expected outcome or tricky aspects of this task."
+        }
+      }
+    },
+    "injected_failures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["tool_name", "failure_type"],
+        "additionalProperties": false,
+        "properties": {
+          "tool_name": {
+            "type": "string",
+            "description": "Which tool should fail when called."
+          },
+          "failure_type": {
+            "type": "string",
+            "enum": ["timeout", "http_error", "empty_response", "malformed_data", "rate_limited"],
+            "description": "Type of failure to inject."
+          },
+          "failure_on_call": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Which call number triggers the failure (1 = first call)."
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description of what this failure simulates."
+          }
+        }
+      },
+      "description": "Tool failures injected during task execution (for injected_tool_failure category)."
+    },
+    "evaluation": {
+      "type": "object",
+      "required": ["metrics"],
+      "additionalProperties": false,
+      "properties": {
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "unsupported_numeric_claim_rate",
+              "class_mislabel_rate",
+              "resolution_overclaim_rate",
+              "correct_insufficient_evidence_rate",
+              "eligibility_accuracy",
+              "numerical_correctness",
+              "completion_and_recovery",
+              "cost_and_effort",
+              "injection_success"
+            ]
+          },
+          "description": "Which benchmark metrics (Handbook 12.2) this task contributes to."
+        },
+        "tolerance": {
+          "type": "number",
+          "description": "Numerical tolerance for comparing calculated values to gold answers."
+        },
+        "labelled_by": {
+          "type": "string",
+          "description": "Who labelled this task's gold answer (Handbook 12.2: 'Have someone other than the task author label at least a sample')."
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "author": {
+          "type": "string",
+          "description": "Who authored this task."
+        },
+        "created_date": {
+          "type": "string",
+          "format": "date",
+          "description": "ISO 8601 date when this task was created."
+        },
+        "handbook_reference": {
+          "type": "string",
+          "description": "Relevant handbook section for this task."
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Free-form tags for filtering and grouping tasks."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
