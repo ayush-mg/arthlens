@@ -1,7 +1,7 @@
 # Data Sources Documentation & Verification Standard
 
-> **Crucial Rule**: **No dataset is considered verified merely because it is listed in the ArthLens Build Handbook.**  
-> Every proposed source must undergo rigorous primary human inspection during Phase 0 before an ingestion adapter may be written. Unverified data must never enter the codebase.  
+> **Crucial Rule**: **No dataset is considered verified merely because it is listed in the ArthLens Build Handbook.**
+> Every proposed source must undergo rigorous primary human inspection during Phase 0 before an ingestion adapter may be written. Unverified data must never enter the codebase.
 > **Authoritative Specification**: [ArthLens Build Handbook](../ArthLens_Build_Handbook.pdf) (v1.0, 17 Oct 2026)
 
 ---
@@ -117,18 +117,25 @@ For each dataset, a dedicated markdown file must be created at `docs/data-source
 
 ---
 
-## 5. Canonical Register of Candidate Sources (All Pending Verification)
+## 5. Canonical Register of Candidate Sources (Task P0-1 Audit Status)
 
-*Note: All sources below are candidates undergoing Phase 0 verification. None are marked GO until human live inspection is completed.*
+*Note: All sources below have undergone consolidated Phase 0 audit pursuant to Handbook Part 7 and Task P0-1 requirements. Core MVP dependencies are distinguished from deferred or restricted candidates.*
 
-| Canonical ID | Source Name | Canonical Path | Planned Role | Status |
+### 5.1 Core MVP Dependencies (In-Scope for Initial Implementation)
+
+| Canonical ID | Source Name | Canonical Path | MVP Role & Workflows | Decision / Gate Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **DS-01** | **data.gov.in** | [`ds-01-data-gov-in.md`](ds-01-data-gov-in.md) | District economic indicators & demographic stats | `PENDING` |
-| **DS-02** | **RBI DBIE** | [`ds-02-rbi-dbie.md`](ds-02-rbi-dbie.md) | District Scheduled Commercial Bank credit & deposit indicators | `PENDING` |
-| **DS-03** | **SHRUG** | [`ds-03-shrug.md`](ds-03-shrug.md) | Sub-district/village population & establishment counts | `PENDING` |
-| **DS-04** | **OpenStreetMap** | [`ds-04-osm.md`](ds-04-osm.md) | Road network graph & Points of Interest (POIs) | `PENDING` |
-| **DS-05** | **Census 2011 / LGD crosswalk** | [`ds-05-lgd-crosswalk.md`](ds-05-lgd-crosswalk.md) | Official geographic boundary codes & crosswalk tables | `PENDING` |
-| **DS-06** | **NSS / HCES** | [`ds-06-nss-consumption.md`](ds-06-nss-consumption.md) | Consumption spending benchmarks for spatial downscaling | `PENDING` |
-| **DS-07** | **Udyam statistics** | [`ds-07-udyam.md`](ds-07-udyam.md) | District-level MSME registration density | `PENDING` |
-| **DS-08** | **Government scheme guidelines** | [`ds-08-schemes.md`](ds-08-schemes.md) | Official scheme PDF guidelines, parameters & eligibility rules | `PENDING` |
-| **DS-09** | **Administrative boundaries** | [`ds-09-administrative-boundaries.md`](ds-09-administrative-boundaries.md) | Compliant boundary geometries for India (national to district) | `PENDING` |
+| **DS-01** | **data.gov.in (OGD)** | [`ds-01-data-gov-in.md`](ds-01-data-gov-in.md) | Loop A: Mandi commodity prices & agricultural indicators | `PENDING` (Audit completed; awaiting price unit sign-off) |
+| **DS-04** | **OpenStreetMap** | [`ds-04-osm.md`](ds-04-osm.md) | Loop B: Road networks (Dijkstra catchments) & POI competitor counts | `GO` (Approved with mandatory completeness caveat) |
+| **DS-05** | **Census 2011 / LGD crosswalk** | [`ds-05-lgd-crosswalk.md`](ds-05-lgd-crosswalk.md) | Canonical geographic hierarchy, LGD codes & demographic base | `GO` (Approved; frozen fixture eliminates portal downtime) |
+| **DS-08** | **Government scheme guidelines** | [`ds-08-schemes.md`](ds-08-schemes.md) | Loop C: PMFME, PMEGP, PM-MUDRA parameter registers & rule trees | `GO` (Task P0-2 Complete; 42 verified parameters extracted) |
+| **DS-09** | **Administrative boundaries** | [`ds-09-administrative-boundaries.md`](ds-09-administrative-boundaries.md) | Atlas: MapLibre vector boundaries & PMTiles edge serving | `GO` (Approved; conforms to Survey of India boundary norms) |
+
+### 5.2 Deferred / Scope-Limited Sources (Non-Essential for MVP)
+
+| Canonical ID | Source Name | Canonical Path | Evaluated Role | Decision / Action |
+| :--- | :--- | :--- | :--- | :--- |
+| **DS-02** | **RBI DBIE** | [`ds-02-rbi-dbie.md`](ds-02-rbi-dbie.md) | District banking credit/deposit ratios | `DEFERRED (R1)` (Non-essential for loan arithmetic; portal lacks REST API) |
+| **DS-03** | **SHRUG (DDL)** | [`ds-03-shrug.md`](ds-03-shrug.md) | Village population & non-farm establishments | `DEFERRED / CONDITIONAL NO-GO` (CC BY-NC-SA 4.0 commercial conflict; 2013 EC staleness) |
+| **DS-06** | **NSS / HCES** | [`ds-06-nss-consumption.md`](ds-06-nss-consumption.md) | Per-capita consumption spending downscaling | `DEFERRED (R1)` (MoSPI publishes state-level only; no official district estimates) |
+| **DS-07** | **Udyam statistics** | [`ds-07-udyam.md`](ds-07-udyam.md) | Local MSME competitor density | `NO-GO (Spatial) / DEFERRED (Macro)` (Private address records; OSM POIs used for spatial competitors) |
