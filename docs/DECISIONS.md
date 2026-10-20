@@ -213,3 +213,31 @@ Handbook Part 2.1 and Part 7.3 establish that the MVP build must focus strictly 
    - P0-4 is categorized as **Human-Owned (`A + B`)** in the Build Handbook (Part 13.1).
    - This technical decision record establishes that all empirical gate criteria are satisfied and documented.
    - Formal sign-off and adoption remain subject to final confirmation by the human developers (Developers A and B).
+
+---
+
+### ADR-009: Hosting Limits, Deployment Architecture, and LLM Provider Selection (Task P0-6)
+- **Status**: `ACCEPTED` (Handbook Parts 3.1, 3.2, 8.3, 8.6, 14.1–14.5; Detailed audit in [`docs/hosting-and-llm-decision.md`](hosting-and-llm-decision.md))
+- **Decision Date**: 2026-10-21
+- **Context**: Task P0-6 requires confirming hosting constraints and LLM provider terms against current official primary documentation, resolving or recording all open questions, and locking down the deployment topology before Phase 1 code is written.
+
+- **Key Architectural Decisions**:
+  1. **Tiered Hosting Topology**:
+     - **Local Development**: Docker Compose running PostgreSQL 16 + PostGIS 3.4 (`postgis/postgis:16-3.4-alpine`), local FastAPI backend, Next.js dev server, and `FakeLLMClient` with zero external dependencies and zero API costs.
+     - **Public Academic Demonstration**:
+       - *Frontend*: **Cloudflare Pages** (Free tier: unlimited bandwidth, commercial use allowed) with **Vercel Hobby** as an educational fallback.
+       - *Backend API & Worker*: **Render Starter ($7/mo always-on)** or **Hugging Face Spaces (`cpu-basic`, 16 GB RAM Docker free tier)**. Free Render Web Service sleeps after 15 min and lacks free workers; hence, long-running agent jobs must not rely on sleeping free containers without in-process async worker loops or Replay Mode.
+       - *Database*: **Neon Postgres (Free tier, 1 GB storage, 100 CU-hours/mo)** or **Supabase (Free tier, 500 MB)** with native PostGIS. Render Postgres Free is explicitly rejected for deployment due to its mandatory 30-day deletion rule.
+       - *Object Storage*: **Cloudflare R2 (Free tier, 10 GB standard, $0.00 egress)**. S3 is designated secondary due to $0.09/GB egress risk on public vector tile downloads.
+       - *Demo Reliability Safeguard*: **Replay Mode** (Handbook Part 14.4) serves pre-recorded golden traces for Loops A, B, and C with the `REPLAY` banner, guaranteeing rock-solid demos even if cloud providers sleep or hit rate limits.
+  2. **LLM Provider & Access Layer**:
+     - **Primary Production Provider**: **OpenAI API**
+       - Primary workhorse: **`gpt-6-luna`** ($0.10/1M input, $0.50/1M output, $0.01 cached, ~1.05M context, guaranteed JSON Schema enforcement with `strict: true`). Replaces `gpt-4o-mini` (officially deprecated Oct 14, 2026; API shutdown Jan 14, 2027).
+       - Complex reasoning & PDF extraction fallback: **`gpt-5.6-terra`** ($2.00/1M input, $12.00/1M output).
+     - **Alternative Compatible Providers**: **Anthropic** (`claude-3-5-haiku` / `claude-3-5-sonnet`) and **Google Gemini** (Paid tier only). Note: Google AI Studio Free tier is rejected for sensitive enterprise data because user prompts are harvested for model training.
+     - **Contractual Privacy Guarantee**: OpenAI API and Anthropic API terms guarantee that API inputs/outputs are **NOT used to train models**.
+     - **Provider Decoupling**: All LLM calls pass through the `ILLMClient` abstraction. No domain or agent module may directly import provider SDKs.
+  3. **Cost Governance Invariants**:
+     - Initial per-run cost cap: `MAX_COST_USD_PER_RUN = 0.25` enforced in code by `BudgetEnforcementDecorator` (provides ~62x safety margin with `gpt-6-luna`).
+     - Hard step limit: 25 steps; Replans: 3; Model calls: 30; Tool timeout: 60s; Retries: 2.
+     - Offline testing: `FakeLLMClient` and `ReplayLLMClient` ensure 100% test coverage and CI execution without incurring API costs.

@@ -1,7 +1,7 @@
 # Open Questions and Verification Register (Phase 0)
 
-> **Document Status**: Active Working Document  
-> **Authoritative Specification**: [ArthLens Build Handbook](ArthLens_Build_Handbook.pdf) (v1.0, 17 Oct 2026)  
+> **Document Status**: Active Working Document
+> **Authoritative Specification**: [ArthLens Build Handbook](ArthLens_Build_Handbook.pdf) (v1.0, 17 Oct 2026)
 > **Rule**: Items marked with **`[VERIFY]`** must be verified against primary sources before being relied upon in code or architecture. Never invent answers. Every verification must be recorded with date, official source URL, and supporting evidence.
 
 ---
@@ -74,39 +74,83 @@ The handbook proposes **Prayagraj (Uttar Pradesh)** as the candidate district, s
 
 ## 4. Hosting, Infrastructure, and Deployment Questions (Part 14)
 
-To prevent premature optimization, hosting and infrastructure questions are separated into **blocking decisions** (required for Phase 1 development) and **deployment decisions** (resolved before Phase 7 deployment):
+> Detailed audit and benchmark data are recorded in [`docs/hosting-and-llm-decision.md`](hosting-and-llm-decision.md) and [`docs/DECISIONS.md#adr-009`](DECISIONS.md#adr-009-hosting-limits-deployment-architecture-and-llm-provider-selection-task-p0-6).
 
-### 4.1 Blocking Decisions (Required for Phase 1)
+### 4.1 Blocking Decisions (Required for Phase 1 Implementation)
 - **Local Database Environment**:
-  - Verify that a standard Docker Compose service running PostgreSQL 16 + PostGIS 3.4 works smoothly in local development and GitHub Actions CI.
-- **Database Schema Validation**:
-  - Confirm table schemas, GIN indexing on `parent_ids UUID[]`, and `jobs` table `FOR UPDATE SKIP LOCKED` behavior.
+  - *Status*: `RESOLVED`
+  - *Evidence*: Local development and CI are decoupled from external cloud providers. PostgreSQL 16 + PostGIS 3.4 will be provisioned locally via standard Docker Compose (`postgis/postgis:16-3.4-alpine`) and GitHub Actions service container. No cloud hosting credentials required for Phase 1.
+  - *Blocks Implementation*: No.
+- **Database Schema & Job Queue Validation**:
+  - *Status*: `RESOLVED`
+  - *Evidence*: Handbook Part 3.1 & 3.2 specifies a single PostgreSQL datastore with PostGIS, GIN indexing on `parent_ids UUID[]`, and `jobs` table polling via `SELECT ... FOR UPDATE SKIP LOCKED`. Validated against PostgreSQL 16 capabilities. Celery, Redis, and vector DBs are strictly excluded in MVP.
+  - *Blocks Implementation*: No.
+- **LLM Decoupling Interface (`ILLMClient`)**:
+  - *Status*: `RESOLVED`
+  - *Evidence*: `ILLMClient` abstract base class decouples domain logic from provider SDKs. `FakeLLMClient` (synthetic schema-valid fixtures) and `ReplayLLMClient` (stored golden runs) enable 100% offline, zero-cost unit/property test execution in Phase 1.
+  - *Blocks Implementation*: No.
 
-### 4.2 Deployment Decisions (Can Legitimise Wait Until Phase 7)
-- **Managed Database Provider**:
-  - Confirm PostGIS extension availability on free/starter tiers of Supabase, Neon, or Render.
-  - Evaluate cold-start latency and scale-to-zero behavior (e.g., Neon compute pause) versus always-on starter instance ($7/month on Render).
+### 4.2 Deployment Decisions (Resolved Ahead of Phase 7 Deployment)
+- **Managed Database Provider (PostgreSQL + PostGIS)**:
+  - *Status*: `RESOLVED (Neon Recommended / Supabase Alternative)`
+  - *Evidence*:
+    - **Neon Postgres**: Free tier includes 1 GB storage, 100 CU-hours/mo, autoscales 0–2 CU. Native `CREATE EXTENSION postgis;` verified. Scales to zero after 5 min idle with ~300ms–2s cold resume. 1 GB comfortably fits Prayagraj GIS geometries (~150 MB).
+    - **Supabase**: Free tier includes 500 MB database storage, native PostGIS support. Pauses after 7 days inactivity; read-only lock if >500 MB.
+    - **Render Postgres Free**: `REJECTED` because free instances are permanently deleted after 30 days.
+  - *Blocks Implementation*: No.
 - **Backend Container & Worker Execution**:
-  - Verify whether the background worker can run as a background task within the same container as FastAPI on Render/Hugging Face Spaces or requires a separate paid worker instance.
-- **Frontend Hosting & Object Storage**:
-  - Verify Vercel Hobby terms for educational/portfolio major project use.
-  - Confirm Cloudflare R2 bucket setup (zero egress pricing) for serving static PMTiles vector map archives.
+  - *Status*: `RESOLVED (Starter $7/mo or In-Process Worker)`
+  - *Evidence*:
+    - Free Render Web Service sleeps after 15 min idle (30–60s cold start) and does not support free standalone background workers.
+    - Hugging Face Spaces (`cpu-basic`, 16 GB RAM Docker) sleeps after 48 hours of inactivity (10–30s cold start) with ephemeral disk.
+    - *Decision*: To ensure background Monte Carlo and agent jobs do not drop, the public demo will run on Render Starter ($7/mo always-on) or use an in-process async worker loop inside the web container. Replay Mode (Part 14.4) serves as the primary fallback for zero-downtime evaluation.
+  - *Blocks Implementation*: No.
+- **Frontend Hosting**:
+  - *Status*: `RESOLVED (Cloudflare Pages Recommended / Vercel Hobby Fallback)`
+  - *Evidence*:
+    - **Cloudflare Pages**: Free tier includes unlimited bandwidth, 500 builds/mo, 100k Worker requests/day, and **explicitly permits commercial use**.
+    - **Vercel Hobby**: Free tier includes 100 GB transfer, 300s timeout, but is **strictly restricted to non-commercial personal use**. Acceptable for university coursework/demo, but not commercial launch.
+  - *Blocks Implementation*: No.
+- **Object Storage for PMTiles Vector Maps & Exports**:
+  - *Status*: `RESOLVED (Cloudflare R2 Recommended)`
+  - *Evidence*: Cloudflare R2 provides 10 GB standard storage free per month, 1M write / 10M read operations, 100% S3 API compatibility, and **$0.00 data egress fees**. AWS S3 charges $0.09/GB egress, introducing bill shock risk on public vector tile downloads.
+  - *Blocks Implementation*: No.
 
 ---
 
 ## 5. LLM Provider, Cost Governance, and Evaluation Questions (Part 8.6, 8.3, 12.2)
 
-1. **Provider Models & Interfaces**:
-   - Confirm which active provider models are suitable for:
-     - Structured JSON generation (goal interpretation, plan proposal).
-     - Reasoning / replanning.
-     - Narrative synthesis with placeholder retention (`{{q:UUID}}`).
-   - Provider terms, model names, and rate limits must be configured via environment variables, not hard-coded.
-2. **Cost Governance (Part 8.3)**:
-   - The figure `MAX_COST_USD_PER_RUN = 0.25` is a **configurable, unmeasured starting hypothesis** from handbook Part 8.3.
-   - It will be enforced in code via `BudgetEnforcementDecorator` to prevent runaway spending, and calibrated using empirical measurements during Phase 6.
-3. **Agent Evaluation Benchmark (Part 12.2)**:
-   - The target benchmark comprises roughly **60–100 tasks** across Loops A, B, and C with gold labels, divided into development, validation, and frozen test sets.
+### 5.1 Provider Models & Privacy Terms
+- **Primary LLM Provider**:
+  - *Status*: `RESOLVED (OpenAI API Recommended)`
+  - *Evidence*:
+    - Active primary workhorse: **`gpt-6-luna`** ($0.10/1M input, $0.50/1M output, $0.01 cached input, ~1.05M context). Features native guaranteed JSON Schema enforcement (`response_format: { type: "json_schema", strict: true }`).
+    - Deprecation notice: `gpt-4o-mini` and `gpt-4o` were officially deprecated on October 14, 2026, with API shutdown scheduled for January 14, 2027.
+    - Active reasoning model: **`gpt-5.6-terra`** ($2.00/1M input, $12.00/1M output) for bounded replanning and policy extraction.
+    - Privacy Terms: **OpenAI commercial API terms explicitly guarantee that API inputs and outputs are NOT used to train OpenAI models**. Data retained up to 30 days solely for abuse monitoring.
+    - Rate Limits: `CONDITIONAL (Account Tier Dependent)`. Starting at 500 RPM / 200,000 TPM on Tier 1 up to high throughput on Tier 5.
+  - *Alternative Providers*: Anthropic (`claude-3-5-haiku` / `claude-3-5-sonnet`) verified compliant (no API training). Google Gemini verified that **Free tier on AI Studio USES prompts for training**, whereas only the Paid tier exempts data from training.
+  - *Blocks Implementation*: No.
+
+### 5.2 Cost Governance & Safeguards (Part 8.3)
+- **Per-Run Cost Cap (`MAX_COST_USD_PER_RUN = 0.25`)**:
+  - *Status*: `RESOLVED`
+  - *Evidence*: The $0.25 limit is an initial unmeasured hypothesis. At `gpt-6-luna` pricing ($0.10/$0.50 per 1M), an 8-call run costs ~$0.0040 (0.40 US cents), providing a ~62x safety margin. If cumulative run cost exceeds $0.25, `BudgetEnforcementDecorator` immediately transitions the run to `BUDGET_EXHAUSTED`, returns partial outputs, and records unresolved gaps.
+  - *Blocks Implementation*: No.
+- **Per-Run Hard Step and Call Limits**:
+  - *Status*: `RESOLVED`
+  - *Evidence*: Enforced in code: Max 25 steps per run, max 3 replans, max 30 model calls, 60s tool execution timeout, 2 transient retries.
+  - *Blocks Implementation*: No.
+- **Offline & Replay Modes**:
+  - *Status*: `RESOLVED`
+  - *Evidence*: `FakeLLMClient` generates deterministic Pydantic objects for tests. `ReplayLLMClient` serves pre-recorded golden traces for Loops A, B, and C with the `REPLAY` banner, enabling zero-cost demos and evaluation without live API keys.
+  - *Blocks Implementation*: No.
+
+### 5.3 Agent Evaluation Benchmark (Part 12.2)
+- **Benchmark Task Corpus**:
+  - *Status*: `RESOLVED (Task P0-5 completed)`
+  - *Evidence*: Benchmark task format and test suite authored and committed in P0-5. Targets 60–100 gold tasks split into dev, validation, and frozen test sets.
+  - *Blocks Implementation*: No.
 
 ---
 
@@ -124,11 +168,19 @@ To prevent premature optimization, hosting and infrastructure questions are sepa
 ## 7. Other Unresolved Questions from the Handbook
 
 1. **Epistemic Ledger Novelty Literature Review (Section 1.4)**:
+   - *Status*: `OPEN (Academic Context)`
    - Perform a focused academic literature review comparing provenance graphs (W3C PROV, data lineage) with runtime evidence-gated agent decision systems.
    - *Rule*: Do not claim the concept is novel in any presentation or paper without prior verification.
+   - *Blocks Implementation*: No.
 2. **Name Availability Check**:
-   - Check trademark databases and software registries (PyPI, npm, GitHub) for the name "ArthLens".
+   - *Status*: `RESOLVED (Task P0-3 completed)`
+   - *Evidence*: Documented in [`docs/name-search.md`](name-search.md). PyPI, npm, GitHub clear for coursework repo. Commercial entity `Arthlens Technologies Pvt. Ltd.` discovered in Bengaluru; commercial incorporation blocked/rebranding required before commercial startup, but academic evaluation is permissible.
+   - *Blocks Implementation*: No.
 3. **Competitor & Precedent Analysis (Section 1.5, Task P0-3)**:
-   - Systematically inspect ONDC, Udyam, MSME Sampark, and general deep-research agents to establish exact empirical baselines.
+   - *Status*: `RESOLVED (Task P0-3 completed)`
+   - *Evidence*: Documented in [`docs/competitor-analysis.md`](competitor-analysis.md). Empirical functional boundaries and matrices established for ONDC, Udyam, MSME Sampark, and deep-research agents.
+   - *Blocks Implementation*: No.
 4. **Huff Model Parameter Calibration (Section 6.3)**:
+   - *Status*: `OPEN (Scheduled for Phase 2 Demand Engine)`
    - Check literature for documented empirical bounds on distance decay exponent $\lambda$ in Indian semi-urban retail contexts.
+   - *Blocks Implementation*: No (required for Phase 2, not Phase 1).
