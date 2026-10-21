@@ -68,11 +68,49 @@ jobs:
         run: |
           pytest backend/tests/smoke/ -v
 
+      - name: "Run Domain & Interface Contract Tests (P1-2 Acceptance: Contract-test skeletons exist)"
+        run: |
+          pytest backend/tests/contract/ -v
+
       - name: Audit P0-5 Red-Stage Ledger Invariant Tests (TDD Red Contract)
         run: |
           python -c "
-          import sys, pytest
+          import sys, importlib, pytest
 
+          # --- Step 1: Preflight Dependency & Phase Boundary Verification ---
+          try:
+              from backend.arthlens.domain.enums import Kind
+              expected_members = {
+                  'OBSERVED', 'POLICY_RULE', 'USER_ASSUMED', 'ESTIMATED',
+                  'SCENARIO', 'CALCULATED', 'SIMULATED'
+              }
+              actual_members = {m.name for m in Kind}
+              if actual_members != expected_members:
+                  print(f'FAIL: Kind members drift in P1-2. Expected {expected_members}, got {actual_members}', file=sys.stderr)
+                  sys.exit(1)
+          except Exception as e:
+              print(f'FAIL: Could not import backend.arthlens.domain.enums.Kind: {e}', file=sys.stderr)
+              sys.exit(1)
+
+          quantity_exists = False
+          try:
+              importlib.import_module('backend.arthlens.domain.quantity')
+              quantity_exists = True
+          except ModuleNotFoundError as e:
+              if e.name != 'backend.arthlens.domain.quantity':
+                  print(f'FAIL: Unexpected missing module during preflight check: {e.name}', file=sys.stderr)
+                  sys.exit(1)
+          except Exception as e:
+              print(f'FAIL: Unexpected error attempting to import backend.arthlens.domain.quantity: {e}', file=sys.stderr)
+              sys.exit(1)
+
+          if quantity_exists:
+              print('FAIL: backend.arthlens.domain.quantity unexpectedly exists in P1-2. Quantity belongs to P1-3.', file=sys.stderr)
+              sys.exit(1)
+
+          print('Preflight check PASSED: Kind enum verified (7 members); backend.arthlens.domain.quantity confirmed absent awaiting P1-3.')
+
+          # --- Step 2: Strict P0-5 Invariant Test Audit ---
           class RedStageVerifier:
               def __init__(self):
                   self.collected_count = 0
