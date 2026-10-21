@@ -1,6 +1,6 @@
 name: ArthLens CI
 
-on:
+'on':
   push:
     branches: [main]
   pull_request:
@@ -64,7 +64,7 @@ jobs:
           psql -h localhost -U arthlens_test -d arthlens_test -c "CREATE EXTENSION IF NOT EXISTS postgis;"
           psql -h localhost -U arthlens_test -d arthlens_test -c "SELECT PostGIS_Version();"
 
-      - name: Run Baseline Smoke Tests (P1-1 Acceptance: CI green on empty tests)
+      - name: "Run Baseline Smoke Tests (P1-1 Acceptance: CI green on empty tests)"
         run: |
           pytest backend/tests/smoke/ -v
 
