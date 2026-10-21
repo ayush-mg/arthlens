@@ -76,7 +76,7 @@ ArthLens structures user interactions into three distinct investigation loops:
 | **Frontend** | **Next.js (App Router), TypeScript, Tailwind CSS** | The web application interface seen by the user. Type-safe and responsive. |
 | **Mapping & GIS** | **MapLibre GL JS & PMTiles** | Interactive maps reading vector map archives directly from object storage without requiring custom tile-server infrastructure. |
 | **Data Visualization** | **Apache ECharts & Cytoscape.js** | ECharts renders financial fan charts and sensitivity tornado plots; Cytoscape.js renders the interactive Evidence Graph and Policy AST. |
-| **Backend API** | **Python 3.12, FastAPI, Pydantic v2** | High-speed API layer with strict request/response data validation. *(Note: Python 3.14.5 environment compatibility check pending in Phase 0).* |
+| **Backend API** | **Python 3.14, FastAPI, Pydantic v2** | High-speed API layer with strict request/response data validation. |
 | **Database & Spatial** | **PostgreSQL + PostGIS** | Relational database with geographic data extensions handling boundaries, spatial queries, and road networks. |
 | **Asynchronous Jobs** | **Postgres Jobs Table (`FOR UPDATE SKIP LOCKED`)** | Reliable background job worker queue without adding external broker dependencies (no Redis or Celery in MVP). |
 | **Numerics & GIS Math**| **NumPy, SciPy, GeoPandas, Shapely, Pint** | Deterministic calculations for spatial demand allocation, financial models, risk simulations, and unit safety. |

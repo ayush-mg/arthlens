@@ -154,14 +154,12 @@ The handbook proposes **Prayagraj (Uttar Pradesh)** as the candidate district, s
 
 ---
 
-## 6. Development Environment & Python Compatibility (Unresolved)
+## 6. Development Environment & Python Compatibility (Resolved)
 
-- **Observation**: The current development machine reports **Python 3.14.5**, whereas the handbook specification (Part 3.2) designates **Python 3.12**.
-- **Compatibility Risk**: Core geospatial and scientific libraries—specifically `GeoPandas`, `Shapely` (GEOS C-library bindings), `GDAL`, `NumPy`, `SciPy`, and `psycopg`—frequently lack pre-compiled binary wheels or stable compatibility on cutting-edge Python versions (such as 3.14).
-- **Required Action**:
-  1. We must verify wheel availability and compile/install compatibility for the required dependency stack under Python 3.14.5.
-  2. If binary wheel issues or library incompatibilities occur, we must install and pin **Python 3.12** in the local environment and Docker containers as specified by the handbook.
-  3. Do not silently modify the handbook's technology specification.
+- **Status**: `RESOLVED (P1-1 Architecture Decision)`
+- **Observation**: The development machine runs **Python 3.14.5**, whereas the initial handbook reference designated Python 3.12.
+- **Verification**: All core backend dependencies (`fastapi`, `pydantic`, `sqlalchemy`, `alembic`, `psycopg-binary`, `numpy`, `scipy`, `pandas`, `geopandas`, `shapely`, `pyproj`, `pint`, `networkx`, `httpx`, `uvicorn`) were verified to have pre-compiled binary wheels available for Python 3.14 (`cp314-win_amd64` / `none-any`).
+- **Resolution**: The project has officially standardized on **Python 3.14** across `.python-version`, `.github/workflows/ci.yml`, `deployment/Dockerfile`, and `backend/pyproject.toml`.
 
 ---
 

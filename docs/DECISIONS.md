@@ -102,7 +102,7 @@ Why was this choice selected over the alternatives? What simpler approaches were
   - **Map Rendering**: MapLibre GL JS reading static vector PMTiles archives directly from object storage (no custom tile server required).
   - **Graph & Tree Visualizations**: Cytoscape.js for both the Evidence DAG and Policy Rule AST.
   - **Charts**: Apache ECharts for tornado plots, cash-flow fan charts, and comparison histograms.
-  - **Backend API**: Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2, Alembic, GeoAlchemy2. *(Note: Local Python 3.14.5 compatibility under investigation in Phase 0; target runtime remains Python 3.12).*
+  - **Backend API**: Python 3.14, FastAPI, Pydantic v2, SQLAlchemy 2, Alembic, GeoAlchemy2. (Standardized on Python 3.14 across local, Docker, and CI environments).
   - **Numerics & Units**: NumPy, SciPy, pandas, GeoPandas, Shapely, Pint (for unit arithmetic safety). Dijkstra implemented using Python `heapq` and validated against NetworkX in tests.
   - **Auth**: Password hashing (argon2 or bcrypt) with JWT in `httpOnly` secure `SameSite` cookies; seeded demo accounts for evaluation.
   - **Live Streaming**: Server-Sent Events (SSE) reading from `run_events` table with polling fallback.

@@ -1,0 +1,184 @@
+name: ArthLens CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-ci:
+    name: Backend CI (Python 3.14 + PostGIS 16-3.4)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4-alpine
+        env:
+          POSTGRES_DB: arthlens_test
+          POSTGRES_USER: arthlens_test
+          POSTGRES_PASSWORD: arthlens_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.14 (Project Specification)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: 'pip'
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Install system dependencies (PostgreSQL client & Geospatial libraries)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            postgresql-client \
+            libpq-dev \
+            libgdal-dev \
+            libgeos-dev \
+            libproj-dev
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest hypothesis jsonschema pint
+
+      - name: Verify PostgreSQL 16 + PostGIS 3.4 connectivity and extension
+        env:
+          PGPASSWORD: arthlens_test_password
+        run: |
+          echo "Checking PostgreSQL connection and PostGIS extension..."
+          psql -h localhost -U arthlens_test -d arthlens_test -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+          psql -h localhost -U arthlens_test -d arthlens_test -c "SELECT PostGIS_Version();"
+
+      - name: Run Baseline Smoke Tests (P1-1 Acceptance: CI green on empty tests)
+        run: |
+          pytest backend/tests/smoke/ -v
+
+      - name: Audit P0-5 Red-Stage Ledger Invariant Tests (TDD Red Contract)
+        run: |
+          python -c "
+          import sys, pytest
+
+          class RedStageVerifier:
+              def __init__(self):
+                  self.collected_count = 0
+                  self.collection_errors = []
+                  self.setup_teardown_errors = []
+                  self.call_failures = []
+                  self.call_passes = []
+                  self.skips = []
+
+              def pytest_collectreport(self, report):
+                  if report.failed:
+                      self.collection_errors.append((report.nodeid, str(report.longrepr)))
+
+              def pytest_collection_finish(self, session):
+                  self.collected_count = len(session.items)
+
+              def pytest_runtest_logreport(self, report):
+                  if report.skipped:
+                      self.skips.append((report.nodeid, str(report.longrepr)))
+                  elif report.when in ('setup', 'teardown'):
+                      if report.failed:
+                          self.setup_teardown_errors.append((report.nodeid, report.when, str(report.longrepr)))
+                  elif report.when == 'call':
+                      if report.passed:
+                          self.call_passes.append(report.nodeid)
+                      elif report.failed:
+                          self.call_failures.append((report.nodeid, str(report.longrepr)))
+
+          verifier = RedStageVerifier()
+          result = pytest.main(['backend/tests/property/', 'backend/tests/unit/', '-v'], plugins=[verifier])
+
+          print(f'\n--- Red-Stage Test Audit Summary ---')
+          print(f'Pytest Exit Code: {result} (Expected: {pytest.ExitCode.TESTS_FAILED})')
+          print(f'Total Collected: {verifier.collected_count} (Expected: 27)')
+          print(f'Collection Errors: {len(verifier.collection_errors)} (Expected: 0)')
+          print(f'Setup/Teardown Errors: {len(verifier.setup_teardown_errors)} (Expected: 0)')
+          print(f'Call-Phase Failures: {len(verifier.call_failures)} (Expected: 27)')
+          print(f'Call-Phase Passes: {len(verifier.call_passes)} (Expected: 0)')
+          print(f'Skips/XFails: {len(verifier.skips)} (Expected: 0)')
+
+          if result != pytest.ExitCode.TESTS_FAILED:
+              print(f'FAIL: Unexpected pytest exit code: {result} (expected {pytest.ExitCode.TESTS_FAILED})', file=sys.stderr)
+              sys.exit(1)
+
+          if len(verifier.collection_errors) > 0:
+              print('FAIL: Collection errors detected:', file=sys.stderr)
+              for node, err in verifier.collection_errors:
+                  print(f'  {node}: {err}', file=sys.stderr)
+              sys.exit(1)
+
+          if len(verifier.setup_teardown_errors) > 0:
+              print('FAIL: Setup/teardown errors detected:', file=sys.stderr)
+              for node, when, err in verifier.setup_teardown_errors:
+                  print(f'  [{when}] {node}: {err}', file=sys.stderr)
+              sys.exit(1)
+
+          if len(verifier.skips) > 0:
+              print('FAIL: Unexpected skipped or xfailed tests detected:', file=sys.stderr)
+              for node, reason in verifier.skips:
+                  print(f'  {node}: {reason}', file=sys.stderr)
+              sys.exit(1)
+
+          if len(verifier.call_passes) > 0:
+              print('FAIL: Unexpected passing tests before implementation:', file=sys.stderr)
+              for node in verifier.call_passes:
+                  print(f'  {node}', file=sys.stderr)
+              sys.exit(1)
+
+          if verifier.collected_count != 27:
+              print(f'FAIL: Expected exactly 27 collected tests, got {verifier.collected_count}', file=sys.stderr)
+              sys.exit(1)
+
+          if len(verifier.call_failures) != 27:
+              print(f'FAIL: Expected exactly 27 call-phase failures, got {len(verifier.call_failures)}', file=sys.stderr)
+              sys.exit(1)
+
+          expected_msg = 'BLOCKED: backend.arthlens.domain not available'
+          unmatched = [node for node, msg in verifier.call_failures if expected_msg not in msg]
+          if unmatched:
+              print('FAIL: Call-phase failures with unexpected reason (not standard BLOCKED contract):', file=sys.stderr)
+              for node in unmatched:
+                  print(f'  {node}', file=sys.stderr)
+              sys.exit(1)
+
+          print('SUCCESS: Exactly 27 tests collected, executed, and verified in expected BLOCKED red stage per Handbook Section 4.7.')
+          "
+
+  frontend-ci:
+    name: Frontend Specification & Configuration Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate Frontend Package Configuration
+        run: |
+          node -e "
+            const pkg = require('./frontend/package.json');
+            console.log('Validated package:', pkg.name, 'version:', pkg.version);
+            if (!pkg.dependencies.next || !pkg.dependencies['maplibre-gl']) {
+              throw new Error('Missing core Next.js or MapLibre dependencies');
+            }
+          "

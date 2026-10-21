@@ -1,0 +1,25 @@
+# ArthLens Deployment Compose Specification
+# Authoritative Reference: ArthLens Build Handbook v1.0 (Part 3.2, 14.2)
+services:
+  db:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: arthlens-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-arthlens}
+      POSTGRES_USER: ${POSTGRES_USER:-arthlens_dev}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-arthlens_dev_password}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-arthlens_dev} -d ${POSTGRES_DB:-arthlens}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres_data:
+    name: arthlens_postgres_data
