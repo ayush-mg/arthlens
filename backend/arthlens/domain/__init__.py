@@ -23,6 +23,7 @@ from backend.arthlens.domain.interfaces import (
     Tool,
     VerificationSpecification,
 )
+from backend.arthlens.domain.quantity import Quantity
 
 __all__ = [
     "Kind",
@@ -30,6 +31,7 @@ __all__ = [
     "EvidenceFloor",
     "ResolutionTier",
     "ResolutionLevel",
+    "Quantity",
     "DataProvider",
     "DemandAllocator",
     "SimulationModel",

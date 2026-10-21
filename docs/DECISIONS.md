@@ -240,3 +240,38 @@ Handbook Part 2.1 and Part 7.3 establish that the MVP build must focus strictly 
      - Initial per-run cost cap: `MAX_COST_USD_PER_RUN = 0.25` enforced in code by `BudgetEnforcementDecorator` (provides ~62x safety margin with `gpt-6-luna`).
      - Hard step limit: 25 steps; Replans: 3; Model calls: 30; Tool timeout: 60s; Retries: 2.
      - Offline testing: `FakeLLMClient` and `ReplayLLMClient` ensure 100% test coverage and CI execution without incurring API costs.
+
+---
+
+### ADR-010: Epistemic Ledger Implementation, Pint Unit Registry, and Downscaling Registry (Task P1-3)
+- **Status**: `ACCEPTED` (Handbook Parts 4.1–4.4, 4.7, 5.1)
+- **Date**: 2026-10-22
+- **Task ID**: `P1-3`
+- **Handbook Reference**: Section 4.1, 4.2, 4.3, 4.4, 4.7, 5.1
+- **Deciders**: Developer A, Antigravity
+
+#### Context
+Task P1-3 establishes the foundational computational substrate of ArthLens: the immutable `Quantity` domain model, the Epistemic Ledger DAG, evidence floor combination, resolution downscaling with conservation, uncertainty propagation, and Pint unit-compatibility checking to make all 27 original P0-5 invariant tests pass.
+
+#### Decision
+1. **Quantity Dataclass**:
+   - Implemented as `@dataclass(frozen=True)` in `backend.arthlens.domain.quantity` adhering to the 16 model attributes specified in Handbook Section 5.1 and ADR-001.
+   - Immutability is enforced at runtime (`FrozenInstanceError` on modification).
+   - Invariants validated in `__post_init__`: `kind` in `Kind`, `evidence_floor` in $[1, 4]$, `resolution` in $[0, 5]$, and strict rejection of `OBSERVED` quantities declaring parent inputs.
+2. **Epistemic Ledger DAG (`backend.arthlens.ledger.ledger.Ledger`)**:
+   - In-memory DAG maintaining registered quantities, parent edges, and child edges.
+   - Prohibits direct self-reference (`quantity.id in quantity.parent_ids`) and indirect multi-node directed cycles during registration by verifying that `quantity.id` is not an ancestor of any declared parent.
+   - `ancestors(id)` returns the exact set of transitive parent IDs, verified on linear chains and diamond dependencies.
+3. **Pint Unit Registry (`backend.arthlens.ledger.units`)**:
+   - Custom `UnitRegistry` adds domain currencies (`INR`, `rupee`, `rupees`), headcount (`person`, `persons`), and Indian multiples (`lakh`, `crore`).
+   - `check_unit_compatibility` validates dimensional consistency for operations (`add`, `subtract`, `multiply`, `divide`), raising `DimensionalityError` (a `ValueError` subclass) when adding incompatible dimensions (e.g. `INR` + `kg`, `INR` + `INR/month`).
+4. **Downscaling Registry & `popweight_v1` (`backend.arthlens.ledger.downscaling`)**:
+   - `DownscalingRegistry` manages registered spatial downscaling algorithms. Unregistered methods are strictly rejected.
+   - `popweight_v1` partitions coarse district totals to zones according to weights and strictly conserves totals within floating-point tolerance ($\sum E_z = D_{\text{district}}$).
+5. **Uncertainty Arithmetic & Combination (`backend.arthlens.ledger.uncertainty`)**:
+   - `UNQUANTIFIED` is contagious for all deterministic operations.
+   - `EXACT` inputs combined deterministically remain `EXACT`.
+   - Interval arithmetic correctly encloses exact arithmetic for addition, subtraction, and multiplication.
+   - Division by an interval containing zero is strictly rejected with `ZeroDivisionError`.
+6. **Quality Flag Propagation (`backend.arthlens.ledger.propagation`)**:
+   - Derived quantities inherit all parent quality flags (`STALE`, `INCOMPLETE_SOURCE`, `LOW_COVERAGE`, etc.) as a unified `frozenset`.
