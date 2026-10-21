@@ -13,7 +13,7 @@
 | **P0-1** | Verify each source in the register (Part 7); write `docs/data-sources/*.md` with licence and GO/NO-GO | A + B (human) | 🧑 **Human Required** (AI can format templates) | Every MVP source (DS-01 through DS-09) has an evidence-backed file with licence terms and explicit GO/NO-GO decision. | `DONE` |
 | **P0-2** | Fetch PMFME, PMEGP, PM-MUDRA official guidelines; hash; extract parameters by hand | B (human) | 🧑 **Human Required** (AI can review schema) | PDF hashes (SHA-256) and exact parameter tables extracted with page references into canonical [`docs/data-sources/ds-08-schemes.md`](data-sources/ds-08-schemes.md). No secondary blog figures. | `DONE` |
 | **P0-3** | Competitor checks (ONDC, Udyam, MSME Sampark, two deep-research agents); name availability check for ArthLens | A | 🤖 **AI-Assisted** + 🧑 Human Sign-off | Competitor matrix updated with empirical evidence and functional boundaries; name search documented. | `DONE` |
-| **P0-4** | Choose pilot district by the go/no-go gate (Part 7.3); choose two business templates and identify parameter sources | A + B | 🧑 **Human Required** (AI can extract OSM stats) | Written decision with evidence satisfying the road network, POI count, and population resolution criteria. | `READY_FOR_HUMAN_SIGN_OFF` |
+| **P0-4** | Choose pilot district by the go/no-go gate (Part 7.3); choose two business templates and identify parameter sources | A + B | 🧑 **Human Required** (AI can extract OSM stats) | Written decision with evidence satisfying the road network, POI count, and population resolution criteria. | `DONE` |
 | **P0-5** | Write ledger invariants as tests (Part 4.7) and author the benchmark task format (roughly 60–100 tasks) | A | 🤖 **AI-Assisted** (AI can draft test suite) | Failing unit and property-based test suite committed to git before Phase 1 implementation begins. | `DONE` |
 | **P0-6** | Confirm hosting limits (Part 14) and LLM provider terms | B | 🤖 **AI-Assisted** + 🧑 Human Decision | All hosting and LLM questions resolved or explicitly listed in [`docs/open-questions.md`](open-questions.md). | `DONE` |
 
@@ -77,7 +77,7 @@
   3. [x] **Policy Schemes**: At least three official schemes fetched and verified in Task P0-2 ([`docs/schemes/source_register.md`](schemes/source_register.md)).
   4. [x] **Business Templates**: Confirm two target micro-enterprise templates: Retail Grocery and Food-Processing / Tiffin ([`docs/pilot-district-decision.md`](pilot-district-decision.md)).
   5. [x] Write formal decision record with gate evidence in [`docs/DECISIONS.md`](DECISIONS.md#adr-008-pilot-district-selection-prayagraj-up-and-business-template-selection).
-- **Status**: `READY_FOR_HUMAN_SIGN_OFF` (Technical gate evaluation complete; formal human developer sign-off in repository pending)
+- **Status**: `DONE` (Human-approved 2026-10-21: Prayagraj confirmed with two-tier geographic coverage policy and DS-01 safety restriction)
 
 ---
 

@@ -148,10 +148,10 @@ In accordance with the **ArthLens Build Handbook (Part 2.1 and Part 7.3)**, the 
 
 ---
 
-## 5. Human Governance Gate & Recommendation
+## 5. Human Governance Gate & Formal Sign-Off
 
 - **Handbook Responsibility**: Task P0-4 is designated as **Human-Owned (`A + B`)** in Handbook Part 13.1.
-- **Current Status**: **`RECOMMENDED FOR ADOPTION (Technically Complete & Evidence-Backed)`**
-- **Action Required by Human Developer**:
-  - Review the gate results in this report and [ADR-008](DECISIONS.md#adr-008-pilot-district-selection-prayagraj-up-and-business-template-selection).
-  - Provide human sign-off to formally close the P0-4 verification gate before Phase 1 begins.
+- **Current Status**: **`APPROVED & ADOPTED (Human Developer Sign-Off 2026-10-21)`**
+- **Record of Sign-Off**:
+  - The human developer formally reviewed and approved the Prayagraj pilot district selection, the Two-Tier Geographic Coverage Policy (Navigable Tier district-wide vs. Analysable Tier in Sadar Tehsil urban commercial core), and the DS-01 safety restriction (disabling live agricultural mandi price feeds for micro-enterprise templates in MVP).
+  - Gate P0-4 is formally closed.

@@ -211,8 +211,7 @@ Handbook Part 2.1 and Part 7.3 establish that the MVP build must focus strictly 
 
 5. **Human Governance & Sign-Off Notice**:
    - P0-4 is categorized as **Human-Owned (`A + B`)** in the Build Handbook (Part 13.1).
-   - This technical decision record establishes that all empirical gate criteria are satisfied and documented.
-   - Formal sign-off and adoption remain subject to final confirmation by the human developers (Developers A and B).
+   - Formal sign-off and adoption confirmed by human developer on 2026-10-21: Prayagraj confirmed as MVP pilot district under the Two-Tier Geographic Coverage Policy and DS-01 safety restriction.
 
 ---
 
