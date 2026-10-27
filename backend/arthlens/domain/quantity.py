@@ -8,9 +8,10 @@ Encapsulation: Immutable (@dataclass(frozen=True)) once registered.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
 from backend.arthlens.domain.enums import Kind
+from backend.arthlens.domain.simulation import SimulationMetadata
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,7 @@ class Quantity:
         parent_ids: Tuple of immediate parent Quantity IDs in the ledger DAG.
         quality_flags: Frozen set of quality flags (e.g., STALE, INCOMPLETE_SOURCE, LOW_COVERAGE).
         license_meta: Attribution/licence string (e.g. GODL-India, ODbL).
+        simulation_meta: Dedicated structured reproducibility metadata for SIMULATED quantities.
     """
     id: str
     definition_key: str
@@ -53,6 +55,7 @@ class Quantity:
     parent_ids: tuple = field(default_factory=tuple)
     quality_flags: frozenset = field(default_factory=frozenset)
     license_meta: str = ""
+    simulation_meta: Optional[SimulationMetadata] = None
 
     def __post_init__(self) -> None:
         """Validate invariant constraints and normalize sequence attributes."""
@@ -108,3 +111,20 @@ class Quantity:
                 "An OBSERVED quantity cannot have parent quantities. "
                 "Calculated or derived values must be labelled CALCULATED, ESTIMATED, or SIMULATED."
             )
+
+        # Validate simulation_meta type if provided
+        if self.simulation_meta is not None:
+            if not isinstance(self.simulation_meta, SimulationMetadata):
+                raise ValueError(
+                    f"simulation_meta must be an instance of SimulationMetadata, "
+                    f"got {type(self.simulation_meta).__name__}."
+                )
+
+        # Enforce that source_refs contains external document citations, not simulation metadata records
+        for ref in self.source_refs:
+            if isinstance(ref, SimulationMetadata) or (isinstance(ref, dict) and "seed" in ref):
+                raise ValueError(
+                    "source_refs is reserved for external document citations "
+                    "(version_id, locator, retrieval_date). Simulation metadata must be "
+                    "stored in the dedicated 'simulation_meta' field."
+                )

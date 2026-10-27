@@ -20,10 +20,12 @@ from backend.arthlens.domain.interfaces import (
     RuleVisitor,
     RunState,
     SimulationModel,
+    SpecResult,
     Tool,
     VerificationSpecification,
 )
 from backend.arthlens.domain.quantity import Quantity
+from backend.arthlens.domain.simulation import SimulationMetadata
 
 __all__ = [
     "Kind",
@@ -32,11 +34,13 @@ __all__ = [
     "ResolutionTier",
     "ResolutionLevel",
     "Quantity",
+    "SimulationMetadata",
     "DataProvider",
     "DemandAllocator",
     "SimulationModel",
     "RuleNode",
     "RuleVisitor",
+    "SpecResult",
     "VerificationSpecification",
     "Tool",
     "ILLMClient",

@@ -16,6 +16,7 @@ Follows GoF patterns identified in Section 5.2:
 """
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Union
 
 if TYPE_CHECKING:
@@ -125,6 +126,25 @@ class RuleVisitor(ABC):
     concrete visitors implement node-specific visit methods (e.g., visit_leaf).
     """
     pass
+
+
+@dataclass(frozen=True)
+class SpecResult:
+    """
+    Structured outcome of a verification specification check.
+
+    Handbook Reference: Section 4.5:
+        'Each returns a result object with pass/fail, the offending quantity id,
+        and a human-readable reason (shown in the Agent Console).'
+    """
+    passed: bool
+    spec_name: str
+    offending_quantity_id: Optional[str] = None
+    reason: str = ""
+    details: Optional[Dict[str, Any]] = None
+
+    def __bool__(self) -> bool:
+        return self.passed
 
 
 class VerificationSpecification(ABC):
