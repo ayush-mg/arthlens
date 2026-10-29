@@ -275,3 +275,61 @@ Task P1-3 establishes the foundational computational substrate of ArthLens: the 
    - Division by an interval containing zero is strictly rejected with `ZeroDivisionError`.
 6. **Quality Flag Propagation (`backend.arthlens.ledger.propagation`)**:
    - Derived quantities inherit all parent quality flags (`STALE`, `INCOMPLETE_SOURCE`, `LOW_COVERAGE`, etc.) as a unified `frozenset`.
+
+
+---
+
+### ADR-011: P1-5 Persistence Architecture: PostgreSQL Schema, Seed Precision, and Dual Repositories
+- **Status**: `ACCEPTED` (Handbook Part 5.1, Part 9.1, Part 9.2, Part 12.1, Part 13.1, Appendix A.2)
+- **Date**: 2026-10-30
+- **Task ID**: `P1-5`
+- **Handbook Reference**: Part 5.1, Part 9.1, Part 9.2, Part 12.1, Part 13.1, Appendix A.2
+- **Deciders**: Developer A, Antigravity
+
+#### Context
+Task P1-5 translates the Handbook Part 9 candidate schema into version-controlled Alembic migrations against PostgreSQL 16 + PostGIS 3.4, implements repository interfaces following the P1-2 `Repository` contract, provides both PostgreSQL-backed and in-memory fake implementations with identical semantics, guarantees Quantity immutability at the database boundary, and ensures full round-trip preservation of Quantity records including P1-4 `SimulationMetadata` with exact unsigned 64-bit seed precision.
+
+#### Decision
+1. **PostgreSQL/PostGIS Schema & Alembic Migration Structure (`backend/migrations/`)**:
+   - Baseline migration `001_initial_schema.py` establishes all 20 tables defined in Handbook 9.1 and 9.2:
+     - Identity & RBAC: `users`, `roles`, `user_roles`
+     - Evidence & Provenance: `sources`, `source_versions`
+     - Geography & Facilities: `geo_units` (PostGIS `geometry`), `facilities` (PostGIS `geometry`)
+     - Core Epistemic Ledger: `quantities` (UUID PK, `parent_ids UUID[]` indexed via `quantities_parents_gin USING GIN`, `uncertainty JSONB`, `source_refs JSONB`, `simulation_meta JSONB`)
+     - Policy & Governance: `policy_documents`, `policy_rules`
+     - Profiles & Scenarios: `business_profiles`, `scenarios`, `simulation_runs`
+     - Agent Orchestration: `agent_runs`, `agent_run_steps`, `run_events`
+     - Jobs & Auditing: `jobs`, `approvals`, `tasks`, `audit_events`
+   - Migration `002_seed_and_immutability.py`:
+     - Installs PostgreSQL trigger `trg_quantities_immutable` via function `enforce_quantity_immutability()` to enforce database-boundary immutability of Quantity `value` and `kind`.
+     - Expands `simulation_runs.seed` from `BIGINT` to `NUMERIC(20, 0)` with a downgrade safety check refusing downgrade if records with `seed > 9223372036854775807` exist.
+   - Migration `003_enforce_exact_integer_seed.py`:
+     - Refines `simulation_runs.seed` to unconstrained `NUMERIC` with check constraint `CHECK (seed = TRUNC(seed) AND seed >= 0 AND seed <= 18446744073709551615)`. This prevents PostgreSQL from silently auto-rounding fractional inputs prior to check constraint evaluation, strictly rejecting fractional seeds. Includes downgrade safety check guarding against fractional seeds.
+   - Verified clean migration cycles: `alembic upgrade head`, `alembic downgrade base`, and intermediate version rollbacks/re-upgrades execute cleanly against PostgreSQL 16 + PostGIS 3.4.
+
+2. **Quantity Immutability & Supersession Invariant**:
+   - Handbook Section 9.2: *"Quantities are immutable: never UPDATE value or kind. Corrections create a new quantity and mark the old one superseded in quality_flags."*
+   - Application Layer: `PostgresQuantityRepository` and `InMemoryQuantityRepository` reject mutation attempts on existing IDs with `ImmutableQuantityError`.
+   - Database Engine Layer: PostgreSQL trigger `trg_quantities_immutable` intercepts direct SQL `UPDATE` statements on `quantities` and aborts if `NEW.value IS DISTINCT FROM OLD.value` or `NEW.kind IS DISTINCT FROM OLD.kind`.
+   - Supersession Updates: Updates modifying non-immutable metadata (such as appending `'SUPERSEDED'` to `quality_flags`) are explicitly permitted at both layers.
+
+3. **Exact Unsigned 64-Bit Simulation Seed Persistence**:
+   - P1-4 `SimulationMetadata` supports PCG64 random seeds up to $2^{64}-1$ ($0 \le \text{seed} \le 18446744073709551615$). Standard signed PostgreSQL `BIGINT` caps at $9223372036854775807$ and overflows for unsigned 64-bit values.
+   - Input Validation (`backend/arthlens/domain/simulation.py`): `validate_and_convert_seed(raw_seed)` strictly rejects `bool` (subclass of int), `float` (to prevent IEEE-754 precision loss), fractional `Decimal`, negative integers, and values $> 18446744073709551615$. Valid integers and integral Decimals are converted to `Decimal(val)` for persistence.
+   - SQLAlchemy Precision Mapping: Mapped as `Numeric(asdecimal=True)` on `SimulationRunModel.seed`. Setting `asdecimal=True` guarantees that SQLAlchemy returns Python `Decimal` rather than binary64 floats.
+   - Lossless Retrieval: Repositories convert from `Decimal` to Python `int` via `int(model.seed)`, achieving bitwise integer equality with zero floating-point intermediate representations. Tested against precision boundaries $0$, $1$, $9007199254740993$ ($2^{53}+1$), and $18446744073709551615$ ($2^{64}-1$).
+
+4. **SimulationMetadata Storage in Quantities**:
+   - `SimulationMetadata` represents reproducible Monte Carlo parameters (scenario ID, model version, unsigned 64-bit seed, sample count $N$, and input data versions).
+   - In `QuantityModel`, stored in a dedicated `simulation_meta JSONB NULL` column on `quantities`, preserving domain encapsulation without overloading `source_refs` or encoding structured parameters into `method_id`.
+
+5. **Dual Repository Architecture**:
+   - Abstract interfaces in `backend.arthlens.domain.repositories`: `QuantityRepository`, `UserRepository`, `PolicyRuleRepository`, `ScenarioRepository`.
+   - `InMemoryQuantityRepository` (and sibling in-memory repositories) provide isolated unit/contract test execution with zero external database dependencies.
+   - `PostgresQuantityRepository` (and sibling PostgreSQL repositories) provide persistent production storage, utilizing SQLAlchemy 2.0 with GIN index array containment (`parent_ids.contains([target_uuid])`) for DAG child navigation.
+   - Contract test suite `backend/tests/contract/test_repository_contracts.py` parametrizes both implementations across 24 test cases, enforcing identical domain contracts.
+
+6. **Continuous Integration & Testing**:
+   - `.github/workflows/ci.yml` updated to install `sqlalchemy`, `alembic`, `geoalchemy2`, and `psycopg[binary]`.
+   - CI environment runs migrations against the `postgis/postgis:16-3.4-alpine` service container and executes contract and integration tests alongside existing unit and property suites.
+   - 192 total backend tests pass under Python 3.14.5.

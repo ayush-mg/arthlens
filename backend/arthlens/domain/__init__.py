@@ -25,6 +25,15 @@ from backend.arthlens.domain.interfaces import (
     VerificationSpecification,
 )
 from backend.arthlens.domain.quantity import Quantity
+from backend.arthlens.domain.repositories import (
+    ImmutableQuantityError,
+    PolicyRuleRepository,
+    QuantityNotFoundError,
+    QuantityRepository,
+    RepositoryError,
+    ScenarioRepository,
+    UserRepository,
+)
 from backend.arthlens.domain.simulation import SimulationMetadata
 
 __all__ = [
@@ -46,4 +55,11 @@ __all__ = [
     "ILLMClient",
     "RunState",
     "Repository",
+    "RepositoryError",
+    "QuantityNotFoundError",
+    "ImmutableQuantityError",
+    "QuantityRepository",
+    "UserRepository",
+    "PolicyRuleRepository",
+    "ScenarioRepository",
 ]

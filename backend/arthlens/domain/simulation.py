@@ -8,8 +8,52 @@ Encapsulation: Immutable (@dataclass(frozen=True)).
 """
 
 from dataclasses import dataclass, field
+from decimal import Decimal
 import re
-from typing import Tuple
+from typing import Any, Tuple
+
+
+MAX_UINT64 = 18446744073709551615
+
+
+def validate_and_convert_seed(raw_seed: Any) -> Decimal:
+    """
+    Validate and convert a seed input into an exact Decimal representation for persistence.
+
+    Rules per Handbook Part 4.5, 6.4, P1-4 & P1-5:
+    - Rejects booleans (bool is a subclass of int).
+    - Rejects float (to avoid precision loss).
+    - Accepts int and validates 0 <= seed <= 18446744073709551615.
+    - Accepts Decimal and verifies it is integral (no fractional component) and within range.
+    - Accepts string only if strictly composed of integer digits (no decimal point or exponents) and within range.
+    - Rejects negative values and values > 18446744073709551615.
+    """
+    if isinstance(raw_seed, bool):
+        raise TypeError("Seed must be an integer, got bool.")
+
+    if isinstance(raw_seed, float):
+        raise TypeError("Floating-point seeds are rejected to prevent precision loss.")
+
+    if isinstance(raw_seed, int):
+        val = raw_seed
+    elif isinstance(raw_seed, Decimal):
+        if raw_seed % 1 != 0:
+            raise ValueError(f"Fractional Decimal seed rejected: {raw_seed}")
+        val = int(raw_seed)
+    elif isinstance(raw_seed, str):
+        s = raw_seed.strip()
+        if not re.match(r"^\d+$", s):
+            raise ValueError(f"Invalid integer seed string: '{raw_seed}'")
+        val = int(s)
+    else:
+        raise TypeError(f"Invalid seed type: {type(raw_seed).__name__}")
+
+    if val < 0:
+        raise ValueError(f"Seed must be non-negative (>= 0), got {val}")
+    if val > MAX_UINT64:
+        raise ValueError(f"Seed exceeds unsigned 64-bit maximum ({MAX_UINT64}), got {val}")
+
+    return Decimal(val)
 
 
 @dataclass(frozen=True)
@@ -69,4 +113,4 @@ class SimulationMetadata:
                 raise ValueError(f"Invalid data version item: {dv}")
 
 
-__all__ = ["SimulationMetadata"]
+__all__ = ["SimulationMetadata", "validate_and_convert_seed", "MAX_UINT64"]

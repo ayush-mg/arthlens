@@ -54,7 +54,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest hypothesis jsonschema pint
+          pip install pytest hypothesis jsonschema pint sqlalchemy alembic geoalchemy2 "psycopg[binary]"
 
       - name: Verify PostgreSQL 16 + PostGIS 3.4 connectivity and extension
         env:
@@ -64,15 +64,30 @@ jobs:
           psql -h localhost -U arthlens_test -d arthlens_test -c "CREATE EXTENSION IF NOT EXISTS postgis;"
           psql -h localhost -U arthlens_test -d arthlens_test -c "SELECT PostGIS_Version();"
 
+      - name: "Apply Alembic Migrations to PostgreSQL (P1-5 Acceptance: Part 9 Schema)"
+        env:
+          DATABASE_URL: postgresql+psycopg://arthlens_test:arthlens_test_password@localhost:5432/arthlens_test
+        run: |
+          cd backend
+          python -m alembic upgrade head
+
       - name: "Run Baseline Smoke Tests (P1-1 Acceptance: CI green on empty tests)"
         run: |
           pytest backend/tests/smoke/ -v
 
-      - name: "Run Domain & Interface Contract Tests (P1-2 Acceptance: Contract-test skeletons exist)"
+      - name: "Run Domain & Interface Contract Tests (P1-2 & P1-5 Acceptance: Interface & Repo Contracts)"
+        env:
+          DATABASE_URL: postgresql+psycopg://arthlens_test:arthlens_test_password@localhost:5432/arthlens_test
         run: |
           pytest backend/tests/contract/ -v
 
-      - name: "Run Epistemic Ledger Invariant Tests (P1-3 Acceptance: All Part 4.7 property tests pass)"
+      - name: "Run PostgreSQL + PostGIS Integration Tests (P1-5 Acceptance: Integration tests on Postgres container)"
+        env:
+          DATABASE_URL: postgresql+psycopg://arthlens_test:arthlens_test_password@localhost:5432/arthlens_test
+        run: |
+          pytest backend/tests/integration/ -v
+
+      - name: "Run Epistemic Ledger Invariant & Verification Tests (P1-3 & P1-4 Acceptance)"
         run: |
           pytest backend/tests/property/ backend/tests/unit/ -v
 
