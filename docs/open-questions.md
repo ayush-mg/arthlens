@@ -182,3 +182,29 @@ The handbook proposes **Prayagraj (Uttar Pradesh)** as the candidate district, s
    - *Status*: `OPEN (Scheduled for Phase 2 Demand Engine)`
    - Check literature for documented empirical bounds on distance decay exponent $\lambda$ in Indian semi-urban retail contexts.
    - *Blocks Implementation*: No (required for Phase 2, not Phase 1).
+
+---
+
+## 8. Rate Limiting, Quotas, and Cost-Cap Thresholds (Task P1-6) [VERIFY]
+
+The following thresholds were audited against Handbook Part 8.3, Part 11, Part 14.3, and Appendix A:
+
+1. **Per-Run Cost Cap (`MAX_COST_USD_PER_RUN = 0.25`)**:
+   - *Status*: `VERIFIED (Initial Starting Baseline per Handbook Part 8.3)`
+   - *Evidence*: Handbook Part 8.3 (Page 22) specifies: `MAX_COST_USD_PER_RUN env, start at 0.25. Behaviour at limit: BUDGET_EXHAUSTED. Measure real cost in Phase 6`. This value is an authoritative initial baseline, to be recalibrated with empirical token measurements in Phase 6.
+
+2. **Per-IP Rate Limit (`RATE_LIMIT_PER_MINUTE_IP = 60`)**:
+   - *Status*: `PROVISIONAL [VERIFY]`
+   - *Evidence*: Handbook Part 11 specifies *"Per-IP and per-user limits"* but does not define a numerical threshold. 60 requests/minute is an unverified provisional heuristic. Production tuning requires empirical traffic analysis and Cloudflare/reverse proxy calibration.
+
+3. **Per-User Rate Limit (`RATE_LIMIT_PER_MINUTE_USER = 120`)**:
+   - *Status*: `PROVISIONAL [VERIFY]`
+   - *Evidence*: Handbook Part 11 requires per-user throttling. 120 requests/minute is an unverified provisional default.
+
+4. **Daily Run Quota (`DAILY_RUN_QUOTA = 50`)**:
+   - *Status*: `PROVISIONAL [VERIFY]`
+   - *Evidence*: Handbook Part 8.3 specifies *"Configurable quota"* and Part 11 specifies *"daily run quota"*. 50 runs/day is an unverified provisional default.
+
+5. **Daily Accumulated Cost Cap (`MAX_COST_USD_PER_DAY = 5.00`)**:
+   - *Status*: `PROVISIONAL [VERIFY]`
+   - *Evidence*: Handbook Part 11 specifies *"cost cap per run and per day"* and Part 14.3 specifies *"Set a hard daily and monthly cap in the budget governor"*. $5.00/day is an unverified provisional ceiling for demo and development accounts.

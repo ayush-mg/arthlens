@@ -333,3 +333,108 @@ Task P1-5 translates the Handbook Part 9 candidate schema into version-controlle
    - `.github/workflows/ci.yml` updated to install `sqlalchemy`, `alembic`, `geoalchemy2`, and `psycopg[binary]`.
    - CI environment runs migrations against the `postgis/postgis:16-3.4-alpine` service container and executes contract and integration tests alongside existing unit and property suites.
    - 192 total backend tests pass under Python 3.14.5.
+
+---
+
+### ADR-012: P1-6 Authentication, Roles, RBAC, Audit Immutability, and Concurrency-Safe Rate Limiting
+- **Status**: `ACCEPTED` (Handbook Part 9, Part 10.1, Part 11, Part 12, Part 13.1 P1-6, Appendix A.0, A.2)
+- **Date**: 2026-10-31
+- **Task ID**: `P1-6`
+- **Handbook Reference**: Part 9 (audit_events), Part 10.1 (permission matrix), Part 11 (security & rate limiting), Part 12 (testing), Part 13.1 (P1-6 acceptance), Appendix A.0, Appendix A.2
+- **Deciders**: Developer A, Antigravity
+
+#### Context
+Milestone P1-6 implements authentication, role-based authorization, append-only audit event persistence, IDOR prevention, and distributed concurrency-safe rate limiting and quota enforcement. The implementation must adhere strictly to the Handbook Part 10.1 Permission Matrix, enforce deny-by-default behavior, prevent account enumeration, safeguard sensitive credentials from audit logs, ensure database-engine-level immutability on audit logs, and provide multi-process atomic rate limiting without introducing external runtime dependencies such as Redis or Celery.
+
+#### Decision
+
+1. **Password Security & Verification (Argon2id RFC 9106)**:
+   - Passwords are hashed using Argon2id (`Type.ID`) via `argon2-cffi` configured with production-grade parameters:
+     - Memory cost: $65,536\text{ KiB}$ ($64\text{ MiB}$)
+     - Time cost: $3\text{ iterations}$
+     - Parallelism: $4\text{ lanes}$
+     - Salt length: $16\text{ bytes}$
+     - Hash length: $32\text{ bytes}$
+   - Constant-time verification is performed using `argon2.PasswordHasher.verify`.
+   - Generic failure responses: `POST /auth/login` returns an identical `401 Unauthorized` with `{"detail": "Invalid email or password."}` whether the email does not exist or the password is incorrect. To prevent timing side-channel attacks for account enumeration, a dummy hash verification is executed when an unknown email is encountered.
+   - Password strength validation requires a minimum of 12 characters, including at least one uppercase letter, one lowercase letter, one decimal digit, and one symbol/punctuation mark.
+
+2. **JWT Session Architecture, Authoritative Role Freshness & Revocation**:
+   - Authentication tokens are signed using HMAC-SHA256 (`HS256`, configurable to RS256/EdDSA via `JWT_ALGORITHM`), carrying RFC 7519 standard claims:
+     - `sub`: User UUID string
+     - `email`: User email address
+     - `roles`: List of assigned role strings (e.g. `["ENTREPRENEUR"]`)
+     - `jti`: Unique token UUID identifier
+     - `iat`: Epoch timestamp of issuance
+     - `exp`: Expiration epoch timestamp (default 30 minutes, configurable via `ACCESS_TOKEN_EXPIRE_MINUTES`)
+   - Transport & Dual Authentication Model:
+     - Web browser sessions use HTTP-only, SameSite (`lax`), Secure (HTTPS in production via `AUTH_COOKIE_SECURE`) cookies (`arthlens_access_token`).
+     - Machine/API/CLI clients are supported via standard `Authorization: Bearer <token>` headers.
+     - CSRF defense-in-depth: `CSRFProtectionMiddleware` strictly inspects `Origin` and `Sec-Fetch-Site` headers for cookie-authenticated state-changing requests (`POST`, `PUT`, `PATCH`, `DELETE`). Bearer-token requests are immune to CSRF and exempt.
+   - Authoritative Role Freshness:
+     - To ensure that role revocations or promotions take effect immediately without waiting for token expiry, `get_current_user` re-validates the subject against the authoritative database (`PostgresUserRepository.get_by_id`). Demoted or deactivated accounts are rejected on the very next request.
+   - Token Revocation: On `POST /auth/logout`, the token's `jti` is permanently committed to the PostgreSQL `revoked_tokens` table. `decode_access_token` checks cryptographic validity and the revocation store. A bulk pruning routine `prune_expired_tokens` clears records past their natural JWT expiry.
+
+3. **Three MVP Roles & Centralized RBAC Matrix (Handbook Part 10.1)**:
+   - Defined three canonical roles in `Role` enum: `ENTREPRENEUR`, `STEWARD`, `ADMIN`.
+   - Deny-by-default enforcement: `EndpointPolicyRegistry` centrally registers every permitted method/path combination with its authorized roles and owner-only requirement. `DenyByDefaultMiddleware` intercepts all requests; any route or HTTP method not explicitly registered is rejected with `404 Not Found` or `403 Forbidden`.
+   - Declarative FastAPI dependencies:
+     - `get_current_user`: Extracts, validates, and decodes session cookie or Bearer token into an `AuthenticatedUser` model.
+     - `require_roles(*roles)`: Verifies role membership and raises `403 Forbidden` (`detail: "Insufficient permissions for this resource."`) if unprivileged.
+   - Enforced route permission matrix:
+     - `POST /runs`: `ENTREPRENEUR`
+     - `GET /runs/{id}`, `GET /runs/{id}/events`: Owner or `ADMIN`
+     - `POST /runs/{id}/answer`: Owner only
+     - `POST /runs/{id}/approve`: Owner or `STEWARD`
+     - `POST /scenarios`, `POST /scenarios/{id}/branch`: `ENTREPRENEUR` (Owner only on branch)
+     - `GET /policy/rules`: All authenticated roles
+     - `POST /policy/rules`: `STEWARD` only
+     - `GET /geo/{id}/indicators`, `GET /ledger/{id}`, `GET /replay/{id}`: All authenticated roles (and demo access)
+     - `GET /admin/users`, `GET /admin/audit`: `ADMIN` only
+
+4. **Resource Scoping & IDOR Prevention**:
+   - Access control for user-specific resources (`scenarios`, `simulation_runs`, `agent_runs`) and private epistemic ledger records (`quantities`) is scoped at both the service layer and the repository layer (`get_scenario_by_id_and_owner`, `get_run_by_id_and_owner`).
+   - Per-record quantity access on `GET /ledger/{quantity_id}`:
+     - Public quantities (`owner_id IS NULL`) are accessible to all authenticated roles.
+     - User-owned private quantities (`owner_id IS NOT NULL`) are strictly restricted to the owning user and `ADMIN`.
+   - Existence Masking: When User B attempts to access or mutate an object owned by User A, the endpoint responds with `404 Not Found` (`{"detail": "Resource not found."}` or `{"detail": "Quantity not found."}`) identical to non-existent records, preventing resource enumeration.
+
+5. **Append-Only Audit Trail & Database Engine Immutability**:
+   - `audit_events` table stores immutable records: `id` (UUID), `actor_id` (UUID), `action` (VARCHAR), `resource_type` (VARCHAR), `resource_id` (UUID), `payload` (JSONB), `event_hash` (VARCHAR(64)), `created_at` (TIMESTAMPTZ).
+   - PostgreSQL engine boundary: Migration `004_auth_immutability_and_roles.py` installs trigger `trg_audit_events_immutable` via function `enforce_audit_events_immutability()` rejecting any direct SQL `UPDATE` or `DELETE` on `audit_events`.
+   - Redaction & Hashing: `AuditService` automatically sanitizes payload dictionaries before persistence, redacting sensitive keys (`password`, `password_hash`, `token`, `secret`, `cookie`, `credential`) to `'[REDACTED]'`, and computes deterministic SHA-256 event hashes.
+
+6. **Distributed Concurrency-Safe Rate Limiting, Cost Caps & Quotas (No Redis)**:
+   - In accordance with the single-datastore architecture (Handbook Part 3.1 & 3.2), rate limiting is implemented directly in PostgreSQL via table `rate_limits (key VARCHAR PRIMARY KEY, count INT, reset_at TIMESTAMPTZ)`.
+   - `PostgresRateLimiter` executes an atomic PostgreSQL statement:
+     ```sql
+     INSERT INTO rate_limits (key, count, reset_at)
+     VALUES (:key, 1, NOW() + (:window_seconds || ' seconds')::interval)
+     ON CONFLICT (key) DO UPDATE
+     SET count = CASE WHEN rate_limits.reset_at <= NOW() THEN 1 ELSE rate_limits.count + 1 END,
+         reset_at = CASE WHEN rate_limits.reset_at <= NOW() THEN NOW() + (:window_seconds || ' seconds')::interval ELSE rate_limits.reset_at END
+     RETURNING count, GREATEST(0, EXTRACT(EPOCH FROM (reset_at - NOW()))::int) AS reset_in;
+     ```
+     Guarantees zero race conditions across multi-process workers without Redis. Storage growth is bounded via `prune_expired_entries()`.
+   - Trusted Proxy IP Resolution: `RateLimitingMiddleware` verifies direct client IPs against `get_trusted_proxies()` before honoring `X-Forwarded-For`, preventing IP spoofing.
+   - Throttling & Quota Thresholds:
+     - Per-IP limit: 60 requests/minute (provisional default, unverified in Handbook).
+     - Per-User limit: 120 requests/minute (provisional default, unverified in Handbook).
+     - Daily run quota: 50 runs/day per entrepreneur (provisional default).
+     - Daily accumulated cost cap: $5.00/day per entrepreneur (provisional ceiling).
+     - Single-run cost cap: $0.25/run (Handbook Part 8.3 baseline, verified starting point).
+   - Pre-Execution Cost-Cap & Atomic Concurrency:
+     - `POST /runs` validates `max_cost_usd` and `estimated_cost_usd` against `MAX_COST_USD_PER_RUN` ($0.25) before initiating any simulation.
+     - `PostgresUserRepository.increment_quota_counters` utilizes PostgreSQL `SELECT ... FOR UPDATE` row-level locking on `users` to serialize concurrent requests and eliminate lost updates.
+
+7. **Database Migration & Seeding**:
+   - Migration `004_auth_immutability_and_roles.py`:
+     - Creates `revoked_tokens` table with index on `expires_at`.
+     - Creates `rate_limits` table with index on `reset_at`.
+     - Seeds baseline MVP roles: `ENTREPRENEUR`, `STEWARD`, `ADMIN`.
+     - Installs `trg_audit_events_immutable` trigger.
+     - Full rollback / downgrade support verified.
+
+8. **Verification & Test Coverage**:
+   - 248 total backend tests pass cleanly under Python 3.14.5 with zero failures across smoke, property, unit, contract, and integration suites.
+   - 56 total security, auth, RBAC, audit, cost-cap, and rate-limiting tests added across unit, contract, and integration layers.

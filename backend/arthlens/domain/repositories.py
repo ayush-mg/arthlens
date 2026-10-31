@@ -114,6 +114,42 @@ class UserRepository(Repository):
         """Retrieve user record by email, or None if not found."""
         raise NotImplementedError
 
+    @abstractmethod
+    def increment_quota_counters(
+        self,
+        user_id: Union[str, uuid.UUID],
+        runs: int = 1,
+        cost: float = 0.0,
+    ) -> Dict[str, Any]:
+        """Atomically increment run count and cost for a user, returning updated counters."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def check_and_reserve_quota(
+        self,
+        user_id: Union[str, uuid.UUID],
+        runs: int = 1,
+        cost: float = 0.0,
+        max_runs: int = 50,
+        max_cost: float = 5.0,
+    ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
+        """
+        Atomically verify that incrementing (runs, cost) will not exceed (max_runs, max_cost).
+        If within limits, reserves quota and returns (True, updated_counters, None).
+        If exceeding limits, does NOT increment and returns (False, current_counters, reason).
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def refund_quota_counters(
+        self,
+        user_id: Union[str, uuid.UUID],
+        runs: int = 0,
+        cost: float = 0.0,
+    ) -> Dict[str, Any]:
+        """Atomically refund reserved runs or cost upon run cancellation or setup failure."""
+        raise NotImplementedError
+
 
 class PolicyRuleRepository(Repository):
     """Abstract repository contract for policy documents and AST rules."""
@@ -160,4 +196,22 @@ class ScenarioRepository(Repository):
     @abstractmethod
     def get_simulation_run(self, run_id: Union[str, uuid.UUID]) -> Optional[Dict[str, Any]]:
         """Retrieve a simulation run record by UUID, or None if not found."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_run_by_id_and_owner(
+        self,
+        run_id: Union[str, uuid.UUID],
+        owner_id: Union[str, uuid.UUID],
+    ) -> Optional[Dict[str, Any]]:
+        """Retrieve a simulation run only if owned by owner_id (IDOR defense)."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_scenario_by_id_and_owner(
+        self,
+        scenario_id: Union[str, uuid.UUID],
+        owner_id: Union[str, uuid.UUID],
+    ) -> Optional[Dict[str, Any]]:
+        """Retrieve a scenario only if owned by owner_id (IDOR defense)."""
         raise NotImplementedError

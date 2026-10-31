@@ -375,3 +375,21 @@ class AuditEventModel(Base):
     payload = Column(JSONB, nullable=False, server_default="{}")
     prev_hash = Column(Text, nullable=True)
     timestamp = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)
+
+
+class RevokedTokenModel(Base):
+    """Revoked JWT IDs (session invalidation upon logout)."""
+    __tablename__ = "revoked_tokens"
+
+    jti = Column(Text, primary_key=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+
+
+class RateLimitModel(Base):
+    """Concurrency-safe distributed rate limit buckets."""
+    __tablename__ = "rate_limits"
+
+    key = Column(Text, primary_key=True)
+    count = Column(Integer, nullable=False, server_default="1")
+    reset_at = Column(DateTime(timezone=True), nullable=False, index=True)

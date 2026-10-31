@@ -55,6 +55,8 @@ class TestAlembicMigrations:
         "approvals",
         "tasks",
         "audit_events",
+        "revoked_tokens",
+        "rate_limits",
     }
 
     def test_upgrade_head_creates_all_tables(self, alembic_cfg):
@@ -140,6 +142,26 @@ class TestAlembicMigrations:
             """)
             result = conn.execute(query).scalar()
             assert result == "trg_quantities_immutable", "trg_quantities_immutable trigger not found"
+
+    def test_audit_events_immutability_trigger_installed(self):
+        """PostgreSQL trigger trg_audit_events_immutable is installed on audit_events."""
+        engine = get_engine()
+        with engine.connect() as conn:
+            query = text("""
+            SELECT trigger_name
+            FROM information_schema.triggers
+            WHERE event_object_table = 'audit_events'
+              AND trigger_name = 'trg_audit_events_immutable';
+            """)
+            result = conn.execute(query).scalar()
+            assert result == "trg_audit_events_immutable", "trg_audit_events_immutable trigger not found"
+
+    def test_mvp_roles_seeded(self):
+        """Migration 004 seeds the three MVP roles: ENTREPRENEUR, STEWARD, ADMIN."""
+        engine = get_engine()
+        with engine.connect() as conn:
+            roles = set(conn.execute(text("SELECT id FROM roles;")).scalars().all())
+            assert {"ENTREPRENEUR", "STEWARD", "ADMIN"}.issubset(roles)
 
     def test_migration_downgrade_and_reupgrade(self, alembic_cfg):
         """Supported downgrade to base cleanly drops tables, and re-upgrade restores them."""

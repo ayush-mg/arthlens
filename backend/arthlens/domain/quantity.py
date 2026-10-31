@@ -56,6 +56,7 @@ class Quantity:
     quality_flags: frozenset = field(default_factory=frozenset)
     license_meta: str = ""
     simulation_meta: Optional[SimulationMetadata] = None
+    owner_id: Optional[str] = None
 
     def __post_init__(self) -> None:
         """Validate invariant constraints and normalize sequence attributes."""

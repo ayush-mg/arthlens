@@ -36,6 +36,7 @@ from backend.arthlens.infra.models import (
     ScenarioModel,
     SimulationRunModel,
     UserModel,
+    UserRoleModel,
 )
 
 
@@ -119,6 +120,7 @@ class PostgresQuantityRepository(QuantityRepository):
             parent_ids=parent_uuids,
             quality_flags=list(q.quality_flags),
             license_meta=q.license_meta or "",
+            owner_id=_to_uuid(q.owner_id) if q.owner_id else None,
             simulation_meta=sim_meta_json,
         )
 
@@ -172,6 +174,7 @@ class PostgresQuantityRepository(QuantityRepository):
             quality_flags=quality_flags_set,
             license_meta=m.license_meta or "",
             simulation_meta=sim_meta_obj,
+            owner_id=str(m.owner_id) if m.owner_id else None,
         )
 
     def save(self, quantity: Quantity) -> None:
@@ -265,20 +268,31 @@ class PostgresUserRepository(UserRepository):
         user_uuid = _to_uuid(user_data.get("id") or uuid.uuid4())
         with self._get_session() as session:
             existing = session.get(UserModel, user_uuid)
+            if not existing and "email" in user_data:
+                existing = session.execute(
+                    select(UserModel).where(UserModel.email == user_data["email"])
+                ).scalar_one_or_none()
+
             if existing:
+                user_uuid = existing.id
                 existing.email = user_data["email"]
                 existing.password_hash = user_data["password_hash"]
                 existing.quota_counters = user_data.get("quota_counters", {})
-                session.commit()
-                return str(user_uuid)
+            else:
+                existing = UserModel(
+                    id=user_uuid,
+                    email=user_data["email"],
+                    password_hash=user_data["password_hash"],
+                    quota_counters=user_data.get("quota_counters", {}),
+                )
+                session.add(existing)
 
-            model = UserModel(
-                id=user_uuid,
-                email=user_data["email"],
-                password_hash=user_data["password_hash"],
-                quota_counters=user_data.get("quota_counters", {}),
-            )
-            session.add(model)
+            # Synchronize roles if specified
+            if "roles" in user_data:
+                session.execute(delete(UserRoleModel).where(UserRoleModel.user_id == user_uuid))
+                for role_id in user_data["roles"]:
+                    session.add(UserRoleModel(user_id=user_uuid, role_id=str(role_id)))
+
             session.commit()
             return str(user_uuid)
 
@@ -288,11 +302,13 @@ class PostgresUserRepository(UserRepository):
             model = session.get(UserModel, user_uuid)
             if not model:
                 return None
+            roles = [r.id for r in (model.roles or [])]
             return {
                 "id": str(model.id),
                 "email": model.email,
                 "password_hash": model.password_hash,
                 "quota_counters": model.quota_counters,
+                "roles": roles,
                 "created_at": model.created_at,
             }
 
@@ -302,13 +318,83 @@ class PostgresUserRepository(UserRepository):
             model = session.execute(stmt).scalar_one_or_none()
             if not model:
                 return None
+            roles = [r.id for r in (model.roles or [])]
             return {
                 "id": str(model.id),
                 "email": model.email,
                 "password_hash": model.password_hash,
                 "quota_counters": model.quota_counters,
+                "roles": roles,
                 "created_at": model.created_at,
             }
+
+    def increment_quota_counters(
+        self,
+        user_id: Union[str, uuid.UUID],
+        runs: int = 1,
+        cost: float = 0.0,
+    ) -> Dict[str, Any]:
+        user_uuid = _to_uuid(user_id)
+        with self._get_session() as session:
+            stmt = select(UserModel).where(UserModel.id == user_uuid).with_for_update()
+            model = session.execute(stmt).scalar_one_or_none()
+            if not model:
+                raise KeyError(f"User {user_id} not found.")
+            counters = dict(model.quota_counters or {})
+            counters["runs_today"] = counters.get("runs_today", 0) + runs
+            counters["cost_today"] = round(float(counters.get("cost_today", 0.0)) + cost, 4)
+            model.quota_counters = counters
+            session.commit()
+            return counters
+
+    def check_and_reserve_quota(
+        self,
+        user_id: Union[str, uuid.UUID],
+        runs: int = 1,
+        cost: float = 0.0,
+        max_runs: int = 50,
+        max_cost: float = 5.0,
+    ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
+        user_uuid = _to_uuid(user_id)
+        with self._get_session() as session:
+            stmt = select(UserModel).where(UserModel.id == user_uuid).with_for_update()
+            model = session.execute(stmt).scalar_one_or_none()
+            if not model:
+                raise KeyError(f"User {user_id} not found.")
+            counters = dict(model.quota_counters or {})
+            current_runs = counters.get("runs_today", 0)
+            current_cost = float(counters.get("cost_today", 0.0))
+
+            if current_runs + runs > max_runs:
+                return False, counters, f"Daily run quota exceeded ({max_runs} runs per day)."
+
+            if current_cost + cost > max_cost:
+                return False, counters, f"Daily budget cap exceeded (${max_cost:.2f} per day)."
+
+            counters["runs_today"] = current_runs + runs
+            counters["cost_today"] = round(current_cost + cost, 4)
+            model.quota_counters = counters
+            session.commit()
+            return True, counters, None
+
+    def refund_quota_counters(
+        self,
+        user_id: Union[str, uuid.UUID],
+        runs: int = 0,
+        cost: float = 0.0,
+    ) -> Dict[str, Any]:
+        user_uuid = _to_uuid(user_id)
+        with self._get_session() as session:
+            stmt = select(UserModel).where(UserModel.id == user_uuid).with_for_update()
+            model = session.execute(stmt).scalar_one_or_none()
+            if not model:
+                raise KeyError(f"User {user_id} not found.")
+            counters = dict(model.quota_counters or {})
+            counters["runs_today"] = max(0, counters.get("runs_today", 0) - runs)
+            counters["cost_today"] = max(0.0, round(float(counters.get("cost_today", 0.0)) - cost, 4))
+            model.quota_counters = counters
+            session.commit()
+            return counters
 
 
 class PostgresPolicyRuleRepository(PolicyRuleRepository):
@@ -482,5 +568,57 @@ class PostgresScenarioRepository(ScenarioRepository):
                 "data_version_ids": list(model.data_version_ids or []),
                 "outputs_references": model.outputs_references,
                 "status": model.status,
+                "created_at": model.created_at,
+            }
+
+    def get_run_by_id_and_owner(
+        self,
+        run_id: Union[str, uuid.UUID],
+        owner_id: Union[str, uuid.UUID],
+    ) -> Optional[Dict[str, Any]]:
+        run_uuid = _to_uuid(run_id)
+        owner_uuid = _to_uuid(owner_id)
+        with self._get_session() as session:
+            stmt = (
+                select(SimulationRunModel)
+                .join(ScenarioModel, SimulationRunModel.scenario_id == ScenarioModel.id)
+                .where(SimulationRunModel.id == run_uuid, ScenarioModel.owner_id == owner_uuid)
+            )
+            model = session.execute(stmt).scalar_one_or_none()
+            if not model:
+                return None
+            seed_int = int(model.seed)
+            return {
+                "id": str(model.id),
+                "scenario_id": str(model.scenario_id),
+                "seed": seed_int,
+                "model_version": model.model_version,
+                "git_hash": model.git_hash,
+                "data_version_ids": list(model.data_version_ids or []),
+                "outputs_references": model.outputs_references,
+                "status": model.status,
+                "created_at": model.created_at,
+            }
+
+    def get_scenario_by_id_and_owner(
+        self,
+        scenario_id: Union[str, uuid.UUID],
+        owner_id: Union[str, uuid.UUID],
+    ) -> Optional[Dict[str, Any]]:
+        scenario_uuid = _to_uuid(scenario_id)
+        owner_uuid = _to_uuid(owner_id)
+        with self._get_session() as session:
+            stmt = select(ScenarioModel).where(
+                ScenarioModel.id == scenario_uuid,
+                ScenarioModel.owner_id == owner_uuid,
+            )
+            model = session.execute(stmt).scalar_one_or_none()
+            if not model:
+                return None
+            return {
+                "id": str(model.id),
+                "owner_id": str(model.owner_id),
+                "name": model.name,
+                "scenario": model.scenario,
                 "created_at": model.created_at,
             }

@@ -5,6 +5,7 @@ Authoritative Reference: ArthLens Build Handbook v1.0 (Part 5.1, Part 9.1, 9.2).
 Phase: P1-5 (Database Persistence, Repositories and Integration Tests).
 """
 
+import threading
 from typing import Any, Dict, List, Optional, Union
 import uuid
 
@@ -91,12 +92,14 @@ class InMemoryUserRepository(UserRepository):
 
     def __init__(self) -> None:
         self._users: Dict[str, Dict[str, Any]] = {}
+        self._lock = threading.Lock()
 
     def save(self, user_data: Dict[str, Any]) -> str:
         user_id = str(user_data.get("id") or uuid.uuid4())
         record = dict(user_data)
         record["id"] = user_id
         record.setdefault("quota_counters", {})
+        record["roles"] = list(user_data.get("roles", []))
         self._users[user_id] = record
         return user_id
 
@@ -108,6 +111,65 @@ class InMemoryUserRepository(UserRepository):
             if u.get("email") == email:
                 return u
         return None
+
+    def increment_quota_counters(
+        self,
+        user_id: Union[str, uuid.UUID],
+        runs: int = 1,
+        cost: float = 0.0,
+    ) -> Dict[str, Any]:
+        with self._lock:
+            u = self._users.get(str(user_id))
+            if not u:
+                raise KeyError(f"User {user_id} not found.")
+            qc = dict(u.get("quota_counters", {}))
+            qc["runs_today"] = qc.get("runs_today", 0) + runs
+            qc["cost_today"] = round(float(qc.get("cost_today", 0.0)) + cost, 4)
+            u["quota_counters"] = qc
+            return qc
+
+    def check_and_reserve_quota(
+        self,
+        user_id: Union[str, uuid.UUID],
+        runs: int = 1,
+        cost: float = 0.0,
+        max_runs: int = 50,
+        max_cost: float = 5.0,
+    ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
+        with self._lock:
+            u = self._users.get(str(user_id))
+            if not u:
+                raise KeyError(f"User {user_id} not found.")
+            qc = dict(u.get("quota_counters", {}))
+            current_runs = qc.get("runs_today", 0)
+            current_cost = float(qc.get("cost_today", 0.0))
+
+            if current_runs + runs > max_runs:
+                return False, qc, f"Daily run quota exceeded ({max_runs} runs per day)."
+
+            if current_cost + cost > max_cost:
+                return False, qc, f"Daily budget cap exceeded (${max_cost:.2f} per day)."
+
+            qc["runs_today"] = current_runs + runs
+            qc["cost_today"] = round(current_cost + cost, 4)
+            u["quota_counters"] = qc
+            return True, qc, None
+
+    def refund_quota_counters(
+        self,
+        user_id: Union[str, uuid.UUID],
+        runs: int = 0,
+        cost: float = 0.0,
+    ) -> Dict[str, Any]:
+        with self._lock:
+            u = self._users.get(str(user_id))
+            if not u:
+                raise KeyError(f"User {user_id} not found.")
+            qc = dict(u.get("quota_counters", {}))
+            qc["runs_today"] = max(0, qc.get("runs_today", 0) - runs)
+            qc["cost_today"] = max(0.0, round(float(qc.get("cost_today", 0.0)) - cost, 4))
+            u["quota_counters"] = qc
+            return qc
 
     def clear(self) -> None:
         self._users.clear()
@@ -170,6 +232,29 @@ class InMemoryScenarioRepository(ScenarioRepository):
 
     def get_simulation_run(self, run_id: Union[str, uuid.UUID]) -> Optional[Dict[str, Any]]:
         return self._simulation_runs.get(str(run_id))
+
+    def get_run_by_id_and_owner(
+        self,
+        run_id: Union[str, uuid.UUID],
+        owner_id: Union[str, uuid.UUID],
+    ) -> Optional[Dict[str, Any]]:
+        run = self._simulation_runs.get(str(run_id))
+        if not run:
+            return None
+        scenario = self._scenarios.get(str(run.get("scenario_id")))
+        if scenario and str(scenario.get("owner_id")) == str(owner_id):
+            return run
+        return None
+
+    def get_scenario_by_id_and_owner(
+        self,
+        scenario_id: Union[str, uuid.UUID],
+        owner_id: Union[str, uuid.UUID],
+    ) -> Optional[Dict[str, Any]]:
+        scenario = self._scenarios.get(str(scenario_id))
+        if scenario and str(scenario.get("owner_id")) == str(owner_id):
+            return scenario
+        return None
 
     def clear(self) -> None:
         self._scenarios.clear()
