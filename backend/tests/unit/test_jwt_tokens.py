@@ -23,7 +23,19 @@ from backend.arthlens.security.tokens import (
     create_access_token,
     decode_access_token,
 )
-from backend.arthlens.security.revocation import InMemoryTokenRevocationStore
+from backend.arthlens.security.revocation import (
+    InMemoryTokenRevocationStore,
+    set_token_revocation_store,
+)
+
+
+@pytest.fixture(autouse=True)
+def setup_unit_revocation_store():
+    """Ensure unit tests execute using in-memory store without database dependencies."""
+    store = InMemoryTokenRevocationStore()
+    set_token_revocation_store(store)
+    yield
+    set_token_revocation_store(None)
 
 
 @pytest.mark.unit
