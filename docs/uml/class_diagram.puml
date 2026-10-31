@@ -1,0 +1,505 @@
+@startuml class_diagram
+!theme plain
+title ArthLens System — Architecture & Domain Class Diagram
+
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam roundcorner 4
+skinparam class {
+    BackgroundColor White
+    BorderColor #2B5797
+    ArrowColor #2B5797
+}
+
+' Planned classes styling (dashed border, grey background)
+skinparam class<<planned — not implemented>> {
+    BackgroundColor #F9F9F9
+    BorderColor #888888
+    BorderStyle dashed
+    FontColor #555555
+}
+
+' ==============================================================================
+' DOMAIN PACKAGE (Implemented P1-2, P1-3, P1-5)
+' ==============================================================================
+package "backend.arthlens.domain" {
+
+    enum Kind {
+        OBSERVED
+        POLICY_RULE
+        USER_ASSUMED
+        ESTIMATED
+        SCENARIO
+        CALCULATED
+        SIMULATED
+    }
+
+    ' Authoritative Enum with aliasing in enums.py: EvidenceFloor = EvidenceLevel
+    enum EvidenceLevel {
+        SCENARIO = 1
+        ESTIMATED = 2
+        USER_ASSUMED = 3
+        POLICY_RULE = 4
+        OBSERVED = 4
+    }
+
+    ' Authoritative Enum with aliasing in enums.py: ResolutionLevel = ResolutionTier
+    enum ResolutionTier {
+        NATION = 0
+        STATE = 1
+        DISTRICT = 2
+        SUBDISTRICT = 3
+        VILLAGE_URBAN = 4
+        POINT = 5
+    }
+
+    class SimulationMetadata {
+        +scenario_id: str
+        +model_version: str
+        +seed: int
+        +sample_count: int
+        +data_versions: Tuple[str, ...]
+    }
+
+    ' Quantity aggregate root: Exactly 18 dataclass fields defined in domain.quantity
+    class Quantity {
+        +id: str
+        +definition_key: str
+        +value: float
+        +unit: str
+        +kind: Kind
+        +evidence_floor: int
+        +geo_unit_id: str
+        +resolution: int
+        +as_of: str
+        +uncertainty: Any = "EXACT"
+        +source_refs: tuple
+        +method_id: str
+        +model_version: str
+        +parent_ids: tuple
+        +quality_flags: frozenset
+        +license_meta: str
+        +simulation_meta: Optional[SimulationMetadata]
+        +owner_id: Optional[str]
+    }
+
+    Quantity *-- Kind
+    Quantity o-- SimulationMetadata
+
+    ' Core Interfaces (domain.interfaces)
+    abstract class DataProvider<abstract> {
+        +{abstract} fetch(query: Any) : Any
+    }
+
+    abstract class DemandAllocator<abstract> {
+        +{abstract} allocate(zones: Any, facilities: Any, params: Any) : Any
+    }
+
+    abstract class SimulationModel<abstract> {
+        +{abstract} run(scenario: Any, seed: int) : Any
+    }
+
+    abstract class RuleNode<abstract> {
+        +{abstract} accept(visitor: RuleVisitor) : Any
+    }
+
+    abstract class RuleVisitor<abstract>
+
+    class SpecResult {
+        +passed: bool
+        +spec_name: str
+        +offending_quantity_id: Optional[str]
+        +reason: str
+        +details: Optional[Dict[str, Any]]
+    }
+
+    abstract class VerificationSpecification<abstract> {
+        +{abstract} check(claim: Any, ledger: Any) : SpecResult
+    }
+
+    abstract class Tool<abstract> {
+        +execute(raw_input: Any) : Any
+        +{abstract} validate_input(raw_input: Any) : Any
+        +{abstract} check_preconditions(inp: Any) : None
+        +{abstract} run_core(inp: Any) : Any
+        +{abstract} verify_postconditions(out: Any) : None
+    }
+
+    abstract class ILLMClient<abstract> {
+        +{abstract} generate_structured(prompt: str, schema: Any, task_type: str) : Any
+    }
+
+    abstract class RunState<abstract> {
+        +{abstract} handle(run: Any, event: Any) : RunState
+    }
+
+    abstract class Repository<abstract>
+
+    ' Domain Repositories (domain.repositories)
+    abstract class QuantityRepository<abstract> implements Repository {
+        +{abstract} save(quantity: Quantity) : None
+        +{abstract} get(quantity_id: Union[str, UUID]) : Optional[Quantity]
+        +{abstract} exists(quantity_id: Union[str, UUID]) : bool
+        +{abstract} list_by_definition(definition_key: str) : List[Quantity]
+        +{abstract} list_by_geo_unit(geo_unit_id: str) : List[Quantity]
+        +{abstract} get_parents(quantity_id: Union[str, UUID]) : List[Quantity]
+        +{abstract} get_children(quantity_id: Union[str, UUID]) : List[Quantity]
+        +{abstract} list_all() : List[Quantity]
+        +{abstract} count() : int
+    }
+
+    abstract class UserRepository<abstract> implements Repository {
+        +{abstract} save(user_data: Dict[str, Any]) : str
+        +{abstract} get_by_id(user_id: Union[str, UUID]) : Optional[Dict[str, Any]]
+        +{abstract} get_by_email(email: str) : Optional[Dict[str, Any]]
+        +{abstract} increment_quota_counters(user_id, runs, cost) : Dict[str, Any]
+        +{abstract} check_and_reserve_quota(user_id, runs, cost, max_runs, max_cost) : Tuple
+        +{abstract} refund_quota_counters(user_id, runs, cost) : Dict[str, Any]
+    }
+
+    abstract class PolicyRuleRepository<abstract> implements Repository {
+        +{abstract} save_rule(rule_data: Dict[str, Any]) : str
+        +{abstract} get_rule(rule_id: Union[str, UUID]) : Optional[Dict[str, Any]]
+        +{abstract} list_rules_by_scheme(scheme_id: str) : List[Dict[str, Any]]
+    }
+
+    abstract class ScenarioRepository<abstract> implements Repository {
+        +{abstract} save_scenario(scenario_data: Dict[str, Any]) : str
+        +{abstract} get_scenario(scenario_id: Union[str, UUID]) : Optional[Dict[str, Any]]
+        +{abstract} list_by_owner(owner_id: Union[str, UUID]) : List[Dict[str, Any]]
+        +{abstract} save_simulation_run(run_data: Dict[str, Any]) : str
+        +{abstract} get_simulation_run(run_id: Union[str, UUID]) : Optional[Dict[str, Any]]
+        +{abstract} get_run_by_id_and_owner(run_id, owner_id) : Optional[Dict[str, Any]]
+        +{abstract} get_scenario_by_id_and_owner(scenario_id, owner_id) : Optional[Dict[str, Any]]
+    }
+
+    exception ImmutableQuantityError
+    exception QuantityNotFoundError
+    exception RepositoryError
+}
+
+' ==============================================================================
+' EPISTEMIC LEDGER & VERIFICATION PACKAGE (Implemented P1-3, P1-4)
+' ==============================================================================
+package "backend.arthlens.ledger" {
+
+    class Ledger {
+        -_quantities: Dict[str, Quantity]
+        -_parents: Dict[str, Set[str]]
+        -_children: Dict[str, Set[str]]
+        +register(quantity: Quantity) : str
+        +get(quantity_id: str) : Quantity
+        +ancestors(quantity_id: str) : Set[str]
+        +descendants(quantity_id: str) : Set[str]
+        +__contains__(quantity_id: str) : bool
+        +__len__() : int
+        +__iter__() : Iterator[Quantity]
+    }
+
+    class AndSpecification implements VerificationSpecification {
+        -_specs: List[VerificationSpecification]
+        +check(claim: Any, ledger: Any) : SpecResult
+        +check_all(claim: Any, ledger: Any) : List[SpecResult]
+    }
+
+    ' Authoritative Nine Verification Specifications (V1–V9)
+    class DerivationDowngradeSpec implements VerificationSpecification
+    class GeographicPrecisionSpec implements VerificationSpecification
+    class PolicyCitationSpec implements VerificationSpecification
+    class SourceAttributionSpec implements VerificationSpecification
+    class ContradictionVisibilitySpec implements VerificationSpecification
+    class UnitCompatibilitySpec implements VerificationSpecification
+    class ReproducibilitySpec implements VerificationSpecification
+    class MissingAssumptionSpec implements VerificationSpecification
+    class SimulationModelVersionSpec implements VerificationSpecification
+
+    class VerificationReport {
+        +passed: bool
+        +results: Tuple[SpecResult, ...]
+        +failures: Tuple[SpecResult, ...]
+        +offending_quantity_ids: Tuple[str, ...]
+        +summary: str
+    }
+
+    class LedgerVerifier {
+        -_specs: List[VerificationSpecification]
+        -_composite: AndSpecification
+        +specifications: Sequence[VerificationSpecification]
+        +verify_quantity(quantity: Quantity, ledger: Optional[Ledger]) : VerificationReport
+        +verify(claim: Any, ledger: Optional[Ledger]) : VerificationReport
+        +verify_ledger(ledger: Ledger) : VerificationReport
+        +is_valid(claim_or_quantity: Any, ledger: Optional[Ledger]) : bool
+    }
+
+    class AllowlistConfig {
+        +allowed_section_numbers: FrozenSet[str]
+        +allowed_years: FrozenSet[str]
+        +allowed_list_indices: FrozenSet[str]
+        +allowed_numbers: FrozenSet[str]
+    }
+
+    class RenderResult {
+        +passed: bool
+        +rendered_text: str
+        +free_numbers: Tuple[str, ...]
+        +resolved_quantities: Tuple[Quantity, ...]
+        +errors: Tuple[str, ...]
+        +rejection_reason: str
+    }
+
+    class ReportRenderer {
+        +verifier: LedgerVerifier
+        +format_chip(quantity: Quantity) : str
+        +render(template: str, ledger: Ledger, allowlist: Optional[AllowlistConfig]) : RenderResult
+    }
+
+    class DownscalingRegistry {
+        +{static} register(method_id: str, fn: Any) : None
+        +{static} is_registered(method_id: str) : bool
+        +{static} get(method_id: str) : Any
+    }
+
+    Ledger o-- Quantity
+    LedgerVerifier o-- VerificationSpecification
+    LedgerVerifier ..> VerificationReport
+    VerificationReport *-- SpecResult
+    ReportRenderer o-- LedgerVerifier
+    ReportRenderer ..> RenderResult
+    ReportRenderer ..> AllowlistConfig
+}
+
+' ==============================================================================
+' INFRASTRUCTURE & PERSISTENCE PACKAGE (Implemented P1-5, P1-6)
+' ==============================================================================
+package "backend.arthlens.infra" {
+
+    ' Concrete Repositories
+    class PostgresQuantityRepository implements QuantityRepository {
+        -session_factory: Callable[[], Session]
+    }
+
+    class InMemoryQuantityRepository implements QuantityRepository {
+        -_quantities: Dict[str, Quantity]
+    }
+
+    class PostgresUserRepository implements UserRepository {
+        -session_factory: Callable[[], Session]
+    }
+
+    class InMemoryUserRepository implements UserRepository {
+        -_users: Dict[str, Dict[str, Any]]
+    }
+
+    class PostgresPolicyRuleRepository implements PolicyRuleRepository
+    class InMemoryPolicyRuleRepository implements PolicyRuleRepository
+    class PostgresScenarioRepository implements ScenarioRepository
+    class InMemoryScenarioRepository implements ScenarioRepository
+
+    ' SQLAlchemy ORM Models
+    class QuantityModel {
+        +id: UUID
+        +definition_key: Text
+        +value: Double
+        +unit: Text
+        +kind: Text
+        +evidence_floor: SmallInteger
+        +geo_unit_id: Text
+        +resolution: SmallInteger
+        +as_of: Date
+        +period_start: Date
+        +period_end: Date
+        +uncertainty: JSONB
+        +source_refs: JSONB
+        +method_id: Text
+        +model_version: Text
+        +parent_ids: ARRAY(UUID)
+        +quality_flags: ARRAY(Text)
+        +license_meta: Text
+        +owner_id: UUID
+        +simulation_meta: JSONB
+        +created_at: DateTime
+    }
+
+    class SimulationRunModel {
+        +id: UUID
+        +scenario_id: UUID
+        +seed: Numeric(asdecimal=True)
+        +model_version: Text
+        +git_hash: Text
+        +data_version_ids: ARRAY(Text)
+        +outputs_references: JSONB
+        +status: Text
+        +created_at: DateTime
+    }
+
+    class UserModel {
+        +id: UUID
+        +email: Text
+        +password_hash: Text
+        +quota_counters: JSONB
+        +created_at: DateTime
+    }
+
+    class RoleModel {
+        +id: Text
+        +description: Text
+    }
+
+    class UserRoleModel {
+        +user_id: UUID
+        +role_id: Text
+    }
+
+    class AuditEventModel {
+        +id: UUID
+        +actor: UUID
+        +action: Text
+        +target: Text
+        +ip_address: Text
+        +payload: JSONB
+        +timestamp: DateTime
+    }
+
+    class RevokedTokenModel
+    class RateLimitModel
+    class ScenarioModel
+    class PolicyRuleModel
+    class PolicyDocumentModel
+    class GeoUnitModel
+    class FacilityModel
+}
+
+' ==============================================================================
+' SECURITY & API PACKAGE (Implemented P1-6)
+' ==============================================================================
+package "backend.arthlens.security_and_api" {
+
+    enum Role {
+        ENTREPRENEUR
+        STEWARD
+        ADMIN
+    }
+
+    class AuthenticatedUser {
+        +id: str
+        +email: str
+        +roles: Tuple[str, ...]
+        +jti: str
+        +has_role(role: Union[Role, str]) : bool
+    }
+
+    class EndpointPolicy {
+        +path: str
+        +method: str
+        +allowed_roles: Set[str]
+        +require_ownership: bool
+        +allow_admin_bypass: bool
+    }
+
+    class EndpointPolicyRegistry {
+        -_policies: Dict[Tuple[str, str], EndpointPolicy]
+        +register(path: str, method: str, allowed_roles: Set[str], ...) : None
+        +get(path: str, method: str) : Optional[EndpointPolicy]
+        +check_access(user: Optional[AuthenticatedUser], path: str, method: str) : bool
+    }
+
+    class AuditService {
+        -session_factory: Callable[[], Session]
+        +record_event(actor, action, target, payload, ip_address) : AuditEventModel
+        +list_events(limit, offset, actor, action) : List[AuditEventModel]
+    }
+
+    abstract class RateLimiter<abstract> {
+        +{abstract} check_rate_limit(key: str, limit: int, window_seconds: int) : Tuple[bool, int, int]
+        +{abstract} prune_expired_entries(max_age_seconds: int) : int
+    }
+
+    class InMemoryRateLimiter implements RateLimiter
+    class PostgresRateLimiter implements RateLimiter
+
+    abstract class TokenRevocationStore<abstract> {
+        +{abstract} revoke(jti: str, expires_at: datetime) : None
+        +{abstract} is_revoked(jti: str) : bool
+    }
+
+    class InMemoryTokenRevocationStore implements TokenRevocationStore
+    class PostgresTokenRevocationStore implements TokenRevocationStore
+
+    ' API Middlewares (backend.arthlens.api.app)
+    class RateLimitingMiddleware
+    class CSRFProtectionMiddleware
+    class DenyByDefaultMiddleware
+
+    AuthenticatedUser ..> Role
+}
+
+' ==============================================================================
+' PLANNED / FUTURE CONCEPTS (Scheduled for Phases 2, 3, 4)
+' ==============================================================================
+package "backend.arthlens.planned_modules" {
+
+    class BusinessProfile <<planned — not implemented>> {
+        +id: UUID
+        +user_id: UUID
+        +sector: str
+        +target_district: str
+        +capital_budget_inr: Decimal
+        +constraints: dict[str, Any]
+        ' Scheduled: Phase 2
+    }
+
+    class CensusDataProviderTool <<planned — not implemented>> implements Tool {
+        +validate_input(raw_input: Any) : Any
+        +check_preconditions(inp: Any) : None
+        +run_core(inp: Any) : Any
+        +verify_postconditions(out: Any) : None
+        ' Scheduled: Phase 2 & 4
+    }
+
+    class GravityDemandAllocator <<planned — not implemented>> implements DemandAllocator {
+        +allocate(zones: Any, facilities: Any, params: Any) : Any
+        ' Scheduled: Phase 3
+    }
+
+    class MonteCarloFinancialSimulation <<planned — not implemented>> implements SimulationModel {
+        +run(scenario: Any, seed: int) : Any
+        ' Scheduled: Phase 3
+    }
+
+    class PolicyRuleAST <<planned — not implemented>> implements RuleNode {
+        +accept(visitor: RuleVisitor) : Any
+        ' Scheduled: Phase 3
+    }
+
+    class AgentRun <<planned — not implemented>> implements RunState {
+        +id: UUID
+        +user_id: UUID
+        +state: str
+        +budget_cap_usd: Decimal
+        +cost_spent_usd: Decimal
+        +recovery_count: int
+        +plan: ActionPlan
+        +handle(run: Any, event: Any) : RunState
+        ' Scheduled: Phase 4
+    }
+
+    class ActionPlan <<planned — not implemented>> {
+        +steps: list[dict]
+        +current_step: int
+        ' Scheduled: Phase 4
+    }
+
+    AgentRun o-- ActionPlan
+    AgentRun --> Ledger : registers quantities
+}
+
+' Architectural Distinction Note
+note bottom of backend.arthlens.planned_modules
+  <b>Visual & Architectural Distinction:</b>
+  - <b>Solid Borders:</b> Implemented in P1-1 through P1-6. Exact match with Python codebase.
+    <i>(Quantity has exactly 18 dataclass fields; EvidenceFloor and ResolutionLevel are aliases.)</i>
+  - <b>Dashed Borders (<<planned — not implemented>>):</b> Planned concepts from Handbook v1.0,
+    scheduled for progressive delivery in Phases 2, 3, and 4.
+end note
+
+@enduml

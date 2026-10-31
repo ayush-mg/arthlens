@@ -1,0 +1,189 @@
+@startuml use_case
+!theme plain
+title ArthLens System — Use Case Diagram
+
+skinparam actor {
+    BackgroundColor White
+    BorderColor #2B5797
+}
+
+skinparam usecase {
+    BackgroundColor #F4F8FB
+    BorderColor #2B5797
+    ArrowColor #2B5797
+}
+
+' Planned use cases visual distinction (dashed border, grey background)
+skinparam usecase<<planned — Phase 2>> {
+    BackgroundColor #F5F5F5
+    BorderColor #888888
+    BorderStyle dashed
+    FontColor #555555
+}
+
+skinparam usecase<<planned — Phase 3>> {
+    BackgroundColor #F5F5F5
+    BorderColor #888888
+    BorderStyle dashed
+    FontColor #555555
+}
+
+skinparam usecase<<planned — Phase 4>> {
+    BackgroundColor #F5F5F5
+    BorderColor #888888
+    BorderStyle dashed
+    FontColor #555555
+}
+
+skinparam usecase<<deferred — R1>> {
+    BackgroundColor #EFEFEF
+    BorderColor #999999
+    BorderStyle dotted
+    FontColor #777777
+}
+
+skinparam usecase<<deferred — Advanced>> {
+    BackgroundColor #EFEFEF
+    BorderColor #999999
+    BorderStyle dotted
+    FontColor #777777
+}
+
+skinparam package {
+    BackgroundColor White
+    BorderColor #888888
+}
+
+skinparam note {
+    BackgroundColor #FFFDE7
+    BorderColor #FBC02D
+    FontColor #333333
+}
+
+' ==============================================================================
+' ACTORS
+' ==============================================================================
+
+' MVP Actors (Primary)
+actor "Entrepreneur" as actor_entrepreneur <<MVP>>
+actor "Data Steward" as actor_data_steward <<MVP>>
+actor "Administrator" as actor_admin <<MVP>>
+
+' Deferred Actors (Future Scope)
+actor "Customer / Community Member\n(R1)" as actor_customer <<Deferred R1>> #LightGray
+actor "Investor / Funder\n(Advanced)" as actor_investor <<Deferred Advanced>> #LightGray
+actor "Supplier / Institutional Buyer\n(Advanced)" as actor_supplier <<Deferred Advanced>> #LightGray
+actor "Programme Officer\n(Advanced)" as actor_programme_officer <<Deferred Advanced>> #LightGray
+
+' ==============================================================================
+' SYSTEM BOUNDARY
+' ==============================================================================
+rectangle "ArthLens System" as ArthLensSystem {
+
+    ' Authentication & Identity (Implemented P1-6)
+    package "Identity, Session & Security Governance (Implemented P1-6)" {
+        usecase "Authenticate Session\n(POST /auth/login / Argon2id)" as UC_Login
+        usecase "Terminate Session & Revoke Token\n(POST /auth/logout / RevocationStore)" as UC_Logout
+        usecase "Inspect Users & Quota Counters\n(GET /admin/users - Admin)" as UC_InspectUsers
+        usecase "Enforce Rate Limits & Concurrency\n(RateLimitingMiddleware / HTTP 429)" as UC_RateLimits
+        usecase "Inspect Security & Audit Trail\n(GET /admin/audit - Admin)" as UC_AuditLogs
+        usecase "Register User Account\n(Self-Registration Endpoint)" as UC_Register <<planned — Phase 2>>
+    }
+
+    ' Epistemic Ledger Foundations (Implemented P1-3, P1-4, P1-5, P1-6)
+    package "Ledger, Verification & Persistence (Implemented P1-3..P1-6)" {
+        usecase "Store & Version Immutable Quantities\n(PostgresQuantityRepository / Trigger Immutability)" as UC_PersistQuantities
+        usecase "Trace Epistemic Provenance Lineage\n(Topological DAG / Ancestor-Descendant Traversal)" as UC_TraceProvenance
+        usecase "Evaluate Epistemic Specifications\n(LedgerVerifier V1–V9 Gating)" as UC_RunVerification
+        usecase "Format Verified Chips & Scan Free Numbers\n(ReportRenderer / AllowlistConfig)" as UC_RenderChips
+        usecase "Manage Draft Policy Rules\n(POST /policy/rules / GET /policy/rules)" as UC_PersistPolicies
+        usecase "Create & Branch Scenarios\n(POST /scenarios / POST /scenarios/{id}/branch)" as UC_Scenarios
+    }
+
+    ' Planned Entrepreneur Workflows (Phases 2, 3, 4)
+    package "Entrepreneur Business Workflows (Planned Phases 2–4)" {
+        usecase "Define Business Profile\n(Location, Sector, Capital Budget)" as UC_Profile <<planned — Phase 2>>
+        usecase "Autonomous AgentRun Orchestration\n(Multi-step Goal Planning & Tool Execution)" as UC_OrchestrateRun <<planned — Phase 4>>
+        usecase "Interactive Clarification Dialog\n(Awaiting User Input)" as UC_ProvideClarification <<planned — Phase 4>>
+        usecase "Gated Action Review & Decision\n(Awaiting Approval Sign-off)" as UC_ApproveAction <<planned — Phase 4>>
+        usecase "Publish Feasibility Report\n(End-to-End Dossier Generation)" as UC_GenerateReport <<planned — Phase 4>>
+        usecase "Simulate Counterfactual Scenarios\n(Stochastic Monte Carlo Risk Engine)" as UC_SimulateRisk <<planned — Phase 3>>
+    }
+
+    ' Planned Data Stewardship Workflows (Phases 2, 3)
+    package "Data Stewardship Workflows (Planned Phases 2–3)" {
+        usecase "Automated Dataset Ingestion Pipeline\n(Census, PostGIS GeoUnits, OGD API Fetch)" as UC_IngestPipeline <<planned — Phase 2>>
+        usecase "Author & Evaluate Policy Rule ASTs\n(Kleene Logic Engine / RuleVisitor)" as UC_PolicyAST <<planned — Phase 3>>
+    }
+
+    ' Deferred / Future Use Cases
+    package "Future / Deferred Scope" {
+        usecase "Submit Local Demand Signals & Feedback" as UC_DemandFeedback <<deferred — R1>>
+        usecase "Access District Viability Benchmarks" as UC_ViabilityBenchmarks <<deferred — Advanced>>
+        usecase "Publish Procurement & Off-take Requests" as UC_ProcurementRequests <<deferred — Advanced>>
+        usecase "Monitor Scheme Disbursement & Impact Metrics" as UC_SchemeDisbursement <<deferred — Advanced>>
+    }
+
+    ' Relationships
+    UC_InspectUsers .> UC_Login : <<include>>
+    UC_AuditLogs .> UC_Login : <<include>>
+    UC_PersistQuantities .> UC_Login : <<include>>
+    UC_PersistPolicies .> UC_Login : <<include>>
+    UC_Scenarios .> UC_Login : <<include>>
+    UC_OrchestrateRun .> UC_Login : <<include>>
+    UC_OrchestrateRun .> UC_Scenarios : <<include>>
+    UC_GenerateReport ..> UC_RenderChips : <<include>>
+    UC_GenerateReport ..> UC_RunVerification : <<include>>
+    UC_TraceProvenance ..> UC_PersistQuantities : <<include>>
+    UC_RunVerification ..> UC_TraceProvenance : <<include>>
+}
+
+' ==============================================================================
+' ACTOR ASSOCIATIONS
+' ==============================================================================
+
+' Entrepreneur Links
+actor_entrepreneur --> UC_Login
+actor_entrepreneur --> UC_Logout
+actor_entrepreneur --> UC_Register
+actor_entrepreneur --> UC_Profile
+actor_entrepreneur --> UC_Scenarios
+actor_entrepreneur --> UC_OrchestrateRun
+actor_entrepreneur --> UC_ProvideClarification
+actor_entrepreneur --> UC_ApproveAction
+actor_entrepreneur --> UC_GenerateReport
+actor_entrepreneur --> UC_SimulateRisk
+
+' Data Steward Links
+actor_data_steward --> UC_Login
+actor_data_steward --> UC_Logout
+actor_data_steward --> UC_PersistQuantities
+actor_data_steward --> UC_PersistPolicies
+actor_data_steward --> UC_TraceProvenance
+actor_data_steward --> UC_RunVerification
+actor_data_steward --> UC_IngestPipeline
+actor_data_steward --> UC_PolicyAST
+
+' Administrator Links
+actor_admin --> UC_Login
+actor_admin --> UC_Logout
+actor_admin --> UC_InspectUsers
+actor_admin --> UC_RateLimits
+actor_admin --> UC_AuditLogs
+
+' Deferred Actor Links (Dotted)
+actor_customer ..> UC_DemandFeedback
+actor_investor ..> UC_ViabilityBenchmarks
+actor_supplier ..> UC_ProcurementRequests
+actor_programme_officer ..> UC_SchemeDisbursement
+
+' Mandatory Handbook Note
+note bottom of ArthLensSystem
+  <b>Mandatory Scope Distinction:</b>
+  - <b>Solid Borders:</b> Implemented in P1-1 through P1-6 (Login/Logout, Audit Trail, Ledger DAG, Repositories, Verifier, Renderer).
+  - <b>Dashed Borders (<<planned>>):</b> Intended workflows scheduled across Phase 2, Phase 3, and Phase 4.
+    <i>(Note: User self-registration and autonomous multi-agent orchestration are planned; they are not operational endpoints in P1-6.)</i>
+  - <b>Dotted Borders (<<deferred>>):</b> Post-MVP roles and workflows deferred to Release 1 and Advanced phases.
+end note
+
+@enduml

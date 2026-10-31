@@ -1,0 +1,186 @@
+@startuml agent_run_state_machine
+!theme plain
+title ArthLens System — AgentRun State Machine
+
+skinparam state {
+    BackgroundColor White
+    BorderColor #2B5797
+    ArrowColor #2B5797
+}
+
+' Distinct styling for terminal states
+skinparam state<<terminal>> {
+    BackgroundColor #FBE9E7
+    BorderColor #D32F2F
+    BorderThickness 2
+    FontColor #B71C1C
+}
+
+skinparam note {
+    BackgroundColor #FFFDE7
+    BorderColor #FBC02D
+    FontColor #333333
+}
+
+[*] --> CREATED : Run created (POST /runs)\n[Cost & quota reserved at API boundary]
+
+state CREATED {
+    CREATED : Initial state upon run instantiation
+    CREATED : Budget reserved, parameters validated
+}
+
+state INTERPRETING {
+    INTERPRETING : Parsing user input and context
+    INTERPRETING : Resolving geo units, sector, constraints
+}
+
+state PLANNING {
+    PLANNING : Generating / updating ActionPlan
+    PLANNING : Selecting tools, data providers, models
+}
+
+state EXECUTING {
+    EXECUTING : Invoking tools and running simulations
+    EXECUTING : Registering quantities into Ledger
+}
+
+state OBSERVING {
+    OBSERVING : Analyzing tool outputs and metrics
+    OBSERVING : Checking step completion and errors
+}
+
+state RECOVERING {
+    RECOVERING : Formulating recovery strategy
+    RECOVERING : Bounded retry counter incremented
+}
+
+state AWAITING_USER {
+    AWAITING_USER : Paused waiting for user input
+    AWAITING_USER : Clarification or missing parameters requested
+}
+
+state AWAITING_APPROVAL {
+    AWAITING_APPROVAL : Paused waiting for explicit user sign-off
+    AWAITING_APPROVAL : Gated action encountered
+}
+
+state VERIFYING {
+    VERIFYING : Running LedgerVerifier (Specifications V1–V9)
+    VERIFYING : Gating claims against epistemic rules
+}
+
+' Terminal States (4 exact terminal states per Handbook Part 8.2)
+state COMPLETED <<terminal>> {
+    COMPLETED : All plan goals achieved
+    COMPLETED : Verification passed (V1–V9 satisfied)
+    COMPLETED : Final Report rendered with chips
+}
+
+state FAILED <<terminal>> {
+    FAILED : Unrecoverable error encountered
+    FAILED : Planning failure or max retries exceeded
+}
+
+state BUDGET_EXHAUSTED <<terminal>> {
+    BUDGET_EXHAUSTED : Per-run budget limit reached
+    BUDGET_EXHAUSTED : Safe partial state persisted in Ledger
+}
+
+state CANCELLED <<terminal>> {
+    CANCELLED : Gated action rejected by user
+    CANCELLED : Execution halted cleanly
+}
+
+' ==============================================================================
+' TRANSITIONS (Handbook Part 8.2 Authoritative Specification)
+' ==============================================================================
+
+' CREATED
+CREATED --> INTERPRETING : Start run execution
+
+' INTERPRETING
+INTERPRETING --> PLANNING : Intent & parameters understood
+INTERPRETING --> AWAITING_USER : Clarification needed
+
+' AWAITING_USER
+AWAITING_USER --> PLANNING : User response received
+
+' PLANNING
+PLANNING --> EXECUTING : Plan ready
+PLANNING --> PLANNING : Re-planning / sub-goal decomposition
+PLANNING --> FAILED : Planning failed (unsatisfiable constraints)
+
+' EXECUTING
+EXECUTING --> OBSERVING : Execution step completed
+
+' OBSERVING
+OBSERVING --> EXECUTING : Continue plan execution
+OBSERVING --> RECOVERING : Error or anomaly detected
+OBSERVING --> AWAITING_APPROVAL : Gated action encountered
+OBSERVING --> VERIFYING : All execution goals met
+
+' AWAITING_APPROVAL (Handbook Part 8.2 exact specification)
+AWAITING_APPROVAL --> EXECUTING : Action approved by user
+AWAITING_APPROVAL --> CANCELLED : Action rejected by user
+
+' RECOVERING
+RECOVERING --> EXECUTING : Retry action directly [retries < max]
+RECOVERING --> PLANNING : Re-formulate recovery plan [retries < max]
+RECOVERING --> AWAITING_USER : Ask user for guidance
+RECOVERING --> FAILED : Recovery limit exceeded [retries >= max] / unrecoverable
+
+' VERIFYING
+VERIFYING --> COMPLETED : Verification passed [V1–V9 satisfied]
+VERIFYING --> RECOVERING : Verification failed [recoverable violations]
+
+' Budget Exhaustion (Evaluated during run execution from any active state)
+INTERPRETING --> BUDGET_EXHAUSTED : Run budget limit hit
+PLANNING --> BUDGET_EXHAUSTED : Run budget limit hit
+EXECUTING --> BUDGET_EXHAUSTED : Run budget limit hit
+OBSERVING --> BUDGET_EXHAUSTED : Run budget limit hit
+RECOVERING --> BUDGET_EXHAUSTED : Run budget limit hit
+VERIFYING --> BUDGET_EXHAUSTED : Run budget limit hit
+
+' Terminal Exit
+COMPLETED --> [*]
+FAILED --> [*]
+BUDGET_EXHAUSTED --> [*]
+CANCELLED --> [*]
+
+' ==============================================================================
+' SPECIFICATION NOTES
+' ==============================================================================
+
+note right of BUDGET_EXHAUSTED
+  <b>Run Budget vs. Daily Quota Separation:</b>
+  - <b>Per-Run Cost Cap:</b> Configurable budget for the active run
+    (initial default: $0.25; not an immutable universal constant).
+    Transition to <b>BUDGET_EXHAUSTED</b> occurs mid-run when this limit is hit.
+  - <b>Daily Run Quota (e.g. 50 runs/day):</b> Enforced at the API boundary
+    (POST /runs returns HTTP 429). It does <i>NOT</i> trigger an AgentRun state transition.
+  - <b>Daily Monetary Cap (P1-6 $5.00/day):</b> Verified at API boundary reservation;
+    also reconciled mid-run.
+end note
+
+note right of AWAITING_APPROVAL
+  <b>Gated Actions & Rejection:</b>
+  - Actions with high cost, external impact, or low evidence floors
+    pause into AWAITING_APPROVAL.
+  - <b>Approved:</b> Resumes execution (-> EXECUTING).
+  - <b>Rejected:</b> Transitions to CANCELLED per Handbook Part 8.2.
+end note
+
+note right of RECOVERING
+  <b>Bounded Recovery:</b>
+  - Maximum retry threshold (default: 3) tracked in run state.
+  - Exceeding limit forces immediate transition to FAILED.
+end note
+
+note bottom of CANCELLED
+  <b>Target Specification Note:</b>
+  AgentRun 13-state lifecycle follows Handbook Part 8.2 exactly.
+  Orchestration execution engine is scheduled for Phase 4.
+  All transitions enforce strict state validation; illegal transitions raise domain exceptions.
+end note
+
+@enduml
