@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ArthLens Atlas — Data-Quality Shading Preview (P2-3)</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 24px; }
+        h1 { margin-bottom: 8px; font-size: 24px; color: #38bdf8; }
+        p.subtitle { color: #94a3b8; margin-top: 0; margin-bottom: 24px; font-size: 14px; }
+        .legend { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; background: #1e293b; padding: 16px; border-radius: 8px; }
+        .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+        .legend-color { width: 20px; height: 20px; border-radius: 4px; border: 1px solid #475569; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
+        .quality-card { background: #1e293b; border-radius: 8px; padding: 16px; position: relative; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3); }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid #334155; padding-bottom: 8px; }
+        .geo-id { font-weight: bold; font-size: 15px; color: #f1f5f9; }
+        .badge { padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+        .card-body p { margin: 6px 0; font-size: 13px; color: #cbd5e1; }
+        code { background: #0f172a; padding: 2px 6px; border-radius: 4px; font-family: monospace; color: #38bdf8; }
+        .explanation { color: #e2e8f0; font-size: 12px; background: #0f172a; padding: 8px; border-radius: 6px; margin-top: 8px; }
+        .staleness-note { color: #fdba74; font-size: 12px; background: #431407; padding: 8px; border-radius: 6px; }
+        .swatch { height: 28px; border-radius: 4px; margin-top: 12px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #000; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+    <h1>ArthLens Atlas — Data-Quality Shading Preview (P2-3)</h1>
+    <p class="subtitle">Authoritative Atlas Quality Overlay Shading (Handbook Part 7.5 Step 10 & Part 10.2). Verifies deterministic color assignment across all quality states.</p>
+    <div class="legend">
+        <div class="legend-item"><div class="legend-color" style="background:#22C55E;"></div><span><strong>CURRENT:</strong> Current Data</span></div><div class="legend-item"><div class="legend-color" style="background:#EAB308;"></div><span><strong>INCOMPLETE:</strong> Incomplete Coverage</span></div><div class="legend-item"><div class="legend-color" style="background:#F97316;"></div><span><strong>STALE:</strong> Stale Observation</span></div><div class="legend-item"><div class="legend-color" style="background:#3B82F6;"></div><span><strong>ESTIMATED:</strong> Estimated / Modelled</span></div><div class="legend-item"><div class="legend-color" style="background:#94A3B8;"></div><span><strong>UNAVAILABLE:</strong> Data Unavailable</span></div>
+    </div>
+    <div class="grid">
+
+            <div class="quality-card" style="border-left: 8px solid #22C55E;">
+                <div class="card-header">
+                    <span class="geo-id">in:district:120</span>
+                    <span class="badge" style="background-color: #22C55E; color: #ffffff;">Current Data</span>
+                </div>
+                <div class="card-body">
+                    <p><strong>Indicator:</strong> <code>demographics.sample_survey</code></p>
+                    <p><strong>Primary Status:</strong> <span class="status-token token-atlas-quality-current">CURRENT</span></p>
+                    <p><strong>Hex Color:</strong> <code>#22C55E</code> | <strong>Opacity:</strong> 0.65</p>
+                    <p><strong>Observation Date (as_of):</strong> 2026-10-01</p>
+                    <p><strong>Calculation Suitability:</strong> <code>SUITABLE_CURRENT</code></p>
+                    <p class="explanation"><strong>Explanation:</strong> Observation date 2026-10-01 is current and complete for 'in:district:120' (as of 2026-11-06).</p>
+
+                </div>
+                <div class="swatch" style="background-color: #22C55E; opacity: 0.65;">
+                    <span>none / solid</span>
+                </div>
+            </div>
+
+            <div class="quality-card" style="border-left: 8px dashed #EAB308;">
+                <div class="card-header">
+                    <span class="geo-id">in:district:120</span>
+                    <span class="badge" style="background-color: #EAB308; color: #ffffff;">Incomplete Coverage</span>
+                </div>
+                <div class="card-body">
+                    <p><strong>Indicator:</strong> <code>population.tehsil_distribution</code></p>
+                    <p><strong>Primary Status:</strong> <span class="status-token token-atlas-quality-incomplete">INCOMPLETE</span></p>
+                    <p><strong>Hex Color:</strong> <code>#EAB308</code> | <strong>Opacity:</strong> 0.6</p>
+                    <p><strong>Observation Date (as_of):</strong> 2026-10-01</p>
+                    <p><strong>Calculation Suitability:</strong> <code>CAUTION_PARTIAL</code></p>
+                    <p class="explanation"><strong>Explanation:</strong> Incomplete sub-unit coverage: 2 of 3 sub-units missing for 'in:district:120'.</p>
+
+                </div>
+                <div class="swatch" style="background-color: #EAB308; opacity: 0.6;">
+                    <span>stripes-light / dashed</span>
+                </div>
+            </div>
+
+            <div class="quality-card" style="border-left: 8px dashed #F97316;">
+                <div class="card-header">
+                    <span class="geo-id">in:district:120</span>
+                    <span class="badge" style="background-color: #F97316; color: #ffffff;">Stale Observation</span>
+                </div>
+                <div class="card-body">
+                    <p><strong>Indicator:</strong> <code>population.census2011</code></p>
+                    <p><strong>Primary Status:</strong> <span class="status-token token-atlas-quality-stale">STALE</span></p>
+                    <p><strong>Hex Color:</strong> <code>#F97316</code> | <strong>Opacity:</strong> 0.7</p>
+                    <p><strong>Observation Date (as_of):</strong> 2011-03-01</p>
+                    <p><strong>Calculation Suitability:</strong> <code>SUITABLE_HISTORICAL_ONLY</code></p>
+                    <p class="explanation"><strong>Explanation:</strong> Observation date 2011-03-01 is STALE: elapsed 5729 days exceeds maximum threshold of 3650 days by 2079 days as of evaluation date 2026-11-06. Subject to Handbook ten-year staleness rule; must never represent current population.</p>
+                    <p class="staleness-note"><strong>Staleness Audit:</strong> Observation date 2011-03-01 is STALE: elapsed 5729 days exceeds maximum threshold of 3650 days by 2079 days as of evaluation date 2026-11-06. Subject to Handbook ten-year staleness rule; must never represent current population.</p>
+                </div>
+                <div class="swatch" style="background-color: #F97316; opacity: 0.7;">
+                    <span>hatch-diagonal / hatched</span>
+                </div>
+            </div>
+
+            <div class="quality-card" style="border-left: 8px dashed #3B82F6;">
+                <div class="card-header">
+                    <span class="geo-id">in:district:120</span>
+                    <span class="badge" style="background-color: #3B82F6; color: #ffffff;">Estimated / Modelled</span>
+                </div>
+                <div class="card-body">
+                    <p><strong>Indicator:</strong> <code>demand.projected_monthly</code></p>
+                    <p><strong>Primary Status:</strong> <span class="status-token token-atlas-quality-estimated">ESTIMATED</span></p>
+                    <p><strong>Hex Color:</strong> <code>#3B82F6</code> | <strong>Opacity:</strong> 0.6</p>
+                    <p><strong>Observation Date (as_of):</strong> 2026-10-01</p>
+                    <p><strong>Calculation Suitability:</strong> <code>ESTIMATED_PROJECTION</code></p>
+                    <p class="explanation"><strong>Explanation:</strong> Value is modelled / estimated (kind=ESTIMATED), not an empirical direct observation.</p>
+
+                </div>
+                <div class="swatch" style="background-color: #3B82F6; opacity: 0.6;">
+                    <span>dots / dotted</span>
+                </div>
+            </div>
+
+            <div class="quality-card" style="border-left: 8px dashed #94A3B8;">
+                <div class="card-header">
+                    <span class="geo-id">in:district:120</span>
+                    <span class="badge" style="background-color: #94A3B8; color: #ffffff;">Data Unavailable</span>
+                </div>
+                <div class="card-body">
+                    <p><strong>Indicator:</strong> <code>agriculture.soil_fertility</code></p>
+                    <p><strong>Primary Status:</strong> <span class="status-token token-atlas-quality-unavailable">UNAVAILABLE</span></p>
+                    <p><strong>Hex Color:</strong> <code>#94A3B8</code> | <strong>Opacity:</strong> 0.45</p>
+                    <p><strong>Observation Date (as_of):</strong> None</p>
+                    <p><strong>Calculation Suitability:</strong> <code>UNSUITABLE_MISSING</code></p>
+                    <p class="explanation"><strong>Explanation:</strong> Indicator 'agriculture.soil_fertility' is unavailable for 'in:district:120'; no record exists in the epistemic ledger. Never represented as numeric zero.</p>
+
+                </div>
+                <div class="swatch" style="background-color: #94A3B8; opacity: 0.45;">
+                    <span>cross-hatch / diagonal-cross</span>
+                </div>
+            </div>
+
+    </div>
+</body>
+</html>

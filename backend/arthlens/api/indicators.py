@@ -8,9 +8,14 @@ Phase: P1-6 (Authentication, Roles, RBAC, Audit Events and Rate Limiting).
 from typing import Any, Dict, List, Optional
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from backend.arthlens.infra.repositories import PostgresQuantityRepository
+from backend.arthlens.quality import (
+    AtlasQualityShadingAdapter,
+    DataQualityEvaluator,
+    get_shading_token,
+)
 from backend.arthlens.security.rbac import AuthenticatedUser, require_roles
 from backend.arthlens.security.roles import Role
 
@@ -22,12 +27,19 @@ def get_geo_indicators(
     geo_id: str,
     current_user: AuthenticatedUser = Depends(require_roles(Role.ENTREPRENEUR, Role.STEWARD, Role.ADMIN)),
 ) -> Dict[str, Any]:
-    """Retrieve indicators with class, resolution, quality flags (All authenticated roles)."""
+    """Retrieve indicators with class, resolution, quality flags, and Atlas shading (All authenticated roles)."""
     repo = PostgresQuantityRepository()
     quantities = repo.list_by_geo_unit(geo_id)
-    return {
-        "geo_unit_id": geo_id,
-        "indicators": [
+    evaluator = DataQualityEvaluator()
+
+    indicator_items = []
+    for q in quantities:
+        assessment = evaluator.evaluate_quantity(
+            quantity=q,
+            indicator_key=q.definition_key,
+            geo_unit_id=geo_id,
+        )
+        indicator_items.append(
             {
                 "id": q.id,
                 "definition_key": q.definition_key,
@@ -36,10 +48,56 @@ def get_geo_indicators(
                 "kind": q.kind.value,
                 "evidence_floor": q.evidence_floor,
                 "resolution": q.resolution,
+                "as_of": q.as_of,
                 "quality_flags": list(q.quality_flags),
+                "quality_status": assessment.primary_status.value,
+                "quality_label": assessment.shading.label,
+                "quality_color": assessment.shading.hex_color,
+                "suitability": assessment.suitability.value,
+                "shading": {
+                    "color_token": assessment.shading.color_token,
+                    "hex_color": assessment.shading.hex_color,
+                    "fill_opacity": assessment.shading.fill_opacity,
+                    "stroke_style": assessment.shading.stroke_style,
+                },
             }
-            for q in quantities
-        ],
+        )
+
+    return {
+        "geo_unit_id": geo_id,
+        "indicators": indicator_items,
+    }
+
+
+@router.get("/geo/{geo_id}/quality")
+def get_geo_quality(
+    geo_id: str,
+    indicator: Optional[str] = Query(None, description="Optional indicator definition_key"),
+    current_user: AuthenticatedUser = Depends(require_roles(Role.ENTREPRENEUR, Role.STEWARD, Role.ADMIN)),
+) -> Dict[str, Any]:
+    """Retrieve Atlas quality assessment and shading tokens for a geographic unit."""
+    repo = PostgresQuantityRepository()
+    quantities = repo.list_by_geo_unit(geo_id)
+    evaluator = DataQualityEvaluator()
+
+    if indicator:
+        matching = [q for q in quantities if q.definition_key == indicator]
+        q = matching[0] if matching else None
+        assessment = evaluator.evaluate_quantity(
+            quantity=q,
+            indicator_key=indicator,
+            geo_unit_id=geo_id,
+        )
+        return assessment.to_dict()
+
+    # If no specific indicator requested, evaluate all available indicators
+    assessments = [
+        evaluator.evaluate_quantity(quantity=q, indicator_key=q.definition_key, geo_unit_id=geo_id).to_dict()
+        for q in quantities
+    ]
+    return {
+        "geo_unit_id": geo_id,
+        "assessments": assessments,
     }
 
 

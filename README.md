@@ -1,6 +1,6 @@
 # ArthLens
 
-> **Status: Development in Progress — Phase 2: In Progress (P2-1 & P2-2 Complete)**
+> **Status: Development in Progress — Phase 2: In Progress (P2-1, P2-2 & P2-3 Complete)**
 >
 > *An agentic, evidence-gated economic decision engine for Indian micro-enterprises.*  
 > **Authoritative Specification**: [ArthLens Build Handbook](docs/ArthLens_Build_Handbook.pdf) (v1.0, 17 Oct 2026)
@@ -22,7 +22,8 @@ The core design principle of ArthLens is **evidence gating**: the system is desi
 > - **Phase 2 (Data Ingestion & Geographic Grounding)**: **In Progress**.
 >   - **P2-1 — Verified Dataset Ingestion and Persistence**: **Complete**.
 >   - **P2-2 — National & District Geographic Hierarchy Expansion**: **Complete**.
->   - **P2-3 (Data-Quality Layer & Staleness Flags)**: **Next task; not started**.
+>   - **P2-3 — Data-Quality Layer & Staleness Flags**: **Complete**.
+>   - **P2-4 — Interactive Atlas UI & Spatial Exploration**: **Next phase task; not started**.
 > - **What is currently implemented**:
 >   - **Evidence and domain infrastructure**: Immutable data types (`Quantity`, `EvidenceFloor`, `Kind`, Pint dimensional unit enforcement).
 >   - **Verification and epistemic ledger**: Directed acyclic dependency graph tracking provenance, calculation lineages, and evidence floors.
@@ -30,6 +31,7 @@ The core design principle of ArthLens is **evidence gating**: the system is desi
 >   - **Four verified-source ingestion adapters**: Dedicated adapters with 10-step validation pipelines for OpenStreetMap (`DS-04`), LGD/Census 2011 (`DS-05`), Government Schemes (`DS-08`), and Administrative Boundaries (`DS-09`).
 >   - **Normalized source-record and quantity persistence**: Structured persistence models for `sources`, `source_versions`, `source_records`, and `quantities`.
 >   - **Nationwide geographic hierarchy and provider expansion**: Canonical geographic domain models (`GeoUnit`), repository contracts, official nationwide LGD master states (36) and districts (763) ingestion, and second-district configuration acceptance (Varanasi: LGD 187, Census 197).
+>   - **Data-quality layer and staleness flags (P2-3)**: Five authoritative quality states (`CURRENT`, `INCOMPLETE`, `STALE`, `ESTIMATED`, `UNAVAILABLE`) with deterministic precedence (`UNAVAILABLE > INCOMPLETE > STALE > ESTIMATED > CURRENT`), MapLibre data-driven shading contracts, Census 2011 10-year rule enforcement, epistemic ledger calculation gating, and decoupled geographic navigation from quality states.
 > - **Scope Boundary**: Higher-level analytical engines (Loop B Dijkstra/Huff spatial models, Monte Carlo risk simulation, agent orchestration) and frontend user interfaces (Next.js, MapLibre GL JS, Cytoscape.js) are subsequent phase deliverables and are not yet deployed.
 
 ---
@@ -153,7 +155,17 @@ arthlens/
       - Modern nationwide boundary acquisition remains **`SOURCE-GATED`** pending licensing and acquisition of an approved modern nationwide boundary dataset.
       - Nationwide PMTiles vector tiles are **`NOT GENERATED`**; the PMTiles source gate is the lack of an approved modern nationwide boundary dataset, not merely a missing packaging pipeline.
     - Test database isolation enforced via exact database identity validation guard; persistent development database verified with zero mutation across test runs.
-    - Backend regression results: **338 passed, 1 skipped (optional live data.gov.in retrieval test), 0 failed**.
-  - **P2-3 (Data-Quality Layer & Staleness Flags)**: **Next task; not started**. Atlas shades data-quality states and staleness flags per Build Handbook Part 13.
+    - Backend regression results: **343 passed, 1 skipped (optional live data.gov.in retrieval test), 0 failed**.
+  - **P2-3 — Data-Quality Layer and Staleness Flags**: **Complete**.
+    - Authoritative quality vocabulary implemented: `CURRENT`, `INCOMPLETE`, `STALE`, `ESTIMATED`, `UNAVAILABLE`.
+    - Strict deterministic precedence order for primary display state selection: `UNAVAILABLE > INCOMPLETE > STALE > ESTIMATED > CURRENT`, with preservation of all secondary issues and explanations.
+    - Deterministic freshness evaluation with injected clock support and separate tracking of `as_of`, `publication_date`, `retrieval_date`, `ingestion_date`, and `evaluation_date`.
+    - Verified Census 2011 10-year staleness policy (`max_age_days = 3650`): strictly `STALE` evaluated on 6 November 2026 while preserving `Kind.OBSERVED`; recent download timestamps never make historical observations current.
+    - Missing data is strictly `UNAVAILABLE` (never silently numeric zero).
+    - Epistemic ledger propagation and calculation gating: calculations inspecting stale evidence inherit `STALE_ANCESTRY` and are restricted to `SUITABLE_HISTORICAL_ONLY`; missing inputs fail closed via `GatedCalculationError`.
+    - Atlas presentation contract implemented: stable design tokens, hex colors (`#22C55E`, `#EAB308`, `#F97316`, `#3B82F6`, `#94A3B8`), stroke styles, opacity, patterns, and self-contained interactive visual preview (`docs/atlas-quality-shading-preview.html`).
+    - API endpoints: enriched `GET /geo/{id}/indicators` with quality shading and added `GET /geo/{id}/quality`.
+    - Backend regression results: **374 passed, 1 skipped (optional live data.gov.in retrieval test), 0 failed**.
+  - **P2-4 (Atlas UI with MapLibre, Provenance Drawer & Evidence Graph)**: **Next task; not started**.
 - **Phase 3 & Phase 4 (Computational Engines & Frontend UI)**: Planned future phases; not started.
 - **Authoritative Specification Document**: [ArthLens Build Handbook](docs/ArthLens_Build_Handbook.pdf) (v1.0, 17 Oct 2026).

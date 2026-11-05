@@ -11,18 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from backend.arthlens.data.models import GeographicReconciliation, NormalizedRecord, QualityAnomaly, QualityAssessment
 from backend.arthlens.ledger.staleness import is_source_stale, parse_as_of_date
-
-
-class QualityStatus(str, Enum):
-    """
-    Quality and coverage vocabulary published by ArthLens data pipelines.
-    Handbook Reference: Section 7.5, Part 13.1 P2-1 Requirement 14.
-    """
-    CURRENT = "CURRENT"
-    INCOMPLETE = "INCOMPLETE"
-    STALE = "STALE"
-    ESTIMATED = "ESTIMATED"
-    UNAVAILABLE = "UNAVAILABLE"
+from backend.arthlens.quality.vocabulary import QualityStatus
 
 
 def detect_duplicates(
