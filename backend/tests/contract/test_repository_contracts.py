@@ -37,12 +37,13 @@ def in_memory_repo():
 @pytest.fixture
 def postgres_repo():
     repo = PostgresQuantityRepository()
-    # Clean up quantities created during tests
     yield repo
     # Cleanup all quantities in test database
-    from backend.arthlens.infra.database import get_engine
+    from backend.arthlens.infra.database import assert_safe_test_database, get_engine
     from sqlalchemy import text
-    with get_engine().begin() as conn:
+    engine = get_engine()
+    assert_safe_test_database(engine)
+    with engine.begin() as conn:
         conn.execute(text("TRUNCATE TABLE quantities CASCADE;"))
 
 

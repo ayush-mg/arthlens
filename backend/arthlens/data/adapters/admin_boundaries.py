@@ -18,6 +18,12 @@ from backend.arthlens.data.models import (
     RawRecord,
 )
 from backend.arthlens.domain.enums import ResolutionTier
+from backend.arthlens.domain.geo import (
+    canonical_district_id,
+    canonical_nation_id,
+    canonical_state_id,
+    canonical_subdistrict_id,
+)
 from backend.arthlens.domain.quantity import Quantity
 
 
@@ -121,7 +127,8 @@ class AdminBoundariesAdapter(SourceAdapter):
             "name": props.get("SUBDISTRICT") or props.get("DISTRICT") or props.get("ST_NM"),
             "geometry": geom,
             "lgd_code": props.get("lgd_code"),
-            "level": props.get("level", 2),
+            "parent_lgd_code": props.get("parent_lgd_code"),
+            "level": props.get("level"),
         }
 
         return NormalizedRecord(
@@ -136,8 +143,23 @@ class AdminBoundariesAdapter(SourceAdapter):
     def reconcile_geography(self, record: NormalizedRecord) -> GeographicReconciliation:
         """Reconcile boundary polygon to official LGD hierarchy."""
         props = record.original_fields
-        lgd_code = str(props.get("lgd_code", ""))
-        level = props.get("level", 2)
+        lgd_code_raw = props.get("lgd_code")
+        if lgd_code_raw is None or not str(lgd_code_raw).strip():
+            return GeographicReconciliation(
+                resolved=False,
+                unresolved_raw_id=record.record_id,
+                notes="Missing required 'lgd_code'",
+            )
+
+        lgd_code = str(lgd_code_raw).strip()
+
+        level = props.get("level")
+        if level is None or level not in (0, 1, 2, 3, 4, 5):
+            return GeographicReconciliation(
+                resolved=False,
+                unresolved_raw_id=record.record_id,
+                notes=f"Invalid or missing administrative level: {level}",
+            )
 
         tier_map = {
             0: ResolutionTier.NATION,
@@ -147,13 +169,25 @@ class AdminBoundariesAdapter(SourceAdapter):
             4: ResolutionTier.VILLAGE_URBAN,
             5: ResolutionTier.POINT,
         }
-        tier = tier_map.get(level, ResolutionTier.DISTRICT)
+        tier = tier_map[level]
 
-        parent_lgd = props.get("parent_lgd_code")
-        if parent_lgd:
-            geo_id = f"in:lgd:{parent_lgd}:{lgd_code}"
+        if tier == ResolutionTier.SUBDISTRICT:
+            parent_lgd = props.get("parent_lgd_code")
+            if parent_lgd is None or not str(parent_lgd).strip():
+                return GeographicReconciliation(
+                    resolved=False,
+                    unresolved_raw_id=record.record_id,
+                    notes="Sub-district boundary feature missing required 'parent_lgd_code'",
+                )
+            geo_id = canonical_subdistrict_id(str(parent_lgd).strip(), lgd_code)
+        elif tier == ResolutionTier.DISTRICT:
+            geo_id = canonical_district_id(lgd_code)
+        elif tier == ResolutionTier.STATE:
+            geo_id = canonical_state_id(lgd_code)
+        elif tier == ResolutionTier.NATION:
+            geo_id = canonical_nation_id()
         else:
-            geo_id = f"in:lgd:{lgd_code}"
+            geo_id = f"in:unit:{lgd_code}"
 
         return GeographicReconciliation(
             resolved=True,

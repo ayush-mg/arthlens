@@ -107,3 +107,39 @@
   - Essential core dependency for the Atlas map interface and spatial containment queries.
   - Survey of India compliant boundary representations ensure legal regulatory compliance.
   - PMTiles single-file edge serving satisfies low-cost, zero-maintenance deployment constraints.
+
+---
+
+## 8. Strict Boundary Source Gate & Vintage Reconciliation (P2-2 Stage 2)
+
+Pursuant to Build Handbook Part 7.4, Part 13, and the P2-2 strict boundary source gate:
+
+### 8.1 Administrative Vintage & Source Discrepancies
+1. **Census 2011 Base vs. Modern LGD Hierarchy**:
+   - The publicly downloadable DataMeet community boundary dataset contains **641 districts** reflecting the March 2011 enumeration boundaries.
+   - The modern official Local Government Directory (LGD) comprises **763 districts** (122 new districts formed through subsequent administrative bifurcation, trifurcation, and state re-organizations such as Telangana and Ladakh).
+2. **Prohibition of Name-Matching Fallbacks**:
+   - In accordance with Handbook Part 7.4, historical 2011 polygons must **never** be attached to modern 763 LGD districts through name matching alone.
+   - Doing so would corrupt territorial boundaries and lead to spatial containment errors for newly partitioned districts.
+3. **Operational Boundary Gate**:
+   - Nationwide geographic hierarchy (`geo_units`) maintains **navigability** across all 763 modern districts.
+   - Districts lacking verified modern Survey of India / LGD spatial shapefiles are explicitly designated with `geometry_status = 'GEOMETRY_MISSING'` (or `'GEOMETRY_UNVALIDATED'`).
+   - The pilot district footprint (Prayagraj and Sadar Tehsil) holds verified spatial polygon boundaries (`GEOMETRY_VERIFIED`) stored in `backend/fixtures/boundaries/prayagraj_boundaries_sample.geojson`.
+
+### 8.2 Boundary Technical Validation & PMTiles Source Gate Status
+
+- **Prayagraj Pilot Geometry**: `GEOMETRY_VERIFIED` (technically validated PostGIS polygons loaded from `backend/fixtures/boundaries/prayagraj_boundaries_sample.geojson`).
+  - **Technical Validity Scope**: Technical validation confirms RFC 7946 / PostGIS polygon topology (closed coordinate rings, EPSG:4326 WGS-84 reference, valid ST_IsValid polygon geometry) for UI rendering and point-in-polygon queries.
+  - **Non-Endorsement**: Technical validity does **NOT** certify an authoritative Government of India boundary endorsement or Survey of India statutory certification.
+  - **Storage Invariant**: Only the Prayagraj pilot geometry is currently stored in PostGIS.
+- **Other 762 National Baseline Districts**: `GEOMETRY_MISSING` (navigable within geographic hierarchy, but spatial boundary polygons remain unattached).
+- **Modern Nationwide District Boundary Source**: **`SOURCE-GATED`** (Historical Census 2011 641-district shapefiles are strictly rejected for nationwide LGD matching to prevent boundary conflation; acquisition and licensing of an approved modern Survey of India / LGD spatial boundary dataset is pending).
+- **Nationwide PMTiles Vector Tile Artifact**: **`NOT GENERATED`** (The PMTiles source gate is the lack of an approved modern nationwide boundary dataset, not merely a missing packaging pipeline. The `.pmtiles` archive has NOT been generated).
+
+When approved nationwide modern shapefiles are acquired, vector tiles will be compiled offline via `tippecanoe` with explicit reproducibility metadata:
+- **Target Archive**: `india_boundaries.pmtiles`
+- **Tiling Parameters**:
+  - Min zoom: `0`, Max zoom: `10`
+  - Simplification: Dynamic `--drop-densest-as-needed`
+  - Layer names: `nation`, `state`, `district`, `subdistrict`
+- **Serving Architecture**: Served strictly as static objects via HTTP range requests from Cloudflare R2 / S3 or FastAPI static mounts; dynamic map-server daemons are strictly prohibited.

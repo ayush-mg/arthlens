@@ -1,10 +1,10 @@
 lgd_state_code,state_name,lgd_district_code,district_name,historic_census_name,census_district_code,census_publication_id,subdistrict_lgd_code,census_mdds_subdistrict_code,subdistrict_name,total_population,male_population,female_population,total_households,as_of
-09,Uttar Pradesh,175,Prayagraj,Allahabad,175,0944,,,,5954391,3131807,2822584,976733,2011-03-01
-09,Uttar Pradesh,175,Prayagraj,Allahabad,175,0944,00843,00888,Soraon,823190,427214,395976,136863,2011-03-01
-09,Uttar Pradesh,175,Prayagraj,Allahabad,175,0944,00844,00889,Phulpur,859421,446824,412597,135991,2011-03-01
-09,Uttar Pradesh,175,Prayagraj,Allahabad,175,0944,00845,00890,Sadar,1395816,758719,637097,248662,2011-03-01
-09,Uttar Pradesh,175,Prayagraj,Allahabad,175,0944,00848,00891,Bara,365605,192517,173088,65850,2011-03-01
-09,Uttar Pradesh,175,Prayagraj,Allahabad,175,0944,00847,00892,Karchhana,606924,318185,288739,95034,2011-03-01
-09,Uttar Pradesh,175,Prayagraj,Allahabad,175,0944,00846,00893,Handia,944717,487606,457111,144880,2011-03-01
-09,Uttar Pradesh,175,Prayagraj,Allahabad,175,0944,00849,00894,Meja,579879,302343,277536,87482,2011-03-01
-09,Uttar Pradesh,175,Prayagraj,Allahabad,175,0944,00850,00895,Koraon,378839,198399,180440,61971,2011-03-01
+09,Uttar Pradesh,120,Prayagraj,Allahabad,175,0944,,,,5954391,3131807,2822584,976733,2011-03-01
+09,Uttar Pradesh,120,Prayagraj,Allahabad,175,0944,888,00888,Soraon,823190,427214,395976,136863,2011-03-01
+09,Uttar Pradesh,120,Prayagraj,Allahabad,175,0944,889,00889,Phulpur,859421,446824,412597,135991,2011-03-01
+09,Uttar Pradesh,120,Prayagraj,Allahabad,175,0944,890,00890,Sadar,1395816,758719,637097,248662,2011-03-01
+09,Uttar Pradesh,120,Prayagraj,Allahabad,175,0944,891,00891,Bara,365605,192517,173088,65850,2011-03-01
+09,Uttar Pradesh,120,Prayagraj,Allahabad,175,0944,892,00892,Karchhana,606924,318185,288739,95034,2011-03-01
+09,Uttar Pradesh,120,Prayagraj,Allahabad,175,0944,893,00893,Handia,944717,487606,457111,144880,2011-03-01
+09,Uttar Pradesh,120,Prayagraj,Allahabad,175,0944,894,00894,Meja,579879,302343,277536,87482,2011-03-01
+09,Uttar Pradesh,120,Prayagraj,Allahabad,175,0944,895,00895,Koraon,378839,198399,180440,61971,2011-03-01

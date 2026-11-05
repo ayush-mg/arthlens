@@ -24,6 +24,16 @@ from backend.arthlens.domain.interfaces import (
     Tool,
     VerificationSpecification,
 )
+from backend.arthlens.domain.geo import (
+    AnalyticalStatus,
+    GeometryStatus,
+    GeoUnit,
+    NavigationStatus,
+    canonical_district_id,
+    canonical_nation_id,
+    canonical_state_id,
+    canonical_subdistrict_id,
+)
 from backend.arthlens.domain.quantity import Quantity
 from backend.arthlens.domain.repositories import (
     ImmutableQuantityError,
@@ -33,6 +43,9 @@ from backend.arthlens.domain.repositories import (
     RepositoryError,
     ScenarioRepository,
     UserRepository,
+    GeoUnitRepository,
+    ConflictingGeoUnitError,
+    OrphanedGeoUnitError,
 )
 from backend.arthlens.domain.simulation import SimulationMetadata
 
@@ -62,4 +75,15 @@ __all__ = [
     "UserRepository",
     "PolicyRuleRepository",
     "ScenarioRepository",
+    "GeoUnitRepository",
+    "ConflictingGeoUnitError",
+    "OrphanedGeoUnitError",
+    "GeoUnit",
+    "NavigationStatus",
+    "GeometryStatus",
+    "AnalyticalStatus",
+    "canonical_nation_id",
+    "canonical_state_id",
+    "canonical_district_id",
+    "canonical_subdistrict_id",
 ]

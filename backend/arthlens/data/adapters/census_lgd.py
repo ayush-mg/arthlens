@@ -20,6 +20,7 @@ from backend.arthlens.data.models import (
     RawRecord,
 )
 from backend.arthlens.domain.enums import Kind, ResolutionTier
+from backend.arthlens.domain.geo import canonical_district_id, canonical_subdistrict_id
 from backend.arthlens.domain.quantity import Quantity
 
 
@@ -175,7 +176,7 @@ class CensusLGDAdapter(SourceAdapter):
                 notes += f", Census 2011 MDDS: {census_subdist}"
             return GeographicReconciliation(
                 resolved=True,
-                geo_unit_id=f"in:lgd:{district_code}:{subdistrict_code}",
+                geo_unit_id=canonical_subdistrict_id(district_code, subdistrict_code),
                 resolution_tier=ResolutionTier.SUBDISTRICT,
                 notes=notes,
             )
@@ -189,7 +190,7 @@ class CensusLGDAdapter(SourceAdapter):
                 notes += f", Publication ID: {pub_id}"
             return GeographicReconciliation(
                 resolved=True,
-                geo_unit_id=f"in:lgd:{district_code}",
+                geo_unit_id=canonical_district_id(district_code),
                 resolution_tier=ResolutionTier.DISTRICT,
                 notes=notes,
             )

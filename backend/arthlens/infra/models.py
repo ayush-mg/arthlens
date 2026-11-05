@@ -143,16 +143,31 @@ class GeoUnitModel(Base):
     """Geographic admin boundaries and entities with PostGIS geometries."""
     __tablename__ = "geo_units"
 
-    id = Column(Text, primary_key=True)  # LGD code or hierarchical identifier
+    id = Column(Text, primary_key=True)  # e.g., 'in', 'in:state:09', 'in:district:175'
     parent_id = Column(Text, ForeignKey("geo_units.id"), nullable=True, index=True)
-    level = Column(SmallInteger, nullable=False)  # 0=NATION, 1=STATE, 2=DISTRICT, etc.
+    level = Column(SmallInteger, nullable=False)  # 0=NATION, 1=STATE, 2=DISTRICT, 3=SUBDISTRICT, etc.
     name = Column(Text, nullable=False)
     lgd_code = Column(Text, nullable=True, index=True)
     geometry = Column(Geometry(geometry_type="GEOMETRY", srid=4326), nullable=True)
-    coverage_status = Column(Text, nullable=False, server_default="FULL")
+    coverage_status = Column(Text, nullable=False, server_default="NAVIGABLE")
+    geometry_status = Column(Text, nullable=False, server_default="GEOMETRY_MISSING")
+    analytical_status = Column(Text, nullable=False, server_default="ANALYSIS_UNAVAILABLE")
+    census_code = Column(Text, nullable=True)
 
     __table_args__ = (
         CheckConstraint("level BETWEEN 0 AND 5", name="check_geo_unit_level"),
+        CheckConstraint(
+            "coverage_status IN ('NAVIGABLE', 'HIERARCHY_UNRESOLVED')",
+            name="check_geo_unit_coverage_status",
+        ),
+        CheckConstraint(
+            "geometry_status IN ('GEOMETRY_VERIFIED', 'GEOMETRY_SIMPLIFIED', 'GEOMETRY_HISTORICAL', 'GEOMETRY_UNVALIDATED', 'GEOMETRY_MISSING')",
+            name="check_geo_unit_geometry_status",
+        ),
+        CheckConstraint(
+            "analytical_status IN ('ANALYSABLE', 'ANALYSIS_UNAVAILABLE')",
+            name="check_geo_unit_analytical_status",
+        ),
     )
 
 

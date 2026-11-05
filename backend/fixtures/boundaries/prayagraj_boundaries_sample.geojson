@@ -11,12 +11,12 @@
     {
       "type": "Feature",
       "properties": {
-        "DISTRICT": "Allahabad",
+        "DISTRICT": "Prayagraj",
         "ST_NM": "Uttar Pradesh",
         "ST_CEN_CD": 9,
         "DT_CEN_CD": 44,
         "censuscode": 175,
-        "lgd_code": "175",
+        "lgd_code": "120",
         "level": 2
       },
       "geometry": {
@@ -36,10 +36,11 @@
       "type": "Feature",
       "properties": {
         "SUBDISTRICT": "Sadar",
-        "DISTRICT": "Allahabad",
+        "DISTRICT": "Prayagraj",
         "ST_NM": "Uttar Pradesh",
-        "lgd_code": "00845",
-        "parent_lgd_code": "175",
+        "censuscode": "00890",
+        "lgd_code": "890",
+        "parent_lgd_code": "120",
         "level": 3
       },
       "geometry": {
@@ -57,4 +58,3 @@
     }
   ]
 }
-

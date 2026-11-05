@@ -6,12 +6,17 @@ Phase: P1-5 (Database Persistence, Repositories and Integration Tests).
 """
 
 import threading
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 import uuid
 
+from backend.arthlens.domain.enums import ResolutionTier
+from backend.arthlens.domain.geo import GeoUnit
 from backend.arthlens.domain.quantity import Quantity
 from backend.arthlens.domain.repositories import (
+    ConflictingGeoUnitError,
+    GeoUnitRepository,
     ImmutableQuantityError,
+    OrphanedGeoUnitError,
     PolicyRuleRepository,
     QuantityRepository,
     ScenarioRepository,
@@ -345,3 +350,107 @@ class InMemorySourceRecordRepository(SourceRecordRepository):
 
     def clear(self) -> None:
         self._records.clear()
+
+
+def _codes_differ(code1: Optional[str], code2: Optional[str]) -> bool:
+    """Check if two codes differ, treating leading-zero numeric strings as matching."""
+    if code1 == code2:
+        return False
+    if code1 is not None and code2 is not None:
+        c1, c2 = str(code1).strip(), str(code2).strip()
+        if c1.isdigit() and c2.isdigit():
+            return int(c1) != int(c2)
+    return True
+
+
+class InMemoryGeoUnitRepository(GeoUnitRepository):
+    """In-memory fake implementation of GeoUnitRepository for unit and contract testing."""
+
+    def __init__(self) -> None:
+        self._store: Dict[str, GeoUnit] = {}
+        self._lock = threading.Lock()
+
+    def save_unit(self, unit: GeoUnit) -> None:
+        with self._lock:
+            # Check parent existence
+            if unit.parent_id is not None and unit.parent_id not in self._store:
+                raise OrphanedGeoUnitError(
+                    f"Parent unit '{unit.parent_id}' does not exist in repository for child '{unit.id}'."
+                )
+
+            # Check existing unit conflicts
+            if unit.id in self._store:
+                existing = self._store[unit.id]
+                if (
+                    existing.name != unit.name
+                    or existing.level != unit.level
+                    or _codes_differ(existing.lgd_code, unit.lgd_code)
+                    or existing.parent_id != unit.parent_id
+                ):
+                    raise ConflictingGeoUnitError(
+                        f"GeoUnit '{unit.id}' already exists with conflicting definition: "
+                        f"existing (name={existing.name}, level={existing.level}, lgd={existing.lgd_code}), "
+                        f"new (name={unit.name}, level={unit.level}, lgd={unit.lgd_code})."
+                    )
+                # Idempotent re-save of same entity; enrich if verified geometry or census code provided
+                if unit.geometry is not None or (unit.census_code and not existing.census_code):
+                    self._store[unit.id] = unit
+                return
+
+            self._store[unit.id] = unit
+
+    def save_units(self, units: Sequence[GeoUnit]) -> int:
+        with self._lock:
+            # Staging dict to guarantee atomic batch application and complete rollback on failure
+            staged = dict(self._store)
+            count = 0
+            for unit in units:
+                if unit.parent_id is not None and unit.parent_id not in staged:
+                    raise OrphanedGeoUnitError(
+                        f"Parent unit '{unit.parent_id}' does not exist in repository for child '{unit.id}'."
+                    )
+                if unit.id in staged:
+                    existing = staged[unit.id]
+                    if (
+                        existing.name != unit.name
+                        or existing.level != unit.level
+                        or _codes_differ(existing.lgd_code, unit.lgd_code)
+                        or existing.parent_id != unit.parent_id
+                    ):
+                        raise ConflictingGeoUnitError(
+                            f"GeoUnit '{unit.id}' already exists with conflicting definition: "
+                            f"existing (name={existing.name}, level={existing.level}, lgd={existing.lgd_code}), "
+                            f"new (name={unit.name}, level={unit.level}, lgd={unit.lgd_code})."
+                        )
+                    if unit.geometry is not None or (unit.census_code and not existing.census_code):
+                        staged[unit.id] = unit
+                    continue
+                staged[unit.id] = unit
+                count += 1
+            # Commit atomic batch
+            self._store = staged
+            return count
+
+    def get_unit(self, unit_id: str) -> Optional[GeoUnit]:
+        with self._lock:
+            return self._store.get(str(unit_id))
+
+    def get_unit_by_lgd_code(self, level: ResolutionTier, lgd_code: str) -> Optional[GeoUnit]:
+        with self._lock:
+            target_code = str(lgd_code).strip()
+            for u in self._store.values():
+                if u.level == level and u.lgd_code == target_code:
+                    return u
+            return None
+
+    def list_by_parent(self, parent_id: Optional[str]) -> List[GeoUnit]:
+        with self._lock:
+            return [u for u in self._store.values() if u.parent_id == parent_id]
+
+    def list_by_level(self, level: ResolutionTier) -> List[GeoUnit]:
+        with self._lock:
+            return [u for u in self._store.values() if u.level == level]
+
+    def clear(self) -> None:
+        with self._lock:
+            self._store.clear()

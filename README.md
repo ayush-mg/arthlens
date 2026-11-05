@@ -1,6 +1,6 @@
 # ArthLens
 
-> **Status: Development in Progress — Phase 2: In Progress (P2-1 Complete)**
+> **Status: Development in Progress — Phase 2: In Progress (P2-1 & P2-2 Complete)**
 >
 > *An agentic, evidence-gated economic decision engine for Indian micro-enterprises.*  
 > **Authoritative Specification**: [ArthLens Build Handbook](docs/ArthLens_Build_Handbook.pdf) (v1.0, 17 Oct 2026)
@@ -21,13 +21,15 @@ The core design principle of ArthLens is **evidence gating**: the system is desi
 > - **Phase 1 (Foundations & Core Domains)**: **Complete**.
 > - **Phase 2 (Data Ingestion & Geographic Grounding)**: **In Progress**.
 >   - **P2-1 — Verified Dataset Ingestion and Persistence**: **Complete**.
->   - **P2-2 (National & District Geographic Hierarchy Expansion)**: **Next task; not started**.
+>   - **P2-2 — National & District Geographic Hierarchy Expansion**: **Complete**.
+>   - **P2-3 (Data-Quality Layer & Staleness Flags)**: **Next task; not started**.
 > - **What is currently implemented**:
 >   - **Evidence and domain infrastructure**: Immutable data types (`Quantity`, `EvidenceFloor`, `Kind`, Pint dimensional unit enforcement).
 >   - **Verification and epistemic ledger**: Directed acyclic dependency graph tracking provenance, calculation lineages, and evidence floors.
->   - **Database persistence and authentication infrastructure**: PostgreSQL 16 + PostGIS integration, Alembic migrations (001–005), role-based access control, and JWT authentication.
+>   - **Database persistence and authentication infrastructure**: PostgreSQL 16 + PostGIS integration, Alembic migrations (001–007), check constraints, role-based access control, and JWT authentication.
 >   - **Four verified-source ingestion adapters**: Dedicated adapters with 10-step validation pipelines for OpenStreetMap (`DS-04`), LGD/Census 2011 (`DS-05`), Government Schemes (`DS-08`), and Administrative Boundaries (`DS-09`).
 >   - **Normalized source-record and quantity persistence**: Structured persistence models for `sources`, `source_versions`, `source_records`, and `quantities`.
+>   - **Nationwide geographic hierarchy and provider expansion**: Canonical geographic domain models (`GeoUnit`), repository contracts, official nationwide LGD master states (36) and districts (763) ingestion, and second-district configuration acceptance (Varanasi: LGD 187, Census 197).
 > - **Scope Boundary**: Higher-level analytical engines (Loop B Dijkstra/Huff spatial models, Monte Carlo risk simulation, agent orchestration) and frontend user interfaces (Next.js, MapLibre GL JS, Cytoscape.js) are subsequent phase deliverables and are not yet deployed.
 
 ---
@@ -138,7 +140,20 @@ arthlens/
   - **P2-1 — Verified Dataset Ingestion and Persistence**: **Complete**.
     - Ingestion pipeline with four verified adapters: OSM road network & POIs (`DS-04`), LGD & Census 2011 demographics (`DS-05`), Central Government Scheme guidelines (`DS-08`), and Survey of India compliant administrative boundaries (`DS-09`).
     - Database persistence for registered sources, snapshot versions, normalized records, and epistemic quantities.
-    - Backend regression results: 282 passed, 1 skipped (optional live OSM retrieval test), 0 failed. The passing tests include 19 ingestion, 12 PostgreSQL persistence, 10 migration, and 241 Phase 1/domain tests.
-  - **P2-2 (National & District Geographic Hierarchy Expansion)**: **Next task; not started**.
-- **Phase 3 & Phase 4 (Analytical Engines & Frontend UI)**: Planned future phases; not started.
+  - **P2-2 — National & District Geographic Hierarchy Expansion**: **Complete**.
+    - Immutable `GeoUnit` domain model, canonical namespace formatting (`in`, `in:state:09`, `in:district:120`, `in:subdistrict:120:890`, `in:subdistrict:156:845`), and `GeoUnitRepository` implementations (InMemory & PostgreSQL/PostGIS).
+    - Decoupled orthogonal coverage semantics: `coverage_status` (navigability: `NAVIGABLE`), `geometry_status`, `analytical_status` (`ANALYSABLE` vs `ANALYSIS_UNAVAILABLE`), and `census_code`.
+    - Database check constraints via Alembic migration 007 (`check_geo_unit_coverage_status`, `check_geo_unit_geometry_status`, `check_geo_unit_analytical_status`).
+    - Ingestion of official nationwide LGD master snapshots: 36 States/UTs (`lgd_states.csv`) and 763 Districts (`lgd_districts.csv`), establishing the 800-unit national baseline hierarchy.
+    - Second-district acceptance verified: Varanasi (District LGD 187, Census 197) configured and navigated under Uttar Pradesh alongside Prayagraj without engine modification.
+    - Boundary geometry and spatial status:
+      - Only the Prayagraj pilot geometry is currently stored in PostGIS, where it is technically validated (`GEOMETRY_VERIFIED` for RFC 7946 / PostGIS polygon topology).
+      - Technical validity denotes geospatial query soundness and does NOT certify an authoritative government boundary.
+      - The remaining 762 baseline districts remain `GEOMETRY_MISSING`.
+      - Modern nationwide boundary acquisition remains **`SOURCE-GATED`** pending licensing and acquisition of an approved modern nationwide boundary dataset.
+      - Nationwide PMTiles vector tiles are **`NOT GENERATED`**; the PMTiles source gate is the lack of an approved modern nationwide boundary dataset, not merely a missing packaging pipeline.
+    - Test database isolation enforced via exact database identity validation guard; persistent development database verified with zero mutation across test runs.
+    - Backend regression results: **338 passed, 1 skipped (optional live data.gov.in retrieval test), 0 failed**.
+  - **P2-3 (Data-Quality Layer & Staleness Flags)**: **Next task; not started**. Atlas shades data-quality states and staleness flags per Build Handbook Part 13.
+- **Phase 3 & Phase 4 (Computational Engines & Frontend UI)**: Planned future phases; not started.
 - **Authoritative Specification Document**: [ArthLens Build Handbook](docs/ArthLens_Build_Handbook.pdf) (v1.0, 17 Oct 2026).

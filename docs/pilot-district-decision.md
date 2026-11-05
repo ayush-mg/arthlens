@@ -2,7 +2,7 @@
 
 > **Task Reference**: Task P0-4 (Handbook Part 2.1, 7.3, 7.4, 13.1)
 > **Evaluation Date**: 2026-10-21
-> **Target Pilot District**: **Prayagraj, Uttar Pradesh** (LGD District Code `175`, Census 2011 Code `175`)
+> **Target Pilot District**: **Prayagraj, Uttar Pradesh** (LGD District Code `120`, Census 2011 Code `175`)
 > **Selected Business Templates**:
 > 1. **Neighbourhood Retail Grocery (Kirana / General Store)**
 > 2. **Small Food-Processing / Tiffin Unit (Micro-Food Enterprise)**
@@ -41,7 +41,7 @@ In accordance with the **ArthLens Build Handbook (Part 2.1 and Part 7.3)**, the 
 - **Limitations & Architectural Mitigations**:
   1. *Sample Extent vs. District Scope*: The live OpenStreetMap API inspection tested a 400m x 400m commercial sample in Civil Lines/Katra to verify node-way topology and commercial POI tagging without exceeding public API limits. Bulk road network coverage for the broader district is provided by Geofabrik regional extracts (`uttar-pradesh-latest.osm.pbf`).
   2. *Two-Tier Resolution Policy (Handbook Section 7.4)*:
-     - **Navigable Tier (Entire District)**: All 8 tehsils of Prayagraj District (LGD `175`) have official boundaries, numeric identifiers, and census demographics for navigation in the Economic Atlas.
+     - **Navigable Tier (Entire District)**: All 8 tehsils of Prayagraj District (LGD `120`) have official boundaries, numeric identifiers, and census demographics for navigation in the Economic Atlas.
      - **Analysable Tier (Initial Verified Core)**: High-density, fully connected road graphs and commercial POI clusters are empirically verified in the urban commercial core (Sadar Tehsil: Civil Lines, Katra, Chowk). Initial Loop B micro-enterprise site evaluations are targeted at this verified urban footprint.
   3. *Rural Completeness Asymmetry*: In peripheral rural tehsils (e.g. Bara, Koraon, Meja), primary/secondary highway vectors exist, but informal micro-enterprises (unregistered dhabas, kirana stalls) are unmapped in OSM. Pursuant to Handbook Part 2.2 (Capability 30), the Atlas UI renders the mandatory **OSM Completeness Caveat**:
      > *"Competitor density is derived from OpenStreetMap and reflects mapped physical establishments. Informal, temporary, or unmapped rural vendors may not be captured."*
@@ -49,19 +49,19 @@ In accordance with the **ArthLens Build Handbook (Part 2.1 and Part 7.3)**, the 
   5. *Uptime Guarantee*: All live Overpass calls are cached offline in `backend/fixtures/osm/prayagraj_roads.graphml` and GeoJSON fixtures. Offline demos run with 100% network independence.
 
 ### 2.2 Criterion B: Population Resolution & Temporal Support
-- **Demographic Unit**: District 175 (Prayagraj / Allahabad), State 09 (Uttar Pradesh).
+- **Demographic Unit**: District LGD `120` / Census MDDS `175` (Prayagraj / Allahabad), State 09 (Uttar Pradesh). Note: LGD code `175` designates Rae Bareli district in the official Local Government Directory.
 - **Verified Empirical Facts**:
   - Total District Population: **5,954,391** (Male: 3,131,807; Female: 2,822,584).
   - Total Households: 962,772. Average Literacy: 72.32%. Sex Ratio: 901.
   - Sub-District Breakdown (8 Tehsils with authoritative LGD codes):
-    1. `Sadar Tehsil` (LGD `845`): Core urban tehsil containing Allahabad Municipal Corporation.
-    2. `Soraon Tehsil` (LGD `843`): Northern agricultural/peri-urban tehsil.
-    3. `Phulpur Tehsil` (LGD `844`): North-eastern industrial and agrarian belt.
-    4. `Handia Tehsil` (LGD `846`): Eastern agricultural tehsil.
-    5. `Karchhana Tehsil` (LGD `847`): Trans-Yamuna industrial/peri-urban tehsil.
-    6. `Bara Tehsil` (LGD `848`): South-western rural tehsil.
-    7. `Meja Tehsil` (LGD `849`): South-eastern rural tehsil.
-    8. `Koraon Tehsil` (LGD `850`): Southern rural tehsil.
+    1. `Soraon Tehsil` (LGD `888`, Census MDDS `00888`): Northern agricultural/peri-urban tehsil.
+    2. `Phulpur Tehsil` (LGD `889`, Census MDDS `00889`): North-eastern industrial and agrarian belt.
+    3. `Sadar Tehsil` (LGD `890`, Census MDDS `00890`): Core urban tehsil containing Allahabad Municipal Corporation.
+    4. `Bara Tehsil` (LGD `891`, Census MDDS `00891`): South-western rural tehsil.
+    5. `Karchhana Tehsil` (LGD `892`, Census MDDS `00892`): Trans-Yamuna industrial/peri-urban tehsil.
+    6. `Handia Tehsil` (LGD `893`, Census MDDS `00893`): Eastern agricultural tehsil.
+    7. `Meja Tehsil` (LGD `894`, Census MDDS `00894`): South-eastern rural tehsil.
+    8. `Koraon Tehsil` (LGD `895`, Census MDDS `00895`): Southern rural tehsil.
 - **Explicit Temporal Support**:
   - Enumeration Reference Date: **2011-03-01** (Census of India 2011 Primary Census Abstract).
 - **Resolution & Quality Policy**:

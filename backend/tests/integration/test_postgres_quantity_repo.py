@@ -23,7 +23,11 @@ from backend.arthlens.domain.enums import Kind
 from backend.arthlens.domain.quantity import Quantity
 from backend.arthlens.domain.repositories import ImmutableQuantityError
 from backend.arthlens.domain.simulation import SimulationMetadata
-from backend.arthlens.infra.database import get_engine, get_session_factory
+from backend.arthlens.infra.database import (
+    assert_safe_test_database,
+    get_engine,
+    get_session_factory,
+)
 from backend.arthlens.infra.models import QuantityModel, UserModel
 from backend.arthlens.infra.repositories import (
     PostgresQuantityRepository,
@@ -35,8 +39,8 @@ from backend.arthlens.infra.repositories import (
 @pytest.fixture(autouse=True)
 def clean_database():
     """Ensure clean table state before each integration test."""
-        # Ensure clean table state before each integration test
     engine = get_engine()
+    assert_safe_test_database(engine)
     with engine.begin() as conn:
         conn.execute(text("TRUNCATE TABLE quantities, scenarios, simulation_runs, users CASCADE;"))
     yield

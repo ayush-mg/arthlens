@@ -272,3 +272,70 @@ class TestAlembicMigrations:
         inspector_head = inspect(engine)
         seed_col_head = next(c for c in inspector_head.get_columns("simulation_runs") if c["name"] == "seed")
         assert "NUMERIC" in str(seed_col_head["type"]).upper()
+
+    def test_geo_coverage_status_migration_006(self, alembic_cfg):
+        """Migration 006 decouples coverage_status, adds geometry/analytical status and census_code."""
+        engine = get_engine()
+        inspector = inspect(engine)
+
+        columns = {c["name"]: c for c in inspector.get_columns("geo_units")}
+        assert "coverage_status" in columns
+        assert "geometry_status" in columns
+        assert "analytical_status" in columns
+        assert "census_code" in columns
+
+        # Check default values
+        assert "NAVIGABLE" in str(columns["coverage_status"].get("default", ""))
+        assert "GEOMETRY_MISSING" in str(columns["geometry_status"].get("default", ""))
+        assert "ANALYSIS_UNAVAILABLE" in str(columns["analytical_status"].get("default", ""))
+
+        # Test safe downgrade to 005_source_records
+        engine.dispose()
+        command.downgrade(alembic_cfg, "005_source_records")
+        engine.dispose()
+
+        inspector_005 = inspect(engine)
+        cols_005 = {c["name"]: c for c in inspector_005.get_columns("geo_units")}
+        assert "geometry_status" not in cols_005
+        assert "analytical_status" not in cols_005
+        assert "census_code" not in cols_005
+        assert "FULL" in str(cols_005["coverage_status"].get("default", ""))
+
+        # Restore to head
+        command.upgrade(alembic_cfg, "head")
+        engine.dispose()
+
+        inspector_restored = inspect(engine)
+        cols_restored = {c["name"]: c for c in inspector_restored.get_columns("geo_units")}
+        assert "geometry_status" in cols_restored
+        assert "analytical_status" in cols_restored
+        assert "census_code" in cols_restored
+
+    def test_geo_coverage_check_constraints_migration_007(self, alembic_cfg):
+        """Migration 007 applies CHECK constraints for coverage_status, geometry_status, and analytical_status."""
+        engine = get_engine()
+        inspector = inspect(engine)
+
+        constraints = {c["name"] for c in inspector.get_check_constraints("geo_units")}
+        assert "check_geo_unit_coverage_status" in constraints
+        assert "check_geo_unit_geometry_status" in constraints
+        assert "check_geo_unit_analytical_status" in constraints
+
+        # Test downgrade to 006_geo_coverage_status
+        engine.dispose()
+        command.downgrade(alembic_cfg, "006_geo_coverage_status")
+        engine.dispose()
+
+        inspector_006 = inspect(engine)
+        constraints_006 = {c["name"] for c in inspector_006.get_check_constraints("geo_units")}
+        assert "check_geo_unit_coverage_status" not in constraints_006
+        assert "check_geo_unit_geometry_status" not in constraints_006
+        assert "check_geo_unit_analytical_status" not in constraints_006
+
+        # Restore to head
+        command.upgrade(alembic_cfg, "head")
+        engine.dispose()
+
+        inspector_head = inspect(engine)
+        constraints_head = {c["name"] for c in inspector_head.get_check_constraints("geo_units")}
+        assert "check_geo_unit_coverage_status" in constraints_head

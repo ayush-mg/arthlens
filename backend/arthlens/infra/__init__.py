@@ -8,6 +8,7 @@ Phase: P1-5 (Database Persistence, Repositories and Integration Tests).
 from backend.arthlens.infra.config import get_database_url, get_environment
 from backend.arthlens.infra.database import Base, get_db_session, get_engine, get_session_factory
 from backend.arthlens.infra.in_memory import (
+    InMemoryGeoUnitRepository,
     InMemoryPolicyRuleRepository,
     InMemoryQuantityRepository,
     InMemoryScenarioRepository,
@@ -39,6 +40,7 @@ from backend.arthlens.infra.models import (
     UserRoleModel,
 )
 from backend.arthlens.infra.repositories import (
+    PostgresGeoUnitRepository,
     PostgresPolicyRuleRepository,
     PostgresQuantityRepository,
     PostgresScenarioRepository,
@@ -76,12 +78,14 @@ __all__ = [
     "TaskModel",
     "AuditEventModel",
     "PostgresQuantityRepository",
+    "PostgresGeoUnitRepository",
     "PostgresUserRepository",
     "PostgresPolicyRuleRepository",
     "PostgresScenarioRepository",
     "PostgresSourceRepository",
     "PostgresSourceRecordRepository",
     "InMemoryQuantityRepository",
+    "InMemoryGeoUnitRepository",
     "InMemoryUserRepository",
     "InMemoryPolicyRuleRepository",
     "InMemoryScenarioRepository",

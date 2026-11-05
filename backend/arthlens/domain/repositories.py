@@ -9,12 +9,24 @@ from abc import abstractmethod
 from typing import Any, Dict, List, Optional, Sequence, Union
 import uuid
 
+from backend.arthlens.domain.enums import ResolutionTier
+from backend.arthlens.domain.geo import GeoUnit
 from backend.arthlens.domain.interfaces import Repository
 from backend.arthlens.domain.quantity import Quantity
 
 
 class RepositoryError(Exception):
     """Base exception for persistence and repository operations."""
+    pass
+
+
+class ConflictingGeoUnitError(RepositoryError):
+    """Raised when saving a geographic unit that conflicts with an existing unit."""
+    pass
+
+
+class OrphanedGeoUnitError(RepositoryError):
+    """Raised when attempting to save a geographic unit whose parent entity does not exist."""
     pass
 
 
@@ -277,4 +289,38 @@ class SourceRecordRepository(Repository):
     @abstractmethod
     def list_by_source(self, source_id: str) -> List[Any]:
         """List all normalized records across versions for a source ID."""
+        raise NotImplementedError
+
+
+class GeoUnitRepository(Repository):
+    """Abstract repository for geographic administrative units and hierarchy."""
+
+    @abstractmethod
+    def save_unit(self, unit: GeoUnit) -> None:
+        """Persist a single geographic unit. Validates parent existence and prevents duplicates."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def save_units(self, units: Sequence[GeoUnit]) -> int:
+        """Persist a sequence of geographic units. Preserves topological parent-before-child ordering."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_unit(self, unit_id: str) -> Optional[GeoUnit]:
+        """Retrieve a geographic unit by its canonical namespaced identifier."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_unit_by_lgd_code(self, level: ResolutionTier, lgd_code: str) -> Optional[GeoUnit]:
+        """Retrieve a geographic unit by its administrative tier and raw LGD code."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_by_parent(self, parent_id: Optional[str]) -> List[GeoUnit]:
+        """List immediate child geographic units for a given parent identifier (or root units if None)."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_by_level(self, level: ResolutionTier) -> List[GeoUnit]:
+        """List all geographic units at a specific administrative tier."""
         raise NotImplementedError

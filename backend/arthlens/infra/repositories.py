@@ -7,6 +7,7 @@ Phase: P1-5 (Database Persistence, Repositories and Integration Tests).
 
 from datetime import date, datetime
 from decimal import Decimal
+import json
 import re
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 import uuid
@@ -16,10 +17,19 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Session
 
 from backend.arthlens.data.models import SourceRecord
-from backend.arthlens.domain.enums import Kind
+from backend.arthlens.domain.enums import Kind, ResolutionTier
+from backend.arthlens.domain.geo import (
+    AnalyticalStatus,
+    GeometryStatus,
+    GeoUnit,
+    NavigationStatus,
+)
 from backend.arthlens.domain.quantity import Quantity
 from backend.arthlens.domain.repositories import (
+    ConflictingGeoUnitError,
+    GeoUnitRepository,
     ImmutableQuantityError,
+    OrphanedGeoUnitError,
     PolicyRuleRepository,
     QuantityNotFoundError,
     QuantityRepository,
@@ -35,6 +45,7 @@ from backend.arthlens.domain.simulation import (
 )
 from backend.arthlens.infra.database import get_session_factory
 from backend.arthlens.infra.models import (
+    GeoUnitModel,
     PolicyRuleModel,
     QuantityModel,
     ScenarioModel,
@@ -900,3 +911,271 @@ class PostgresSourceRecordRepository(SourceRecordRepository):
             )
             rows = session.execute(stmt).scalars().all()
             return [self._to_record(m) for m in rows]
+
+
+# ==============================================================================
+# 7. Geographic Repository Implementation (P2-2.1)
+# ==============================================================================
+
+def _codes_differ(code1: Optional[str], code2: Optional[str]) -> bool:
+    """Check if two codes differ, treating leading-zero numeric strings as matching."""
+    if code1 == code2:
+        return False
+    if code1 is not None and code2 is not None:
+        c1, c2 = str(code1).strip(), str(code2).strip()
+        if c1.isdigit() and c2.isdigit():
+            return int(c1) != int(c2)
+    return True
+
+
+class PostgresGeoUnitRepository(GeoUnitRepository):
+    """
+    PostgreSQL/PostGIS-backed implementation of GeoUnitRepository.
+    Enforces referential integrity, hierarchy constraints, and idempotency.
+    """
+
+    def __init__(self, session_factory: Optional[Callable[[], Session]] = None) -> None:
+        self._session_factory = session_factory or get_session_factory()
+
+    def _get_session(self) -> Session:
+        return self._session_factory()
+
+    def _to_model(self, u: GeoUnit) -> GeoUnitModel:
+        """Convert a domain GeoUnit entity to a SQLAlchemy GeoUnitModel."""
+        geom_status_val = (
+            u.geometry_status.value
+            if isinstance(u.geometry_status, GeometryStatus)
+            else str(u.geometry_status)
+        )
+        analytical_status_val = (
+            u.analytical_status.value
+            if isinstance(u.analytical_status, AnalyticalStatus)
+            else str(u.analytical_status)
+        )
+        coverage_status_val = (
+            u.navigation_status.value
+            if isinstance(u.navigation_status, NavigationStatus)
+            else (u.coverage_status or "NAVIGABLE")
+        )
+
+        geom_val = None
+        if u.geometry is not None:
+            geom_json = json.dumps(u.geometry) if isinstance(u.geometry, dict) else str(u.geometry)
+            geom_val = func.ST_SetSRID(func.ST_GeomFromGeoJSON(geom_json), 4326)
+
+        return GeoUnitModel(
+            id=u.id,
+            parent_id=u.parent_id,
+            level=int(u.level),
+            name=u.name,
+            lgd_code=u.lgd_code,
+            geometry=geom_val,
+            coverage_status=coverage_status_val,
+            geometry_status=geom_status_val,
+            analytical_status=analytical_status_val,
+            census_code=u.census_code,
+        )
+
+    def _to_unit(self, m: GeoUnitModel, geom_dict: Optional[Dict[str, Any]] = None) -> GeoUnit:
+        """Convert a SQLAlchemy GeoUnitModel to an immutable domain GeoUnit."""
+        level = ResolutionTier(m.level)
+        nav_status = (
+            NavigationStatus(m.coverage_status)
+            if m.coverage_status in NavigationStatus._value2member_map_
+            else NavigationStatus.NAVIGABLE
+        )
+        geom_status = (
+            GeometryStatus(m.geometry_status)
+            if m.geometry_status in GeometryStatus._value2member_map_
+            else GeometryStatus.GEOMETRY_MISSING
+        )
+        analytical_status = (
+            AnalyticalStatus(m.analytical_status)
+            if m.analytical_status in AnalyticalStatus._value2member_map_
+            else AnalyticalStatus.ANALYSIS_UNAVAILABLE
+        )
+
+        return GeoUnit(
+            id=m.id,
+            parent_id=m.parent_id,
+            level=level,
+            name=m.name,
+            lgd_code=m.lgd_code,
+            geometry=geom_dict,
+            navigation_status=nav_status,
+            geometry_status=geom_status,
+            analytical_status=analytical_status,
+            census_code=m.census_code,
+        )
+
+    def save_unit(self, unit: GeoUnit) -> None:
+        """
+        Persist a GeoUnit domain entity.
+        Validates parent existence (preventing orphans) and idempotency.
+        Raises OrphanedGeoUnitError if parent does not exist.
+        Raises ConflictingGeoUnitError if existing ID has conflicting attributes.
+        Guarantees complete rollback on error.
+        """
+        with self._get_session() as session:
+            try:
+                # Check parent existence
+                if unit.parent_id is not None:
+                    parent = session.get(GeoUnitModel, unit.parent_id)
+                    if not parent:
+                        raise OrphanedGeoUnitError(
+                            f"Parent unit '{unit.parent_id}' does not exist in repository for child '{unit.id}'."
+                        )
+
+                # Check existing unit
+                existing = session.get(GeoUnitModel, unit.id)
+                if existing:
+                    if (
+                        existing.name != unit.name
+                        or existing.level != int(unit.level)
+                        or _codes_differ(existing.lgd_code, unit.lgd_code)
+                        or existing.parent_id != unit.parent_id
+                    ):
+                        raise ConflictingGeoUnitError(
+                            f"GeoUnit '{unit.id}' already exists with conflicting definition: "
+                            f"existing (name={existing.name}, level={existing.level}, lgd={existing.lgd_code}), "
+                            f"new (name={unit.name}, level={unit.level}, lgd={unit.lgd_code})."
+                        )
+                    # Enrich attributes if new unit brings verified geometry or census code
+                    if unit.census_code and not existing.census_code:
+                        existing.census_code = unit.census_code
+                    if unit.geometry is not None:
+                        existing.geometry = func.ST_SetSRID(
+                            func.ST_GeomFromGeoJSON(json.dumps(unit.geometry)), 4326
+                        )
+                        existing.geometry_status = (
+                            unit.geometry_status.value
+                            if isinstance(unit.geometry_status, GeometryStatus)
+                            else str(unit.geometry_status)
+                        )
+                    if (
+                        unit.analytical_status == AnalyticalStatus.ANALYSABLE
+                        and existing.analytical_status != AnalyticalStatus.ANALYSABLE.value
+                    ):
+                        existing.analytical_status = AnalyticalStatus.ANALYSABLE.value
+                    session.commit()
+                    return
+
+                model = self._to_model(unit)
+                session.add(model)
+                session.commit()
+            except Exception:
+                session.rollback()
+                raise
+
+    def save_units(self, units: Sequence[GeoUnit]) -> int:
+        """
+        Persist multiple GeoUnits in order, checking constraints within a single transaction.
+        Returns the number of newly inserted units.
+        Guarantees complete rollback on any error so no partial records remain.
+        """
+        with self._get_session() as session:
+            try:
+                count = 0
+                for unit in units:
+                    if unit.parent_id is not None:
+                        parent = session.get(GeoUnitModel, unit.parent_id)
+                        if not parent:
+                            raise OrphanedGeoUnitError(
+                                f"Parent unit '{unit.parent_id}' does not exist in repository for child '{unit.id}'."
+                            )
+
+                    existing = session.get(GeoUnitModel, unit.id)
+                    if existing:
+                        if (
+                            existing.name != unit.name
+                            or existing.level != int(unit.level)
+                            or _codes_differ(existing.lgd_code, unit.lgd_code)
+                            or existing.parent_id != unit.parent_id
+                        ):
+                            raise ConflictingGeoUnitError(
+                                f"GeoUnit '{unit.id}' already exists with conflicting definition: "
+                                f"existing (name={existing.name}, level={existing.level}, lgd={existing.lgd_code}), "
+                                f"new (name={unit.name}, level={unit.level}, lgd={unit.lgd_code})."
+                            )
+                        # Enrich attributes if new unit brings verified geometry or census code
+                        if unit.census_code and not existing.census_code:
+                            existing.census_code = unit.census_code
+                        if unit.geometry is not None:
+                            existing.geometry = func.ST_SetSRID(
+                                func.ST_GeomFromGeoJSON(json.dumps(unit.geometry)), 4326
+                            )
+                            existing.geometry_status = (
+                                unit.geometry_status.value
+                                if isinstance(unit.geometry_status, GeometryStatus)
+                                else str(unit.geometry_status)
+                            )
+                        if (
+                            unit.analytical_status == AnalyticalStatus.ANALYSABLE
+                            and existing.analytical_status != AnalyticalStatus.ANALYSABLE.value
+                        ):
+                            existing.analytical_status = AnalyticalStatus.ANALYSABLE.value
+                        continue
+
+                    model = self._to_model(unit)
+                    session.add(model)
+                    session.flush()
+                    count += 1
+
+                session.commit()
+                return count
+            except Exception:
+                session.rollback()
+                raise
+
+    def get_unit(self, unit_id: str) -> Optional[GeoUnit]:
+        with self._get_session() as session:
+            stmt = select(
+                GeoUnitModel,
+                func.ST_AsGeoJSON(GeoUnitModel.geometry).label("geom_json"),
+            ).where(GeoUnitModel.id == str(unit_id))
+            row = session.execute(stmt).first()
+            if not row:
+                return None
+            m, g_str = row
+            geom_dict = json.loads(g_str) if g_str else None
+            return self._to_unit(m, geom_dict)
+
+    def get_unit_by_lgd_code(self, level: ResolutionTier, lgd_code: str) -> Optional[GeoUnit]:
+        with self._get_session() as session:
+            stmt = select(
+                GeoUnitModel,
+                func.ST_AsGeoJSON(GeoUnitModel.geometry).label("geom_json"),
+            ).where(
+                GeoUnitModel.level == int(level),
+                GeoUnitModel.lgd_code == str(lgd_code).strip(),
+            )
+            row = session.execute(stmt).first()
+            if not row:
+                return None
+            m, g_str = row
+            geom_dict = json.loads(g_str) if g_str else None
+            return self._to_unit(m, geom_dict)
+
+    def list_by_parent(self, parent_id: Optional[str]) -> List[GeoUnit]:
+        with self._get_session() as session:
+            if parent_id is None:
+                stmt = select(
+                    GeoUnitModel,
+                    func.ST_AsGeoJSON(GeoUnitModel.geometry).label("geom_json"),
+                ).where(GeoUnitModel.parent_id.is_(None)).order_by(GeoUnitModel.id)
+            else:
+                stmt = select(
+                    GeoUnitModel,
+                    func.ST_AsGeoJSON(GeoUnitModel.geometry).label("geom_json"),
+                ).where(GeoUnitModel.parent_id == str(parent_id)).order_by(GeoUnitModel.id)
+            rows = session.execute(stmt).all()
+            return [self._to_unit(m, json.loads(g_str) if g_str else None) for m, g_str in rows]
+
+    def list_by_level(self, level: ResolutionTier) -> List[GeoUnit]:
+        with self._get_session() as session:
+            stmt = select(
+                GeoUnitModel,
+                func.ST_AsGeoJSON(GeoUnitModel.geometry).label("geom_json"),
+            ).where(GeoUnitModel.level == int(level)).order_by(GeoUnitModel.id)
+            rows = session.execute(stmt).all()
+            return [self._to_unit(m, json.loads(g_str) if g_str else None) for m, g_str in rows]

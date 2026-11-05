@@ -29,7 +29,11 @@ from backend.arthlens.data.adapters.schemes import SchemeGuidelinesAdapter
 from backend.arthlens.data.pipeline import DatasetIngestionPipeline
 from backend.arthlens.domain.enums import Kind, ResolutionTier
 from backend.arthlens.domain.quantity import Quantity
-from backend.arthlens.infra.database import get_engine, get_session_factory
+from backend.arthlens.infra.database import (
+    assert_safe_test_database,
+    get_engine,
+    get_session_factory,
+)
 from backend.arthlens.infra.repositories import (
     PostgresQuantityRepository,
     PostgresSourceRecordRepository,
@@ -48,6 +52,7 @@ SCHEMES_FIXTURE = FIXTURES_DIR / "schemes" / "scheme_parameters_sample.json"
 def clean_database():
     """Ensure clean table state before and after each integration test."""
     engine = get_engine()
+    assert_safe_test_database(engine)
     with engine.begin() as conn:
         conn.execute(text("TRUNCATE TABLE source_records, source_versions, sources, quantities CASCADE;"))
     yield
@@ -206,7 +211,7 @@ class TestDatasetPersistencePostgresIntegration:
         assert record is not None
         assert record.as_of == "2011-03-01"
         assert record.geo_resolved is True
-        assert record.geo_unit_id == "in:lgd:175:00845"
+        assert record.geo_unit_id == "in:subdistrict:120:890"
         assert record.resolution_tier == int(ResolutionTier.SUBDISTRICT)
 
     def test_07_unresolved_geography_remains_unresolved(self):

@@ -36,31 +36,88 @@ def _load_env_file() -> None:
 _load_env_file()
 
 
+import sys
+
+
+def is_test_environment() -> bool:
+    """Check if currently executing within automated test environment."""
+    return (
+        os.environ.get("ENVIRONMENT") == "test"
+        or "PYTEST_CURRENT_TEST" in os.environ
+        or "pytest" in sys.modules
+    )
+
+
+def _normalize_pg_url(url: str, sync: bool = True) -> str:
+    url = url.strip()
+    if url.startswith("postgres://"):
+        url = "postgresql+psycopg://" + url[len("postgres://"):]
+    elif url.startswith("postgresql://") and not url.startswith("postgresql+"):
+        url = "postgresql+psycopg://" + url[len("postgresql://"):]
+    if not sync:
+        url = url.replace("postgresql+psycopg://", "postgresql+psycopg_async://")
+    return url
+
+
 def get_database_url(sync: bool = True) -> str:
     """
     Construct or retrieve the PostgreSQL connection URL.
 
-    Respects DATABASE_URL if present, otherwise constructs from POSTGRES_* environment variables.
-    Ensures the psycopg (v3) dialect 'postgresql+psycopg://' is used by default for SQLAlchemy.
+    Guarantees test isolation: When executing in a test environment, automatically routes
+    to a dedicated test database ('arthlens_test') to protect the persistent development
+    database from destructive test cleanups (e.g., TRUNCATE).
     """
+    if is_test_environment():
+        test_url = os.environ.get("TEST_DATABASE_URL")
+        if test_url:
+            return _normalize_pg_url(test_url, sync)
+
     raw_url = os.environ.get("DATABASE_URL")
     if raw_url:
-        url = raw_url.strip()
-        # Normalise postgres:// or postgresql:// to postgresql+psycopg:// for SQLAlchemy 2.x
-        if url.startswith("postgres://"):
-            url = "postgresql+psycopg://" + url[len("postgres://"):]
-        elif url.startswith("postgresql://") and not url.startswith("postgresql+"):
-            url = "postgresql+psycopg://" + url[len("postgresql://"):]
-        return url
+        if is_test_environment() and not os.environ.get("ALLOW_DANGEROUS_TEST_ON_PROD"):
+            # Redirect any dev database URL to test database in test mode
+            parsed_db = raw_url.rsplit("/", 1)[-1].split("?")[0]
+            if "test" not in parsed_db.lower():
+                base = raw_url.rsplit("/", 1)[0]
+                return _normalize_pg_url(f"{base}/arthlens_test", sync)
+        return _normalize_pg_url(raw_url, sync)
 
     user = os.environ.get("POSTGRES_USER", "arthlens_dev")
     password = os.environ.get("POSTGRES_PASSWORD", "arthlens_dev_password")
     host = os.environ.get("POSTGRES_HOST", "127.0.0.1")
     port = os.environ.get("POSTGRES_PORT", "5432")
-    db = os.environ.get("POSTGRES_DB", "arthlens")
+
+    if is_test_environment():
+        db = os.environ.get("POSTGRES_TEST_DB", "arthlens_test")
+    else:
+        db = os.environ.get("POSTGRES_DB", "arthlens")
 
     driver = "postgresql+psycopg" if sync else "postgresql+psycopg_async"
     return f"{driver}://{user}:{password}@{host}:{port}/{db}"
+
+
+def get_configured_test_database_name() -> str:
+    """Return explicit configured test database name."""
+    test_url = os.environ.get("TEST_DATABASE_URL")
+    if test_url:
+        return test_url.rsplit("/", 1)[-1].split("?")[0].strip()
+    return os.environ.get("POSTGRES_TEST_DB", "arthlens_test").strip()
+
+
+def get_configured_development_database_name() -> str:
+    """Return explicit configured development database name."""
+    dev_url = os.environ.get("DEV_DATABASE_URL")
+    if dev_url:
+        return dev_url.rsplit("/", 1)[-1].split("?")[0].strip()
+    dev_db = os.environ.get("POSTGRES_DEV_DB")
+    if dev_db:
+        return dev_db.strip()
+    # In test mode, POSTGRES_DB might have been overridden to arthlens_test by test runners,
+    # so we fallback to "arthlens" as the canonical development database.
+    pg_db = os.environ.get("POSTGRES_DB", "arthlens").strip()
+    if is_test_environment() and "test" in pg_db.lower():
+        return "arthlens"
+    return pg_db
 
 
 def get_environment() -> str:

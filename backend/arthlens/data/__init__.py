@@ -2,6 +2,11 @@
 ArthLens data ingestion module (Phase 2, P2-1).
 """
 
+from backend.arthlens.data.geo_loader import (
+    DistrictConfig,
+    HierarchyIngestionResult,
+    LGDHierarchyLoader,
+)
 from backend.arthlens.data.models import (
     GeographicReconciliation,
     IngestionResult,
@@ -17,6 +22,9 @@ from backend.arthlens.data.pipeline import DatasetIngestionPipeline
 from backend.arthlens.data.quality import QualityStatus
 
 __all__ = [
+    "DistrictConfig",
+    "HierarchyIngestionResult",
+    "LGDHierarchyLoader",
     "DatasetIngestionPipeline",
     "QualityStatus",
     "RawRecord",

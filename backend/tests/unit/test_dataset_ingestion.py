@@ -23,6 +23,7 @@ Verifies the 16 mandatory acceptance test requirements:
 16. Invalid inputs fail safely.
 """
 
+import csv
 from datetime import date
 import hashlib
 import os
@@ -175,7 +176,7 @@ def test_06_geographic_reconciliation_valid_identifiers():
     recon = adapter.reconcile_geography(sadar_norm)
 
     assert recon.resolved is True
-    assert recon.geo_unit_id == "in:lgd:175:00845"
+    assert recon.geo_unit_id == "in:subdistrict:120:890"
     assert recon.resolution_tier == ResolutionTier.SUBDISTRICT
 
 
@@ -445,7 +446,7 @@ def test_20_authentic_census_hierarchy_and_synthetic_isolation():
 
     # 1. District aggregate verification
     dist_row = raw_rows[0]
-    assert dist_row["lgd_district_code"] == "175"
+    assert dist_row["lgd_district_code"] == "120"
     assert dist_row["census_district_code"] == "175"
     assert dist_row["census_publication_id"] == "0944"
     assert dist_row["district_name"] == "Prayagraj"
@@ -456,14 +457,14 @@ def test_20_authentic_census_hierarchy_and_synthetic_isolation():
 
     # 2. Tehsil benchmark registry (Official Census 2011 Primary Census Abstract Table A-1 & Table 30)
     expected_tehsils = {
-        "Soraon": {"mdds": "00888", "lgd": "00843", "pop": 823190, "m": 427214, "f": 395976, "hh": 136863},
-        "Phulpur": {"mdds": "00889", "lgd": "00844", "pop": 859421, "m": 446824, "f": 412597, "hh": 135991},
-        "Sadar": {"mdds": "00890", "lgd": "00845", "pop": 1395816, "m": 758719, "f": 637097, "hh": 248662},
-        "Bara": {"mdds": "00891", "lgd": "00848", "pop": 365605, "m": 192517, "f": 173088, "hh": 65850},
-        "Karchhana": {"mdds": "00892", "lgd": "00847", "pop": 606924, "m": 318185, "f": 288739, "hh": 95034},
-        "Handia": {"mdds": "00893", "lgd": "00846", "pop": 944717, "m": 487606, "f": 457111, "hh": 144880},
-        "Meja": {"mdds": "00894", "lgd": "00849", "pop": 579879, "m": 302343, "f": 277536, "hh": 87482},
-        "Koraon": {"mdds": "00895", "lgd": "00850", "pop": 378839, "m": 198399, "f": 180440, "hh": 61971},
+        "Soraon": {"mdds": "00888", "lgd": "888", "pop": 823190, "m": 427214, "f": 395976, "hh": 136863},
+        "Phulpur": {"mdds": "00889", "lgd": "889", "pop": 859421, "m": 446824, "f": 412597, "hh": 135991},
+        "Sadar": {"mdds": "00890", "lgd": "890", "pop": 1395816, "m": 758719, "f": 637097, "hh": 248662},
+        "Bara": {"mdds": "00891", "lgd": "891", "pop": 365605, "m": 192517, "f": 173088, "hh": 65850},
+        "Karchhana": {"mdds": "00892", "lgd": "892", "pop": 606924, "m": 318185, "f": 288739, "hh": 95034},
+        "Handia": {"mdds": "00893", "lgd": "893", "pop": 944717, "m": 487606, "f": 457111, "hh": 144880},
+        "Meja": {"mdds": "00894", "lgd": "894", "pop": 579879, "m": 302343, "f": 277536, "hh": 87482},
+        "Koraon": {"mdds": "00895", "lgd": "895", "pop": 378839, "m": 198399, "f": 180440, "hh": 61971},
     }
 
     sub_rows = raw_rows[1:]
@@ -535,5 +536,53 @@ def test_20_authentic_census_hierarchy_and_synthetic_isolation():
         assert q.evidence_floor == 2
         assert "SYNTHETIC_DATA" in q.quality_flags
         assert q.kind != Kind.OBSERVED, "Synthetic data must NEVER be registered as Kind.OBSERVED"
+
+
+def test_21_subdistrict_provenance_and_crosswalk_reproducibility():
+    """
+    Sub-district Provenance Verification (Handbook Part 7.1, 7.4, Appendix A.3).
+    Verifies that the Prayagraj sub-district crosswalk is 100% reproducible from the official
+    LGD sub-district master export (backend/fixtures/geo/lgd_subdistricts.csv).
+    """
+    subdist_csv = FIXTURES_DIR / "geo" / "lgd_subdistricts.csv"
+    assert subdist_csv.exists(), "Official LGD subdistricts export fixture must be preserved"
+
+    with subdist_csv.open("r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+
+    # 1. Prayagraj (District 120) sub-districts in official LGD export
+    prayagraj_subs = {
+        r["Sub-district Code"]: r["Sub-district Name"].strip()
+        for r in rows
+        if r.get("District Code") == "120"
+    }
+    assert len(prayagraj_subs) == 8, f"Expected 8 subdistricts in Prayagraj (120), got {len(prayagraj_subs)}"
+
+    expected_codes = {
+        "888": "Soraon",
+        "889": "Phulpur",
+        "890": "Allahabad",  # Sadar tehsil
+        "891": "Bara",
+        "892": "Karchhana",
+        "893": "Handia",
+        "894": "Meja",
+        "895": "Koraon",
+    }
+    assert set(prayagraj_subs.keys()) == set(expected_codes.keys())
+    for code, name in expected_codes.items():
+        assert prayagraj_subs[code].lower() == name.lower(), f"Subdistrict {code} name mismatch: {prayagraj_subs[code]}"
+
+    # 2. Kanpur Dehat (District 156) Akbarpur verification
+    kanpur_dehat_845 = [
+        r for r in rows
+        if r.get("District Code") == "156" and r.get("Sub-district Code") == "845"
+    ]
+    assert len(kanpur_dehat_845) == 1
+    assert kanpur_dehat_845[0]["Sub-district Name"] == "Akbarpur"
+    assert kanpur_dehat_845[0]["Census 2011 code"] == "00845"
+
+    # 3. Prayagraj does NOT contain 845
+    assert "845" not in prayagraj_subs
 
 

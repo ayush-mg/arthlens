@@ -19,6 +19,7 @@ from backend.arthlens.data.models import (
     RawRecord,
 )
 from backend.arthlens.domain.enums import Kind, ResolutionTier
+from backend.arthlens.domain.geo import canonical_nation_id
 from backend.arthlens.domain.quantity import Quantity
 
 
@@ -124,7 +125,7 @@ class SchemeGuidelinesAdapter(SourceAdapter):
         """Central government MSME schemes apply nationwide (NATION tier)."""
         return GeographicReconciliation(
             resolved=True,
-            geo_unit_id="in:lgd:nation",
+            geo_unit_id=canonical_nation_id(),
             resolution_tier=ResolutionTier.NATION,
             notes="Nationwide central government scheme policy rule",
         )
@@ -155,7 +156,7 @@ class SchemeGuidelinesAdapter(SourceAdapter):
                 unit=unit,
                 kind=Kind.POLICY_RULE,
                 evidence_floor=4,
-                geo_unit_id=recon.geo_unit_id or "in:lgd:nation",
+                geo_unit_id=recon.geo_unit_id or canonical_nation_id(),
                 resolution=int(ResolutionTier.NATION),
                 as_of=as_of,
                 uncertainty="EXACT",
