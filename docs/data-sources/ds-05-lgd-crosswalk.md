@@ -135,7 +135,8 @@ $$\sum_{i=1}^8 \text{Tehsil Households}_i = 136,863 + 135,991 + 248,662 + 65,850
   - Female Population: **2,822,584**
   - Households: **976,733**
 - **Data Quality & Governance Conditions**:
-  - Verified against official Census 2011 Primary Census Abstract Table A-1 and District Census Handbook Table 30.
+  - Primary source verification: All four demographic variables in the production fixture (Total Population, Male Population, Female Population, and Total Households) originate directly from official Census 2011 Primary Census Abstract (PCA) Table A-1 (`DDW_PCA0944_2011_MDDS with UI.xlsx`, Sheet `PCA-TV-0944`).
+  - DCHB Table 30 (District Census Handbook Allahabad, Part XII-A) was used solely as a secondary cross-check for relevant tehsil-level male/female distributions; Table 30 is not the source of household counts.
   - Reference enumeration date: **2011-03-01**.
   - Mandatory **`STALE`** quality flag applied pursuant to Handbook Section 7.5.
   - Evidence category: **`Kind.OBSERVED`** (Evidence Floor 4).

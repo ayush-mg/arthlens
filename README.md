@@ -1,6 +1,6 @@
 # ArthLens
 
-> **Status: Development in Progress — Phase 0: Project Setup, Documentation & Research Validation**
+> **Status: Development in Progress — Phase 2: In Progress (P2-1 Complete)**
 >
 > *An agentic, evidence-gated economic decision engine for Indian micro-enterprises.*  
 > **Authoritative Specification**: [ArthLens Build Handbook](docs/ArthLens_Build_Handbook.pdf) (v1.0, 17 Oct 2026)
@@ -17,7 +17,18 @@ Unlike conventional business dashboards that display static charts or generic AI
 
 The core design principle of ArthLens is **evidence gating**: the system is designed to refuse to present estimates as observed facts, refuse to claim village-level precision when only district averages exist, and mandate that all financial calculations and policy eligibility checks are evaluated by deterministic, auditable code rather than large language model (LLM) guesswork.
 
-> *Note: ArthLens is currently in **Phase 0 (Project Setup and Research Validation)**. Application features, calculation engines, and user interfaces described below represent the intended architecture specified in the handbook and are not yet implemented.*
+> **Implementation Status & Scope Notice**:
+> - **Phase 1 (Foundations & Core Domains)**: **Complete**.
+> - **Phase 2 (Data Ingestion & Geographic Grounding)**: **In Progress**.
+>   - **P2-1 — Verified Dataset Ingestion and Persistence**: **Complete**.
+>   - **P2-2 (National & District Geographic Hierarchy Expansion)**: **Next task; not started**.
+> - **What is currently implemented**:
+>   - **Evidence and domain infrastructure**: Immutable data types (`Quantity`, `EvidenceFloor`, `Kind`, Pint dimensional unit enforcement).
+>   - **Verification and epistemic ledger**: Directed acyclic dependency graph tracking provenance, calculation lineages, and evidence floors.
+>   - **Database persistence and authentication infrastructure**: PostgreSQL 16 + PostGIS integration, Alembic migrations (001–005), role-based access control, and JWT authentication.
+>   - **Four verified-source ingestion adapters**: Dedicated adapters with 10-step validation pipelines for OpenStreetMap (`DS-04`), LGD/Census 2011 (`DS-05`), Government Schemes (`DS-08`), and Administrative Boundaries (`DS-09`).
+>   - **Normalized source-record and quantity persistence**: Structured persistence models for `sources`, `source_versions`, `source_records`, and `quantities`.
+> - **Scope Boundary**: Higher-level analytical engines (Loop B Dijkstra/Huff spatial models, Monte Carlo risk simulation, agent orchestration) and frontend user interfaces (Next.js, MapLibre GL JS, Cytoscape.js) are subsequent phase deliverables and are not yet deployed.
 
 ---
 
@@ -121,6 +132,13 @@ arthlens/
 
 ## 7. Current Project Status
 
-- **Phase**: Step 0 / Phase 0: Project Setup, Documentation & Research Validation.
-- **Active Focus**: Primary verification of public datasets, scheme PDF guidelines, pilot district readiness, and environment compatibility.
+- **Phase 1 (Foundations & Persistence)**: **Complete**.
+  - Immutable domain models, unit typing (Pint), Kleene 3-valued policy AST, Epistemic Ledger DAG, PostgreSQL + PostGIS schema (Alembic migrations 001–005), and JWT/RBAC security infrastructure.
+- **Phase 2 (Data Pipelines & Spatial Hierarchy)**: **In Progress**.
+  - **P2-1 — Verified Dataset Ingestion and Persistence**: **Complete**.
+    - Ingestion pipeline with four verified adapters: OSM road network & POIs (`DS-04`), LGD & Census 2011 demographics (`DS-05`), Central Government Scheme guidelines (`DS-08`), and Survey of India compliant administrative boundaries (`DS-09`).
+    - Database persistence for registered sources, snapshot versions, normalized records, and epistemic quantities.
+    - Backend regression results: 282 passed, 1 skipped (optional live OSM retrieval test), 0 failed. The passing tests include 19 ingestion, 12 PostgreSQL persistence, 10 migration, and 241 Phase 1/domain tests.
+  - **P2-2 (National & District Geographic Hierarchy Expansion)**: **Next task; not started**.
+- **Phase 3 & Phase 4 (Analytical Engines & Frontend UI)**: Planned future phases; not started.
 - **Authoritative Specification Document**: [ArthLens Build Handbook](docs/ArthLens_Build_Handbook.pdf) (v1.0, 17 Oct 2026).
