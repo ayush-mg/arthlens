@@ -1,0 +1,129 @@
+{
+  "source_id": "DS-08",
+  "source_name": "Central Government Entrepreneurship & MSME Scheme Guidelines",
+  "publisher": "Ministry of Food Processing Industries, Ministry of MSME, and Department of Financial Services",
+  "official_url": "https://pmfme.mofpi.gov.in",
+  "license": "Government Open Data License - India (GODL)",
+  "attribution": "Source: Ministry of Food Processing Industries (MoFPI), Ministry of Micro, Small & Medium Enterprises (MoMSME), and Department of Financial Services (DFS), Ministry of Finance, Government of India.",
+  "as_of": "2024-10-24",
+  "documents": [
+    {
+      "scheme": "PMFME",
+      "filename": "PMFME_Scheme_Guidelines_English.pdf",
+      "expected_sha256": "632c359d08289866abb104c642b0efb1bf9e007baf06b651a13fd0de47f90ce8"
+    },
+    {
+      "scheme": "PMEGP",
+      "filename": "PMEGP_MSME_Official_Notification.pdf",
+      "expected_sha256": "90e9d90f6c61ee8c81dc6125a24cc3389e391987cd404c0d81f085a96e9d21fb"
+    },
+    {
+      "scheme": "PMMY",
+      "filename": "PMMY_Tarun_Plus_Official_Announcement.pdf",
+      "expected_sha256": "124749532d958079f5fb2c162afc60ea74b3b70054f74dafb5f944c8b43c33c8"
+    }
+  ],
+  "parameters": [
+    {
+      "definition_key": "scheme.pmfme.subsidy_rate",
+      "scheme_id": "pmfme",
+      "value": 0.35,
+      "unit": "dimensionless",
+      "mechanism": "CAPITAL_SUBSIDY",
+      "document": "PMFME_Scheme_Guidelines_English.pdf",
+      "page": 14,
+      "clause": "3.1"
+    },
+    {
+      "definition_key": "scheme.pmfme.subsidy_max_inr",
+      "scheme_id": "pmfme",
+      "value": 1000000.0,
+      "unit": "INR",
+      "mechanism": "CAPITAL_SUBSIDY",
+      "document": "PMFME_Scheme_Guidelines_English.pdf",
+      "page": 14,
+      "clause": "3.1"
+    },
+    {
+      "definition_key": "scheme.pmfme.beneficiary_min_pct",
+      "scheme_id": "pmfme",
+      "value": 0.10,
+      "unit": "dimensionless",
+      "mechanism": "BENEFICIARY_CONTRIBUTION",
+      "document": "PMFME_Scheme_Guidelines_English.pdf",
+      "page": 14,
+      "clause": "3.1"
+    },
+    {
+      "definition_key": "scheme.pmfme.lock_in_years",
+      "scheme_id": "pmfme",
+      "value": 3.0,
+      "unit": "year",
+      "mechanism": "SUBSIDY_LOCK_IN",
+      "document": "PMFME_Scheme_Guidelines_English.pdf",
+      "page": 15,
+      "clause": "3.4"
+    },
+    {
+      "definition_key": "scheme.pmegp.margin_money.general.urban",
+      "scheme_id": "pmegp",
+      "value": 0.15,
+      "unit": "dimensionless",
+      "mechanism": "MARGIN_MONEY",
+      "document": "PMEGP_MSME_Official_Notification.pdf",
+      "page": 6,
+      "clause": "4.1"
+    },
+    {
+      "definition_key": "scheme.pmegp.margin_money.general.rural",
+      "scheme_id": "pmegp",
+      "value": 0.25,
+      "unit": "dimensionless",
+      "mechanism": "MARGIN_MONEY",
+      "document": "PMEGP_MSME_Official_Notification.pdf",
+      "page": 6,
+      "clause": "4.1"
+    },
+    {
+      "definition_key": "scheme.pmegp.margin_money.special.rural",
+      "scheme_id": "pmegp",
+      "value": 0.35,
+      "unit": "dimensionless",
+      "mechanism": "MARGIN_MONEY",
+      "document": "PMEGP_MSME_Official_Notification.pdf",
+      "page": 6,
+      "clause": "4.1"
+    },
+    {
+      "definition_key": "scheme.pmegp.max_cost.mfg_inr",
+      "scheme_id": "pmegp",
+      "value": 5000000.0,
+      "unit": "INR",
+      "mechanism": "CEILING",
+      "document": "PMEGP_MSME_Official_Notification.pdf",
+      "page": 5,
+      "clause": "3.1"
+    },
+    {
+      "definition_key": "scheme.mudra.shishu_max_inr",
+      "scheme_id": "pmmy",
+      "value": 50000.0,
+      "unit": "INR",
+      "mechanism": "CREDIT_FACILITY",
+      "document": "MUDRA_Eligibility_Criteria.pdf",
+      "page": 2,
+      "clause": "2.1"
+    },
+    {
+      "definition_key": "scheme.mudra.tarun_plus_max_inr",
+      "scheme_id": "pmmy",
+      "value": 2000000.0,
+      "unit": "INR",
+      "mechanism": "CREDIT_FACILITY",
+      "document": "PMMY_Tarun_Plus_Official_Announcement.pdf",
+      "page": 1,
+      "clause": "1.0"
+    }
+  ]
+}
+

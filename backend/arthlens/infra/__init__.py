@@ -11,6 +11,8 @@ from backend.arthlens.infra.in_memory import (
     InMemoryPolicyRuleRepository,
     InMemoryQuantityRepository,
     InMemoryScenarioRepository,
+    InMemorySourceRecordRepository,
+    InMemorySourceRepository,
     InMemoryUserRepository,
 )
 from backend.arthlens.infra.models import (
@@ -30,6 +32,7 @@ from backend.arthlens.infra.models import (
     ScenarioModel,
     SimulationRunModel,
     SourceModel,
+    SourceRecordModel,
     SourceVersionModel,
     TaskModel,
     UserModel,
@@ -39,6 +42,8 @@ from backend.arthlens.infra.repositories import (
     PostgresPolicyRuleRepository,
     PostgresQuantityRepository,
     PostgresScenarioRepository,
+    PostgresSourceRecordRepository,
+    PostgresSourceRepository,
     PostgresUserRepository,
 )
 
@@ -54,6 +59,7 @@ __all__ = [
     "UserRoleModel",
     "SourceModel",
     "SourceVersionModel",
+    "SourceRecordModel",
     "GeoUnitModel",
     "FacilityModel",
     "QuantityModel",
@@ -73,8 +79,12 @@ __all__ = [
     "PostgresUserRepository",
     "PostgresPolicyRuleRepository",
     "PostgresScenarioRepository",
+    "PostgresSourceRepository",
+    "PostgresSourceRecordRepository",
     "InMemoryQuantityRepository",
     "InMemoryUserRepository",
     "InMemoryPolicyRuleRepository",
     "InMemoryScenarioRepository",
+    "InMemorySourceRepository",
+    "InMemorySourceRecordRepository",
 ]

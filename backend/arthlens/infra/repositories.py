@@ -12,8 +12,10 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 import uuid
 
 from sqlalchemy import delete, func, select, text
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Session
 
+from backend.arthlens.data.models import SourceRecord
 from backend.arthlens.domain.enums import Kind
 from backend.arthlens.domain.quantity import Quantity
 from backend.arthlens.domain.repositories import (
@@ -22,6 +24,8 @@ from backend.arthlens.domain.repositories import (
     QuantityNotFoundError,
     QuantityRepository,
     ScenarioRepository,
+    SourceRecordRepository,
+    SourceRepository,
     UserRepository,
 )
 from backend.arthlens.domain.simulation import (
@@ -35,6 +39,9 @@ from backend.arthlens.infra.models import (
     QuantityModel,
     ScenarioModel,
     SimulationRunModel,
+    SourceModel,
+    SourceRecordModel,
+    SourceVersionModel,
     UserModel,
     UserRoleModel,
 )
@@ -177,12 +184,14 @@ class PostgresQuantityRepository(QuantityRepository):
             owner_id=str(m.owner_id) if m.owner_id else None,
         )
 
-    def save(self, quantity: Quantity) -> None:
+    def save(self, quantity: Quantity, session: Optional[Session] = None) -> None:
         target_uuid = _to_uuid(quantity.id)
         kind_str = quantity.kind.value if isinstance(quantity.kind, Kind) else str(quantity.kind)
 
-        with self._get_session() as session:
-            existing = session.get(QuantityModel, target_uuid)
+        sess = session or self._get_session()
+        owns_session = session is None
+        try:
+            existing = sess.get(QuantityModel, target_uuid)
             if existing is not None:
                 # Immutability check
                 if existing.value != quantity.value or existing.kind != kind_str:
@@ -192,12 +201,19 @@ class PostgresQuantityRepository(QuantityRepository):
                     )
                 # Idempotent update for non-immutable fields (e.g., superseding quality flags)
                 existing.quality_flags = list(quantity.quality_flags)
-                session.commit()
+                if owns_session:
+                    sess.commit()
                 return
 
             model = self._to_model(quantity)
-            session.add(model)
-            session.commit()
+            sess.add(model)
+            if owns_session:
+                sess.commit()
+            else:
+                sess.flush()
+        finally:
+            if owns_session:
+                sess.close()
 
     def get(self, quantity_id: Union[str, uuid.UUID]) -> Optional[Quantity]:
         target_uuid = _to_uuid(quantity_id)
@@ -622,3 +638,265 @@ class PostgresScenarioRepository(ScenarioRepository):
                 "scenario": model.scenario,
                 "created_at": model.created_at,
             }
+
+
+class PostgresSourceRepository(SourceRepository):
+    """PostgreSQL implementation of SourceRepository managing sources and snapshot versions."""
+
+    def __init__(self, session_factory: Optional[Callable[[], Session]] = None) -> None:
+        self._session_factory = session_factory or get_session_factory()
+
+    def _get_session(self) -> Session:
+        return self._session_factory()
+
+    def save_source(self, source_data: Dict[str, Any], session: Optional[Session] = None) -> None:
+        s_id = str(source_data["id"])
+        sess = session or self._get_session()
+        owns_session = session is None
+        try:
+            existing = sess.get(SourceModel, s_id)
+            if existing is None:
+                model = SourceModel(
+                    id=s_id,
+                    name=source_data.get("name") or s_id,
+                    description=source_data.get("description"),
+                    licence_text=source_data.get("licence_text") or source_data.get("license_name"),
+                    max_age_days=source_data.get("max_age_days"),
+                    status=source_data.get("status", "ACTIVE"),
+                )
+                sess.add(model)
+            else:
+                if "name" in source_data:
+                    existing.name = source_data["name"]
+                if "licence_text" in source_data or "license_name" in source_data:
+                    existing.licence_text = source_data.get("licence_text") or source_data.get("license_name")
+                if "max_age_days" in source_data:
+                    existing.max_age_days = source_data["max_age_days"]
+            if owns_session:
+                sess.commit()
+            else:
+                sess.flush()
+        finally:
+            if owns_session:
+                sess.close()
+
+    def get_source(self, source_id: str) -> Optional[Dict[str, Any]]:
+        with self._get_session() as session:
+            m = session.get(SourceModel, str(source_id))
+            if not m:
+                return None
+            return {
+                "id": m.id,
+                "name": m.name,
+                "description": m.description,
+                "licence_text": m.licence_text,
+                "max_age_days": m.max_age_days,
+                "status": m.status,
+                "created_at": m.created_at,
+            }
+
+    def save_version(self, version_data: Dict[str, Any], session: Optional[Session] = None) -> str:
+        s_id = str(version_data["source_id"])
+        c_hash = str(version_data["content_hash"])
+        sess = session or self._get_session()
+        owns_session = session is None
+        try:
+            stmt = select(SourceVersionModel).where(
+                SourceVersionModel.source_id == s_id,
+                SourceVersionModel.content_hash == c_hash,
+            )
+            existing = sess.execute(stmt).scalar_one_or_none()
+            if existing is not None:
+                return existing.id
+
+            v_id = str(version_data.get("id") or f"{s_id}:{c_hash[:16]}")
+            retrieval_date_val = version_data.get("retrieval_date")
+            if isinstance(retrieval_date_val, str):
+                retrieval_date_val = date.fromisoformat(retrieval_date_val)
+            elif retrieval_date_val is None:
+                retrieval_date_val = date.today()
+
+            model = SourceVersionModel(
+                id=v_id,
+                source_id=s_id,
+                version=str(version_data.get("version") or version_data.get("version_tag") or c_hash[:8]),
+                retrieval_date=retrieval_date_val,
+                content_hash=c_hash,
+                source_url=version_data.get("source_url"),
+                status=version_data.get("status", "ACTIVE"),
+            )
+            sess.add(model)
+            if owns_session:
+                sess.commit()
+            else:
+                sess.flush()
+            return v_id
+        finally:
+            if owns_session:
+                sess.close()
+
+    def get_version(self, version_id: str) -> Optional[Dict[str, Any]]:
+        with self._get_session() as session:
+            m = session.get(SourceVersionModel, str(version_id))
+            if not m:
+                return None
+            return {
+                "id": m.id,
+                "source_id": m.source_id,
+                "version": m.version,
+                "retrieval_date": m.retrieval_date,
+                "content_hash": m.content_hash,
+                "source_url": m.source_url,
+                "status": m.status,
+                "created_at": m.created_at,
+            }
+
+    def get_version_by_hash(self, source_id: str, content_hash: str) -> Optional[Dict[str, Any]]:
+        with self._get_session() as session:
+            stmt = select(SourceVersionModel).where(
+                SourceVersionModel.source_id == str(source_id),
+                SourceVersionModel.content_hash == str(content_hash),
+            )
+            m = session.execute(stmt).scalar_one_or_none()
+            if not m:
+                return None
+            return {
+                "id": m.id,
+                "source_id": m.source_id,
+                "version": m.version,
+                "retrieval_date": m.retrieval_date,
+                "content_hash": m.content_hash,
+                "source_url": m.source_url,
+                "status": m.status,
+                "created_at": m.created_at,
+            }
+
+    def list_versions(self, source_id: str) -> List[Dict[str, Any]]:
+        with self._get_session() as session:
+            stmt = (
+                select(SourceVersionModel)
+                .where(SourceVersionModel.source_id == str(source_id))
+                .order_by(SourceVersionModel.retrieval_date.desc(), SourceVersionModel.created_at.desc())
+            )
+            rows = session.execute(stmt).scalars().all()
+            return [
+                {
+                    "id": m.id,
+                    "source_id": m.source_id,
+                    "version": m.version,
+                    "retrieval_date": m.retrieval_date,
+                    "content_hash": m.content_hash,
+                    "source_url": m.source_url,
+                    "status": m.status,
+                    "created_at": m.created_at,
+                }
+                for m in rows
+            ]
+
+
+class PostgresSourceRecordRepository(SourceRecordRepository):
+    """PostgreSQL implementation of SourceRecordRepository for normalized source records."""
+
+    def __init__(self, session_factory: Optional[Callable[[], Session]] = None) -> None:
+        self._session_factory = session_factory or get_session_factory()
+
+    def _get_session(self) -> Session:
+        return self._session_factory()
+
+    def _to_record(self, m: SourceRecordModel) -> SourceRecord:
+        as_of_str = m.as_of.isoformat() if m.as_of is not None else None
+        return SourceRecord(
+            id=m.id,
+            source_id=m.source_id,
+            source_version_id=m.source_version_id,
+            record_id=m.record_id,
+            original_fields=m.original_fields or {},
+            normalized_fields=m.normalized_fields or {},
+            canonical_units=m.canonical_units or {},
+            geo_resolved=bool(m.geo_resolved),
+            geo_unit_id=m.geo_unit_id,
+            unresolved_raw_id=m.unresolved_raw_id,
+            resolution_tier=int(m.resolution_tier) if m.resolution_tier is not None else None,
+            as_of=as_of_str,
+            temporal_support=m.temporal_support,
+            license_name=m.license_name,
+            attribution=m.attribution,
+        )
+
+    def save_record(self, record: SourceRecord, session: Optional[Session] = None) -> None:
+        self.save_records([record], session=session)
+
+    def save_records(self, records: Sequence[SourceRecord], session: Optional[Session] = None) -> int:
+        if not records:
+            return 0
+        sess = session or self._get_session()
+        owns_session = session is None
+        try:
+            values_list = []
+            for r in records:
+                as_of_val = None
+                if r.as_of:
+                    try:
+                        as_of_val = date.fromisoformat(r.as_of)
+                    except ValueError:
+                        as_of_val = None
+                values_list.append({
+                    "id": r.id,
+                    "source_id": r.source_id,
+                    "source_version_id": r.source_version_id,
+                    "record_id": r.record_id,
+                    "original_fields": r.original_fields,
+                    "normalized_fields": r.normalized_fields,
+                    "canonical_units": r.canonical_units,
+                    "geo_resolved": r.geo_resolved,
+                    "geo_unit_id": r.geo_unit_id,
+                    "unresolved_raw_id": r.unresolved_raw_id,
+                    "resolution_tier": r.resolution_tier,
+                    "as_of": as_of_val,
+                    "temporal_support": r.temporal_support,
+                    "license_name": r.license_name,
+                    "attribution": r.attribution,
+                })
+
+            stmt = postgresql.insert(SourceRecordModel).values(values_list)
+            stmt = stmt.on_conflict_do_nothing(
+                index_elements=["source_version_id", "record_id"]
+            )
+            result = sess.execute(stmt)
+            if owns_session:
+                sess.commit()
+            return result.rowcount
+        finally:
+            if owns_session:
+                sess.close()
+
+    def get_record(self, source_version_id: str, record_id: str) -> Optional[SourceRecord]:
+        with self._get_session() as session:
+            stmt = select(SourceRecordModel).where(
+                SourceRecordModel.source_version_id == str(source_version_id),
+                SourceRecordModel.record_id == str(record_id),
+            )
+            m = session.execute(stmt).scalar_one_or_none()
+            if not m:
+                return None
+            return self._to_record(m)
+
+    def list_by_version(self, source_version_id: str) -> List[SourceRecord]:
+        with self._get_session() as session:
+            stmt = (
+                select(SourceRecordModel)
+                .where(SourceRecordModel.source_version_id == str(source_version_id))
+                .order_by(SourceRecordModel.record_id)
+            )
+            rows = session.execute(stmt).scalars().all()
+            return [self._to_record(m) for m in rows]
+
+    def list_by_source(self, source_id: str) -> List[SourceRecord]:
+        with self._get_session() as session:
+            stmt = (
+                select(SourceRecordModel)
+                .where(SourceRecordModel.source_id == str(source_id))
+                .order_by(SourceRecordModel.created_at.desc(), SourceRecordModel.record_id)
+            )
+            rows = session.execute(stmt).scalars().all()
+            return [self._to_record(m) for m in rows]

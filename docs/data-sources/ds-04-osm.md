@@ -149,8 +149,18 @@
 1. **Urban vs. Rural Completeness Asymmetry**:
    - Urban Prayagraj (Civil Lines, Katra, Chowk) has high POI and road density.
    - Peripheral rural tehsils exhibit significant under-reporting of informal micro-enterprises (roadside dhabas, kirana stalls, pushcarts).
-   - *Binding Resolution (Handbook Part 2.2, Capability 30)*: ArthLens must prominently render the **OSM Completeness Caveat**:
-     > *"Competitor density is derived from OpenStreetMap and reflects mapped physical establishments. Informal, temporary, or unmapped rural vendors may not be captured."*
+   - *Binding Resolution (Handbook Part 2.2, Capability 30)*: Whenever an OSM-derived POI metric appears in the ArthLens interface or an exported analytical report, the full caveat must be displayed prominently and adjacent to the relevant metric or group of metrics.
+     - **Exact Mandatory Caveat Wording**:
+       > *"OpenStreetMap-derived POI metrics—including competitor counts, category POI counts, density per square kilometer, and nearest-facility distances—are based only on features mapped in OpenStreetMap. Informal, temporary, unmapped, or otherwise missing establishments and facilities may not be captured; reported counts, densities, and distances may therefore differ from on-the-ground conditions."*
+     - **Complete Metric Scope**:
+       - Competitor counts.
+       - Category-specific POI counts.
+       - Competitor density per square kilometer.
+       - Nearest-facility distances.
+       - Other OSM-derived POI counts, rankings, and summaries.
+       - Charts, tables, map popups, dashboards, and exported reports containing these metrics.
+     - **Display Invariant**: The caveat must not be hidden behind a tooltip, collapsed by default, truncated, or separated from the result in a way that could cause users to miss it.
+     - **Implementation Status Notice**: In Phase 2 Task P2-1, only backend data ingestion (`OpenStreetMapAdapter`) is implemented. Downstream POI metric computation (Phase 3) and UI presentation components (Phase 4) remain unimplemented; this display requirement is a documented binding contract for those subsequent phases.
 2. **Topological Disconnections**:
    - Unconnected dead-end ways in rural areas can cause Dijkstra pathfinding to return infinite distance. The graph ingestion pipeline must extract the largest strongly connected component (SCC).
 
@@ -158,9 +168,15 @@
 
 ## 7. Decision Gate
 
-- **Decision**: **`GO (Approved with Completeness Caveat)`**
+- **Decision Status**: **`APPROVED`**
+- **Approver**: **Project Owner**
+- **Approval Date**: **5 November 2026**
+- **Approval Scope & Conditions**:
+  - Approved OSM data ingestion subject to the mandatory completeness caveat:
+    > *"OpenStreetMap-derived POI metrics—including competitor counts, category POI counts, density per square kilometer, and nearest-facility distances—are based only on features mapped in OpenStreetMap. Informal, temporary, unmapped, or otherwise missing establishments and facilities may not be captured; reported counts, densities, and distances may therefore differ from on-the-ground conditions."*
+  - **Display Requirement**: The caveat must be displayed prominently and adjacent to all OSM-derived POI metrics. It must not be hidden in a tooltip, collapsed by default, truncated, or separated from the result.
+  - **Phase Scope Note**: In P2-1 only ingestion (`OpenStreetMapAdapter`) is implemented; downstream metric computation and UI presentation remain unimplemented. This approval applies to P2-1 ingestion, and the caveat requirement is binding on future UI implementation.
 - **Justification**:
   - Essential core dependency for Loop B (Dijkstra catchments and competitor density).
   - Open, permissive ODbL license with clear attribution terms.
   - Automated fallback to offline PBF extracts and pre-computed fixtures guarantees 100% demo uptime.
-- **Remaining Human Confirmation**: Final sign-off on the exact OSM completeness caveat banner text rendered in the Atlas UI.

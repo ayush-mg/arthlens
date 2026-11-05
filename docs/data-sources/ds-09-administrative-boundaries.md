@@ -97,9 +97,13 @@
 
 ## 7. Decision Gate
 
-- **Decision**: **`GO (Approved for Atlas Display & Spatial Boundaries)`**
+- **Decision Status**: **`APPROVED`**
+- **Approver**: **Project Owner**
+- **Approval Date**: **5 November 2026**
+- **Approval Scope & Conditions**:
+  - Approved administrative boundary ingestion (Prayagraj district and eight tehsils) based on geometry verification (EPSG:4326 polygon validity) and LGD code reconciliation.
+  - Visual inspection of MapLibre GL JS vector tile rendering is formally deferred to Phase 2 Atlas review (Tasks P2-2 / P2-3).
 - **Justification**:
   - Essential core dependency for the Atlas map interface and spatial containment queries.
   - Survey of India compliant boundary representations ensure legal regulatory compliance.
   - PMTiles single-file edge serving satisfies low-cost, zero-maintenance deployment constraints.
-- **Remaining Human Confirmation**: Visual confirmation of the compiled PMTiles boundary rendering in MapLibre GL JS during Phase 2 Atlas review.

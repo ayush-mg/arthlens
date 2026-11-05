@@ -1,0 +1,14 @@
+# SYNTHETIC / TEST ONLY - ARTHLENS TEST FIXTURE (NOT FOR PRODUCTION INGESTION)
+# Contains deliberate synthetic anomalies: missing female pop, unmapped codes, coarse estimates
+lgd_state_code,state_name,lgd_district_code,district_name,historic_census_name,census_2011_code,census_mdds_district_code,subdistrict_lgd_code,census_mdds_subdistrict_code,subdistrict_name,total_population,male_population,female_population,total_households,as_of,is_synthetic
+09,Uttar Pradesh,175,Prayagraj,Allahabad,175,0944,,,,5954391,3131807,2822584,962772,2011-03-01,true
+09,Uttar Pradesh,175,Prayagraj,Allahabad,175,0944,00843,00888,Soraon,823450,432100,391350,134500,2011-03-01,true
+09,Uttar Pradesh,175,Prayagraj,Allahabad,175,0944,00844,00889,Phulpur,789200,412000,377200,127800,2011-03-01,true
+09,Uttar Pradesh,175,Prayagraj,Allahabad,175,0944,00845,00890,Sadar,1850000,980000,870000,312000,2011-03-01,true
+09,Uttar Pradesh,175,Prayagraj,Allahabad,175,0944,00846,00893,Handia,810500,425000,385500,131200,2011-03-01,true
+09,Uttar Pradesh,175,Prayagraj,Allahabad,175,0944,00847,00892,Karchhana,685000,358000,327000,110500,2011-03-01,true
+09,Uttar Pradesh,175,Prayagraj,Allahabad,175,0944,00848,00891,Bara,345000,181000,164000,55000,2011-03-01,true
+09,Uttar Pradesh,175,Prayagraj,Allahabad,175,0944,00849,00894,Meja,410000,215000,195000,66000,2011-03-01,true
+09,Uttar Pradesh,175,Prayagraj,Allahabad,175,0944,00850,00895,Koraon,241241,128707,,25772,2011-03-01,true
+99,Unmapped State,999,Unknown District,Unknown,999,09999,09999,09999,Unresolved Subdistrict,50000,26000,24000,8000,2011-03-01,true
+

@@ -1,0 +1,23 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "DISTRICT": "Corrupted Polygon District",
+        "lgd_code": "999"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [81.52, 24.78],
+            [82.35, 24.78],
+            [82.35, 25.79]
+          ]
+        ]
+      }
+    }
+  ]
+}
+

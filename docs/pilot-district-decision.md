@@ -151,7 +151,15 @@ In accordance with the **ArthLens Build Handbook (Part 2.1 and Part 7.3)**, the 
 ## 5. Human Governance Gate & Formal Sign-Off
 
 - **Handbook Responsibility**: Task P0-4 is designated as **Human-Owned (`A + B`)** in Handbook Part 13.1.
-- **Current Status**: **`APPROVED & ADOPTED (Human Developer Sign-Off 2026-10-21)`**
+- **Current Status**: **`APPROVED & ADOPTED`**
 - **Record of Sign-Off**:
-  - The human developer formally reviewed and approved the Prayagraj pilot district selection, the Two-Tier Geographic Coverage Policy (Navigable Tier district-wide vs. Analysable Tier in Sadar Tehsil urban commercial core), and the DS-01 safety restriction (disabling live agricultural mandi price feeds for micro-enterprise templates in MVP).
-  - Gate P0-4 is formally closed.
+  - **Initial Pilot Adoption (2026-10-21)**: Formally reviewed and approved the Prayagraj pilot district selection, the Two-Tier Geographic Coverage Policy (Navigable Tier district-wide vs. Analysable Tier in Sadar Tehsil urban commercial core), and the DS-01 safety restriction (disabling live agricultural mandi price feeds for micro-enterprise templates in MVP).
+  - **Phase 2 Gate P2-1 Formal Governance Sign-Off (5 November 2026)**:
+    - **Approver**: **Project Owner**
+    - **Approval Date**: **5 November 2026**
+    - **Approvals Granted**:
+      1. **DS-04 (OpenStreetMap)**: Ingestion approved subject to the mandatory expanded completeness caveat across all OSM-derived POI metrics with prominent adjacent display rule (binding on future UI implementation).
+      2. **DS-05 (LGD & Census 2011)**: Prayagraj demographic baseline (5,954,391 total population; 3,131,807 male; 2,822,584 female; 976,733 households across 8 tehsils) approved as authentic historical baseline (`as_of 2011-03-01`) with mandatory `STALE` flag and `Kind.OBSERVED`, synthetic data quarantined in test fixtures, and production CSV hash distinguished from upstream Census workbook.
+      3. **DS-08 (Government Schemes)**: 42 extracted policy parameters across PMFME, PMEGP, PM-MUDRA from 9 hashed primary PDFs approved as rule-engine configuration corpus without blanket eligibility pre-certification.
+      4. **DS-09 (Administrative Boundaries)**: Boundary geometry ingestion (Prayagraj district and 8 tehsils) approved on EPSG:4326 polygon validity and LGD reconciliation; MapLibre visual rendering deferred to Phase 2 Atlas review (P2-2 / P2-3).
+  - Gate P0-4 and Phase 2 Governance Decisions (DS-04, DS-05, DS-08, DS-09) are formally closed.

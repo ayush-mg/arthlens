@@ -1,0 +1,17 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API",
+  "elements": [
+    {
+      "type": "node",
+      "id": 9999999999,
+      "lat": 125.4504642,
+      "lon": 81.8363247,
+      "tags": {
+        "amenity": "restaurant",
+        "name": "Invalid Latitude Place"
+      }
+    }
+  ]
+}
+

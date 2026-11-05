@@ -57,6 +57,7 @@ class TestAlembicMigrations:
         "audit_events",
         "revoked_tokens",
         "rate_limits",
+        "source_records",
     }
 
     def test_upgrade_head_creates_all_tables(self, alembic_cfg):

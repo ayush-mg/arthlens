@@ -1,0 +1,96 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API",
+  "osm3s": {
+    "timestamp_osm_base": "2026-10-21T06:00:00Z",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+  },
+  "elements": [
+    {
+      "type": "node",
+      "id": 2057700937,
+      "lat": 25.4504642,
+      "lon": 81.8363247,
+      "tags": {
+        "amenity": "fast_food",
+        "brand": "McDonald's",
+        "cuisine": "burger",
+        "name": "McDonald's",
+        "takeaway": "yes"
+      }
+    },
+    {
+      "type": "node",
+      "id": 9994440050,
+      "lat": 25.4519162,
+      "lon": 81.8341628,
+      "tags": {
+        "name": "Trends",
+        "shop": "clothes",
+        "clothes": "women;men;children;fashion"
+      }
+    },
+    {
+      "type": "node",
+      "id": 10089009816,
+      "lat": 25.4497735,
+      "lon": 81.8362295,
+      "tags": {
+        "amenity": "bank",
+        "brand": "Central Bank of India",
+        "name": "Central Bank of India"
+      }
+    },
+    {
+      "type": "node",
+      "id": 10089118123,
+      "lat": 25.4511357,
+      "lon": 81.8343973,
+      "tags": {
+        "name": "Fiona Diamonds",
+        "shop": "jewelry",
+        "addr:city": "Prayagraj",
+        "addr:district": "Prayagraj",
+        "addr:postcode": "211001",
+        "addr:street": "Sardar Patel Marg, Civil Lines"
+      }
+    },
+    {
+      "type": "node",
+      "id": 8888000001,
+      "lat": 25.4515000,
+      "lon": 81.8350000,
+      "tags": {
+        "amenity": "cafe"
+      }
+    },
+    {
+      "type": "node",
+      "id": 1000000001,
+      "lat": 25.4500000,
+      "lon": 81.8360000
+    },
+    {
+      "type": "way",
+      "id": 28785347,
+      "nodes": [1000000001, 2057700937],
+      "tags": {
+        "highway": "secondary",
+        "surface": "asphalt",
+        "oneway": "yes"
+      }
+    },
+    {
+      "type": "way",
+      "id": 28785511,
+      "nodes": [2057700937, 9994440050],
+      "tags": {
+        "highway": "secondary",
+        "name": "Subhash Chauraha",
+        "surface": "asphalt",
+        "oneway": "yes"
+      }
+    }
+  ]
+}
+

@@ -15,6 +15,8 @@ from backend.arthlens.domain.repositories import (
     PolicyRuleRepository,
     QuantityRepository,
     ScenarioRepository,
+    SourceRecordRepository,
+    SourceRepository,
     UserRepository,
 )
 from backend.arthlens.domain.simulation import validate_and_convert_seed
@@ -259,3 +261,87 @@ class InMemoryScenarioRepository(ScenarioRepository):
     def clear(self) -> None:
         self._scenarios.clear()
         self._simulation_runs.clear()
+
+
+class InMemorySourceRepository(SourceRepository):
+    """In-memory fake implementation of SourceRepository for testing."""
+
+    def __init__(self) -> None:
+        self._sources: Dict[str, Dict[str, Any]] = {}
+        self._versions: Dict[str, Dict[str, Any]] = {}
+
+    def save_source(self, source_data: Dict[str, Any]) -> None:
+        s_id = str(source_data["id"])
+        self._sources[s_id] = dict(source_data)
+
+    def get_source(self, source_id: str) -> Optional[Dict[str, Any]]:
+        return self._sources.get(str(source_id))
+
+    def save_version(self, version_data: Dict[str, Any]) -> str:
+        s_id = str(version_data["source_id"])
+        c_hash = str(version_data["content_hash"])
+
+        # Check existing version by hash for idempotency
+        for v in self._versions.values():
+            if v.get("source_id") == s_id and v.get("content_hash") == c_hash:
+                return v["id"]
+
+        v_id = str(version_data.get("id") or f"{s_id}:{c_hash[:16]}")
+        rec = dict(version_data)
+        rec["id"] = v_id
+        self._versions[v_id] = rec
+        return v_id
+
+    def get_version(self, version_id: str) -> Optional[Dict[str, Any]]:
+        return self._versions.get(str(version_id))
+
+    def get_version_by_hash(self, source_id: str, content_hash: str) -> Optional[Dict[str, Any]]:
+        for v in self._versions.values():
+            if v.get("source_id") == str(source_id) and v.get("content_hash") == str(content_hash):
+                return v
+        return None
+
+    def list_versions(self, source_id: str) -> List[Dict[str, Any]]:
+        return [v for v in self._versions.values() if v.get("source_id") == str(source_id)]
+
+    def clear(self) -> None:
+        self._sources.clear()
+        self._versions.clear()
+
+
+class InMemorySourceRecordRepository(SourceRecordRepository):
+    """In-memory fake implementation of SourceRecordRepository for testing."""
+
+    def __init__(self) -> None:
+        self._records: Dict[str, Any] = {}
+
+    def _make_key(self, source_version_id: str, record_id: str) -> str:
+        return f"{source_version_id}:{record_id}"
+
+    def save_record(self, record: Any) -> None:
+        key = self._make_key(record.source_version_id, record.record_id)
+        self._records[key] = record
+
+    def save_records(self, records: Sequence[Any]) -> int:
+        count = 0
+        for rec in records:
+            key = self._make_key(rec.source_version_id, rec.record_id)
+            if key not in self._records:
+                count += 1
+            self._records[key] = rec
+        return count
+
+    def get_record(self, source_version_id: str, record_id: str) -> Optional[Any]:
+        return self._records.get(self._make_key(source_version_id, record_id))
+
+    def list_by_version(self, source_version_id: str) -> List[Any]:
+        return [r for r in self._records.values() if r.source_version_id == str(source_version_id)]
+
+    def list_by_source(self, source_id: str) -> List[Any]:
+        return [r for r in self._records.values() if r.source_id == str(source_id)]
+
+    def count(self) -> int:
+        return len(self._records)
+
+    def clear(self) -> None:
+        self._records.clear()

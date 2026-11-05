@@ -27,6 +27,7 @@ from sqlalchemy import (
     SmallInteger,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
@@ -103,6 +104,35 @@ class SourceVersionModel(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     source = relationship("SourceModel", back_populates="versions")
+    records = relationship("SourceRecordModel", back_populates="version", cascade="all, delete-orphan")
+
+
+class SourceRecordModel(Base):
+    """Normalized source records preserving raw, normalized, and provenance attributes."""
+    __tablename__ = "source_records"
+
+    id = Column(Text, primary_key=True)
+    source_id = Column(Text, ForeignKey("sources.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_version_id = Column(Text, ForeignKey("source_versions.id", ondelete="CASCADE"), nullable=False, index=True)
+    record_id = Column(Text, nullable=False, index=True)
+    original_fields = Column(JSONB, nullable=False)
+    normalized_fields = Column(JSONB, nullable=False)
+    canonical_units = Column(JSONB, nullable=False)
+    geo_resolved = Column(Boolean, nullable=False, server_default="false")
+    geo_unit_id = Column(Text, nullable=True, index=True)
+    unresolved_raw_id = Column(Text, nullable=True)
+    resolution_tier = Column(SmallInteger, nullable=True)
+    as_of = Column(Date, nullable=True)
+    temporal_support = Column(JSONB, nullable=True)
+    license_name = Column(Text, nullable=True)
+    attribution = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    version = relationship("SourceVersionModel", back_populates="records")
+
+    __table_args__ = (
+        UniqueConstraint("source_version_id", "record_id", name="uq_source_records_version_record"),
+    )
 
 
 # ==============================================================================

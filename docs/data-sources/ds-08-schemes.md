@@ -125,9 +125,13 @@ A total of **42 structured policy parameters** were extracted across the three s
 
 ## 8. Decision Gate
 
-- **Decision**: **`GO`** (Approved for Scheme Modeling, Parameter Registers & Phase 1 Feasibility Rules).
+- **Decision Status**: **`APPROVED`**
+- **Approver**: **Project Owner**
+- **Approval Date**: **5 November 2026**
+- **Approval Scope & Conditions**:
+  - Approved the **42 extracted parameters** for PMFME, PMEGP, and PM-MUDRA from nine hashed source PDFs as the initial policy parameter corpus for rule-engine configuration.
+  - This approval establishes the provenance and integrity of the policy parameters; it does **not** blanket pre-certify downstream eligibility rules.
 - **Justification**:
   - 100% of required primary government source documents have been retrieved, hashed, and archived locally.
   - Key parameters extracted directly from official gazettes and ministry operational notifications with page/clause citations.
   - Clear separation established between capital subsidies, margin money, credit facilities, and credit guarantees.
-- **Sign-off Date**: 2026-10-20

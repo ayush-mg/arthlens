@@ -215,3 +215,66 @@ class ScenarioRepository(Repository):
     ) -> Optional[Dict[str, Any]]:
         """Retrieve a scenario only if owned by owner_id (IDOR defense)."""
         raise NotImplementedError
+
+
+class SourceRepository(Repository):
+    """Abstract repository for registered external data sources and snapshot versions."""
+
+    @abstractmethod
+    def save_source(self, source_data: Dict[str, Any]) -> None:
+        """Upsert a registered data source record."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_source(self, source_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve source metadata by source ID."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def save_version(self, version_data: Dict[str, Any]) -> str:
+        """Save a source snapshot version idempotently and return its version ID."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_version(self, version_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve a specific source version by its version ID."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_version_by_hash(self, source_id: str, content_hash: str) -> Optional[Dict[str, Any]]:
+        """Retrieve a source version matching a specific content hash for snapshot idempotency."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_versions(self, source_id: str) -> List[Dict[str, Any]]:
+        """List all historical snapshot versions for a data source in descending chronological order."""
+        raise NotImplementedError
+
+
+class SourceRecordRepository(Repository):
+    """Abstract repository for normalized records preserving raw and structured data."""
+
+    @abstractmethod
+    def save_record(self, record_data: Any) -> None:
+        """Persist a single normalized source record idempotently."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def save_records(self, records: Sequence[Any]) -> int:
+        """Persist a batch of normalized source records idempotently, returning count saved."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_record(self, source_version_id: str, record_id: str) -> Optional[Any]:
+        """Retrieve a normalized record by version ID and record ID."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_by_version(self, source_version_id: str) -> List[Any]:
+        """List all normalized records associated with a snapshot version."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_by_source(self, source_id: str) -> List[Any]:
+        """List all normalized records across versions for a source ID."""
+        raise NotImplementedError
