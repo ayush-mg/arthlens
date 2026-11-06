@@ -73,7 +73,12 @@ class EndpointPolicyRegistry:
 
         # 4. Epistemic Ledger, Geo, Policy, Replay
         self.register("/ledger/{quantity_id}", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
+        self.register("/ledger/{quantity_id}/graph", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
+        self.register("/geo/units", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
+        self.register("/geo/pilot-boundaries", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
+        self.register("/geo/{id}", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
         self.register("/geo/{id}/indicators", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
+        self.register("/geo/{id}/quality", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
         self.register("/policy/rules", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
         self.register("/policy/rules", "POST", allowed_roles={Role.STEWARD.value})
         self.register("/replay/{id}", "GET", allowed_roles={"*"})

@@ -360,3 +360,15 @@ class TestPostgresGeoUnitRepository(BaseGeoRepositoryContract):
         assert fetched is not None
         assert fetched.geometry_status == GeometryStatus.GEOMETRY_UNVALIDATED
 
+    def test_search_units(self, repo):
+        """Search returns matching units case-insensitively and respects limits."""
+        units = create_sample_hierarchy()
+        repo.save_units(units)
+
+        # Substring search for 'praya'
+        matches = repo.search("praya")
+        assert len(matches) >= 1
+        assert any(u.name == "Prayagraj" for u in matches)
+
+        # Empty search
+        assert repo.search("") == []

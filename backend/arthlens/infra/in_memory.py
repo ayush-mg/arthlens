@@ -451,6 +451,15 @@ class InMemoryGeoUnitRepository(GeoUnitRepository):
         with self._lock:
             return [u for u in self._store.values() if u.level == level]
 
+    def search(self, query: str, limit: int = 50) -> List[GeoUnit]:
+        with self._lock:
+            q = query.strip().lower()
+            if not q:
+                return []
+            matches = [u for u in self._store.values() if q in u.name.lower()]
+            matches.sort(key=lambda u: (int(u.level), u.name))
+            return matches[:limit]
+
     def clear(self) -> None:
         with self._lock:
             self._store.clear()

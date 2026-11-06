@@ -150,8 +150,12 @@ class DenyByDefaultMiddleware(BaseHTTPMiddleware):
         if not policy:
             # Check pattern matching for parameterized routes: e.g. /runs/{id}, /scenarios/{id}/branch, /geo/{id}/indicators
             normalized_path = re.sub(r"/[0-9a-fA-F\-]{36}", "/{id}", path)
-            normalized_path = re.sub(r"/geo/[a-zA-Z0-9\._\-]+", "/geo/{id}", normalized_path)
-            normalized_path = re.sub(r"/ledger/[0-9a-fA-F\-]{36}", "/ledger/{quantity_id}", normalized_path)
+            normalized_path = re.sub(r"/ledger/[0-9a-fA-F\-a-zA-Z0-9_\.:]+/graph", "/ledger/{quantity_id}/graph", normalized_path)
+            normalized_path = re.sub(r"/ledger/[0-9a-fA-F\-a-zA-Z0-9_\.:]+", "/ledger/{quantity_id}", normalized_path)
+            normalized_path = re.sub(r"/geo/[a-zA-Z0-9\._\-:]+/indicators", "/geo/{id}/indicators", normalized_path)
+            normalized_path = re.sub(r"/geo/[a-zA-Z0-9\._\-:]+/quality", "/geo/{id}/quality", normalized_path)
+            if normalized_path not in ("/geo/units", "/geo/pilot-boundaries"):
+                normalized_path = re.sub(r"/geo/[a-zA-Z0-9\._\-:]+", "/geo/{id}", normalized_path)
             normalized_path = re.sub(r"/replay/[0-9a-fA-F\-]+", "/replay/{id}", normalized_path)
             policy = registry.get_policy(method, normalized_path)
 

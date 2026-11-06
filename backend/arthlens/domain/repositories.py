@@ -324,3 +324,8 @@ class GeoUnitRepository(Repository):
     def list_by_level(self, level: ResolutionTier) -> List[GeoUnit]:
         """List all geographic units at a specific administrative tier."""
         raise NotImplementedError
+
+    @abstractmethod
+    def search(self, query: str, limit: int = 50) -> List[GeoUnit]:
+        """Search geographic units by name (case-insensitive substring match)."""
+        raise NotImplementedError

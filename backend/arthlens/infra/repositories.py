@@ -1170,12 +1170,27 @@ class PostgresGeoUnitRepository(GeoUnitRepository):
                 ).where(GeoUnitModel.parent_id == str(parent_id)).order_by(GeoUnitModel.id)
             rows = session.execute(stmt).all()
             return [self._to_unit(m, json.loads(g_str) if g_str else None) for m, g_str in rows]
-
     def list_by_level(self, level: ResolutionTier) -> List[GeoUnit]:
         with self._get_session() as session:
             stmt = select(
                 GeoUnitModel,
                 func.ST_AsGeoJSON(GeoUnitModel.geometry).label("geom_json"),
             ).where(GeoUnitModel.level == int(level)).order_by(GeoUnitModel.id)
+            rows = session.execute(stmt).all()
+            return [self._to_unit(m, json.loads(g_str) if g_str else None) for m, g_str in rows]
+    def search(self, query: str, limit: int = 50) -> List[GeoUnit]:
+        q = query.strip()
+        if not q:
+            return []
+        with self._get_session() as session:
+            stmt = (
+                select(
+                    GeoUnitModel,
+                    func.ST_AsGeoJSON(GeoUnitModel.geometry).label("geom_json"),
+                )
+                .where(GeoUnitModel.name.ilike(f"%{q}%"))
+                .order_by(GeoUnitModel.level, GeoUnitModel.name)
+                .limit(limit)
+            )
             rows = session.execute(stmt).all()
             return [self._to_unit(m, json.loads(g_str) if g_str else None) for m, g_str in rows]

@@ -1,0 +1,23 @@
+# Next.js build output
+.next/
+out/
+
+# Node dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env*.local
+.env
+
+# Testing & Coverage
+coverage/
+
+# TypeScript cache
+*.tsbuildinfo
+next-env.d.ts
+
+# Allow frontend library code
+!/lib/
