@@ -5,6 +5,12 @@ Authoritative Specification: ArthLens Build Handbook v1.0 (Part 7.4, 7.5 Step 10
 Phase: Phase 2 (P2-3 - Data-Quality Layer and Staleness Flags).
 """
 
+from backend.arthlens.quality.contradiction import (
+    ContradictionRecord,
+    ContradictionRegistry,
+    MetricTolerancePolicy,
+    detect_contradictions,
+)
 from backend.arthlens.quality.evaluator import (
     DataQualityEvaluator,
     IndicatorQualityAssessment,
@@ -53,4 +59,8 @@ __all__ = [
     "inspect_calculation_inputs",
     "AtlasQualityShadingAdapter",
     "get_maplibre_quality_paint_properties",
+    "detect_contradictions",
+    "ContradictionRegistry",
+    "MetricTolerancePolicy",
+    "ContradictionRecord",
 ]

@@ -1,15 +1,17 @@
-# Hosting Limits, Deployment Architecture & LLM Provider Decision (Task P0-6)
+# Historical Hosting and LLM Provider Research (Task P0-6)
 
-> **Document Status**: Active Reference & Decision Document
+> **Document Status**: HISTORICAL; NOT CURRENT PROCUREMENT EVIDENCE OR AUTHORIZATION (`P0-6 BLOCKED`)
 > **Authoritative Specification**: [ArthLens Build Handbook](ArthLens_Build_Handbook.pdf) (v1.0, 17 Oct 2026), Parts 3.1, 3.2, 8.3, 8.6, 13.1, 14.1–14.5
 > **Evaluation Date**: 2026-10-21
-> **Audited By**: Antigravity Assistant (Developer B responsibility)
+> **Compiled By**: AI-assisted research; no human source-review sign-off is recorded
 
 ---
 
-## 1. Executive Summary & Recommended Stack
+> **Use restriction**: Provider names, model names, prices, quotas, privacy terms, plan limits, and recommendations below are unverified historical notes. Do not use them to select a provider, configure production, authorize spending, or make privacy/commercial-use claims. Recheck current primary documentation and obtain human approval. The local Docker Compose setup is for development only.
 
-This document establishes the verified hosting limits, deployment configurations, and LLM provider terms for ArthLens across three operational tiers:
+## 1. Historical Research Summary (Not a Current Recommendation)
+
+This document preserves the hosting limits, deployment configurations, and LLM provider terms reported during the 2026-10-21 research pass. Those claims have not been revalidated and are not current decisions:
 1. **Local Development (Phase 1–6)**: Docker Compose (PostgreSQL 16 + PostGIS 3.4), local Python FastAPI + background worker, Next.js dev server, and `FakeLLMClient` / `ReplayLLMClient` with zero external hosting or LLM API costs.
 2. **Public Academic Demonstration (Phase 7 Evaluation)**: Next.js on **Cloudflare Pages** (or Vercel Hobby under non-commercial academic terms), Python FastAPI container on **Render Starter ($7/mo always-on)** or **Hugging Face Spaces (`cpu-basic` free)**, managed database on **Neon Postgres (Free tier, 1 GB)** or **Supabase (Free tier, 500 MB)** with PostGIS enabled, static vector tiles and exports on **Cloudflare R2 (10 GB free, $0 egress)**, and LLM access via **OpenAI API (`gpt-6-luna` primary, `gpt-5.6-terra` reasoning fallback)** behind `ILLMClient` with active `ReplayLLMClient` fallback.
 3. **Eventual Production / Commercial Startup**: Cloudflare Pages / Vercel Pro, dedicated container cluster (Render / AWS ECS / Fly.io), dedicated PostgreSQL + PostGIS (AWS RDS or Supabase Pro), Cloudflare R2, and contracted LLM enterprise endpoints with Zero Data Retention (ZDR).
@@ -20,7 +22,7 @@ This document establishes the verified hosting limits, deployment configurations
 
 ### 2.1 Component Comparison Matrix
 
-| Component | Evaluated Providers | Verified Free / Starter Limits | PostGIS / Extension Support | Sleep / Cold-Start / Expiry Behaviour | Commercial / TOS Constraints | Verdict & Classification |
+| Component | Evaluated Providers | Previously reported Free / Starter Limits (Unverified) | PostGIS / Extension Support | Previously reported Sleep / Cold-Start / Expiry Behaviour (Unverified) | Previously reported Commercial / TOS Constraints (Unverified) | Historical note only; not a current verdict |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **A. Frontend** | **Vercel** | **Hobby ($0/mo)**:<br>• 100 GB Fast Data Transfer<br>• 1M function invocations<br>• 300s serverless timeout (Fluid Compute)<br>• 4 CPU-hours / 360 GB-hours | N/A (Static + Serverless edge) | No sleep for static assets; serverless cold start ~200–500ms. | **STRICTLY NON-COMMERCIAL PERSONAL USE**.<br>Commercial or revenue-generating use requires Pro ($20/seat/mo). | **`VERIFIED (Academic Demo Only)`**.<br>Acceptable for coursework evaluation; non-viable for startup launch. |
 | | **Cloudflare Pages** | **Free ($0/mo)**:<br>• Unlimited bandwidth<br>• 500 builds/month (20 min max build)<br>• 100,000 requests/day on Workers<br>• 10ms CPU time/request | N/A (Static + Edge functions) | Instant edge delivery; 0 cold start for static assets. | **COMMERCIAL USE FULLY PERMITTED**.<br>No personal-use restriction. | **`VERIFIED (Recommended Default)`**.<br>Future-proof for both academic evaluation and commercial deployment. |

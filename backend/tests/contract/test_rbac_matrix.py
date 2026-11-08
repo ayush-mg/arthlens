@@ -16,13 +16,11 @@ Ensures:
 - Backend enforcement independent of client headers or client-claimed roles.
 """
 
-import uuid
 import pytest
-from fastapi.testclient import TestClient
-
 from backend.arthlens.api.app import create_app
 from backend.arthlens.security.roles import Role
 from backend.arthlens.security.tokens import create_access_token
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture
@@ -60,11 +58,14 @@ class TestRBACMatrix:
         ("GET", "/runs/11111111-1111-1111-1111-111111111111", None),
         ("GET", "/runs/11111111-1111-1111-1111-111111111111/events", None),
         ("POST", "/scenarios", {"name": "Base Scenario"}),
+        ("GET", "/scenarios", None),
         ("GET", "/geo/IND.MH.PU/indicators", None),
         ("GET", "/policy/rules", None),
         ("POST", "/policy/rules", {"scheme_id": "pmfme", "version": "1.0", "rule_ast": {}}),
         ("GET", "/admin/users", None),
         ("GET", "/admin/audit", None),
+        ("GET", "/admin/audit-events", None),
+        ("GET", "/admin/sources", None),
     ])
     def test_unauthenticated_requests_receive_401(self, api_client, method, path, payload):
         """Unauthenticated requests to protected endpoints return 401 Unauthorized."""
@@ -86,18 +87,26 @@ class TestRBACMatrix:
         assert res_users.status_code == 200
         res_audit = api_client.get("/admin/audit", cookies=admin_cookie)
         assert res_audit.status_code == 200
+        res_audit_events = api_client.get("/admin/audit-events", cookies=admin_cookie)
+        assert res_audit_events.status_code == 200
+        res_sources = api_client.get("/admin/sources", cookies=admin_cookie)
+        assert res_sources.status_code == 200
 
         # Entrepreneur forbidden
         res = api_client.get("/admin/users", cookies=entrepreneur_cookie)
         assert res.status_code == 403
         res = api_client.get("/admin/audit", cookies=entrepreneur_cookie)
         assert res.status_code == 403
+        res = api_client.get("/admin/sources", cookies=entrepreneur_cookie)
+        assert res.status_code == 403
 
-        # Steward forbidden
+        # Steward forbidden from user management and audit, permitted for sources
         res = api_client.get("/admin/users", cookies=steward_cookie)
         assert res.status_code == 403
         res = api_client.get("/admin/audit", cookies=steward_cookie)
         assert res.status_code == 403
+        res = api_client.get("/admin/sources", cookies=steward_cookie)
+        assert res.status_code == 200
 
     # 3. Policy rule creation (POST /policy/rules) requires STEWARD
     def test_post_policy_rules_requires_steward(self, api_client):
@@ -107,9 +116,10 @@ class TestRBACMatrix:
 
         rule_payload = {"scheme_id": "pmfme", "version": "v1.0", "rule_ast": {"conditions": []}}
 
-        # Steward can post rule
+        # A rule cannot be persisted until the source document, fact requirements,
+        # and effective period are supplied.
         res_steward = api_client.post("/policy/rules", json=rule_payload, cookies=steward_cookie)
-        assert res_steward.status_code in [200, 201]
+        assert res_steward.status_code == 422
 
         # Entrepreneur cannot post rule
         res_ent = api_client.post("/policy/rules", json=rule_payload, cookies=entrepreneur_cookie)
@@ -124,6 +134,22 @@ class TestRBACMatrix:
         # POST /scenarios
         res_scen = api_client.post("/scenarios", json={"name": "Katra Bakery"}, cookies=entrepreneur_cookie)
         assert res_scen.status_code in [200, 201]
+
+        res_scen_list = api_client.get("/scenarios", cookies=entrepreneur_cookie)
+        assert res_scen_list.status_code == 200
+        assert any(item["id"] == res_scen.json()["id"] for item in res_scen_list.json())
+
+        other_entrepreneur_cookie = _auth_cookie_for(
+            "00000000-0000-0000-0000-000000000004",
+            "other-e@arthlens.org",
+            Role.ENTREPRENEUR,
+        )
+        res_other_scenarios = api_client.get("/scenarios", cookies=other_entrepreneur_cookie)
+        assert res_other_scenarios.status_code == 200
+        assert all(item["id"] != res_scen.json()["id"] for item in res_other_scenarios.json())
+
+        res_scen_list_steward = api_client.get("/scenarios", cookies=steward_cookie)
+        assert res_scen_list_steward.status_code == 403
 
         res_scen_steward = api_client.post("/scenarios", json={"name": "Steward Scenario"}, cookies=steward_cookie)
         assert res_scen_steward.status_code == 403

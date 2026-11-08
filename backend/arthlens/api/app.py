@@ -5,14 +5,16 @@ Authoritative Reference: ArthLens Build Handbook v1.0 (Part 10, Part 11, Part 13
 Phase: P1-6 (Authentication, Roles, RBAC, Audit Events and Rate Limiting).
 """
 
-from typing import Callable
 import re
+from typing import Callable
 
-from fastapi import FastAPI, HTTPException, Request, Response, status
+from fastapi import FastAPI, Request, Response, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.arthlens.api.admin import router as admin_router
+from backend.arthlens.api.agent_runs import router as agent_runs_router
 from backend.arthlens.api.auth import router as auth_router
 from backend.arthlens.api.indicators import router as indicators_router
 from backend.arthlens.api.policy import router as policy_router
@@ -52,7 +54,7 @@ class RateLimitingMiddleware(BaseHTTPMiddleware):
 
         # Check per-IP rate limit
         ip_limit = get_rate_limit_per_minute_ip()
-        allowed_ip, rem_ip, reset_ip = limiter.check_rate_limit(
+        allowed_ip, _, reset_ip = limiter.check_rate_limit(
             key=f"ip:{client_ip}",
             limit=ip_limit,
             window_seconds=60,
@@ -77,7 +79,7 @@ class RateLimitingMiddleware(BaseHTTPMiddleware):
                 claims = decode_access_token(token)
                 user_id = claims["sub"]
                 user_limit = get_rate_limit_per_minute_user()
-                allowed_u, rem_u, reset_u = limiter.check_rate_limit(
+                allowed_u, _, reset_u = limiter.check_rate_limit(
                     key=f"user:{user_id}",
                     limit=user_limit,
                     window_seconds=60,
@@ -142,6 +144,10 @@ class DenyByDefaultMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         method = request.method.upper()
 
+        # Allow CORS preflight requests
+        if method == "OPTIONS":
+            return await call_next(request)
+
         # Normalize parameterized path for matching
         registry = get_policy_registry()
 
@@ -150,11 +156,24 @@ class DenyByDefaultMiddleware(BaseHTTPMiddleware):
         if not policy:
             # Check pattern matching for parameterized routes: e.g. /runs/{id}, /scenarios/{id}/branch, /geo/{id}/indicators
             normalized_path = re.sub(r"/[0-9a-fA-F\-]{36}", "/{id}", path)
+            normalized_path = re.sub(r"/scenarios/[^/]+/calculate", "/scenarios/{id}/calculate", normalized_path)
+            normalized_path = re.sub(r"/scenarios/[^/]+/simulate", "/scenarios/{id}/simulate", normalized_path)
+            normalized_path = re.sub(r"/scenarios/[^/]+/spatial-demand", "/scenarios/{id}/spatial-demand", normalized_path)
+            normalized_path = re.sub(r"/scenarios/[^/]+/accessibility", "/scenarios/{id}/accessibility", normalized_path)
+            normalized_path = re.sub(r"/scenarios/[^/]+/policy", "/scenarios/{id}/policy", normalized_path)
+            normalized_path = re.sub(r"/scenarios/[^/]+/report", "/scenarios/{id}/report", normalized_path)
+            normalized_path = re.sub(r"/scenarios/[^/]+/branch", "/scenarios/{id}/branch", normalized_path)
+            normalized_path = re.sub(r"/scenarios/comparisons/[^/]+", "/scenarios/comparisons/{id}", normalized_path)
+            normalized_path = re.sub(r"/policy/documents/[0-9a-fA-F\-]{36}/review", "/policy/documents/{id}/review", normalized_path)
+            normalized_path = re.sub(r"/policy/rules/[0-9a-fA-F\-]{36}/approve", "/policy/rules/{id}/approve", normalized_path)
+            normalized_path = re.sub(r"/policy/rules/[0-9a-fA-F\-]{36}/retire", "/policy/rules/{id}/retire", normalized_path)
+            normalized_path = re.sub(r"/policy/schemes/[^/]+/evaluate", "/policy/schemes/{scheme_id}/evaluate", normalized_path)
+            normalized_path = re.sub(r"/policy/evaluations/[0-9a-fA-F\-]{36}", "/policy/evaluations/{id}", normalized_path)
             normalized_path = re.sub(r"/ledger/[0-9a-fA-F\-a-zA-Z0-9_\.:]+/graph", "/ledger/{quantity_id}/graph", normalized_path)
             normalized_path = re.sub(r"/ledger/[0-9a-fA-F\-a-zA-Z0-9_\.:]+", "/ledger/{quantity_id}", normalized_path)
             normalized_path = re.sub(r"/geo/[a-zA-Z0-9\._\-:]+/indicators", "/geo/{id}/indicators", normalized_path)
             normalized_path = re.sub(r"/geo/[a-zA-Z0-9\._\-:]+/quality", "/geo/{id}/quality", normalized_path)
-            if normalized_path not in ("/geo/units", "/geo/pilot-boundaries"):
+            if normalized_path not in ("/geo/units", "/geo/pilot-boundaries", "/geo/pilot-pmtiles"):
                 normalized_path = re.sub(r"/geo/[a-zA-Z0-9\._\-:]+", "/geo/{id}", normalized_path)
             normalized_path = re.sub(r"/replay/[0-9a-fA-F\-]+", "/replay/{id}", normalized_path)
             policy = registry.get_policy(method, normalized_path)
@@ -186,9 +205,17 @@ def create_app() -> FastAPI:
     app.add_middleware(DenyByDefaultMiddleware)
     app.add_middleware(CSRFProtectionMiddleware)
     app.add_middleware(RateLimitingMiddleware)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=get_allowed_origins(),
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     # Include API routers
     app.include_router(auth_router)
+    app.include_router(agent_runs_router)
     app.include_router(runs_router)
     app.include_router(scenarios_router)
     app.include_router(policy_router)

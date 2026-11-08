@@ -1,0 +1,55 @@
+@startuml deployment_local
+!theme plain
+title ArthLens - Local Deployment Footprint and Production Boundary
+
+skinparam node {
+    BackgroundColor White
+    BorderColor #2B5797
+}
+skinparam component<<defined>> {
+    BackgroundColor #E8F5E9
+    BorderColor #388E3C
+}
+skinparam component<<separate>> {
+    BackgroundColor #FFFDE7
+    BorderColor #F9A825
+}
+skinparam component<<planned>> {
+    BackgroundColor #F5F5F5
+    BorderColor #888888
+    BorderStyle dashed
+    FontColor #555555
+}
+
+node "Developer workstation" as Workstation {
+    component "Next.js frontend\n(separately started)" as Frontend <<separate>>
+    component "FastAPI / Uvicorn\n(deployment/Dockerfile)" as API <<separate>>
+
+    node "Docker Compose service" as Compose {
+        database "PostgreSQL + PostGIS 16 / 3.4" as DB <<defined>>
+        folder "Named volume:\narthlens_postgres_data" as Volume <<defined>>
+    }
+
+    Frontend --> API : HTTP (local development)
+    API --> DB : DATABASE_URL
+    DB --> Volume : persistent database files
+}
+
+note right of Compose
+  deployment/compose.yaml defines only
+  the database service. It binds the
+  published port to 127.0.0.1.
+end note
+
+node "Production environment" as Production <<planned>> {
+    component "Frontend, API, worker,\nmanaged database and storage" as ProductionStack <<planned>>
+}
+
+Workstation ..> Production : not deployed by current configuration
+
+note bottom of Production
+  Hosting, credentials, worker deployment,
+  object storage and public smoke tests
+  remain unconfigured / human-gated.
+end note
+@enduml

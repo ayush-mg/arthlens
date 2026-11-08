@@ -213,4 +213,47 @@ describe('EvidenceGraph Component', () => {
     fireEvent.click(fitBtn);
     expect(mockCyInstance.fit).toHaveBeenCalled();
   });
+
+  it('renders explicit unauthenticated state when user is not signed in', () => {
+    const handleSignIn = vi.fn();
+
+    render(
+      <EvidenceGraph
+        graphData={null}
+        isLoading={false}
+        isAuthenticated={false}
+        onOpenProvenance={vi.fn()}
+        onSignIn={handleSignIn}
+      />
+    );
+
+    expect(screen.getByText(/Authentication Required to Inspect Ancestry DAG/i)).toBeInTheDocument();
+    expect(screen.getByText(/detailed epistemic dependency graphs, parent quantities, and derivation lineages require an authenticated session/i)).toBeInTheDocument();
+    const signInBtn = screen.getByRole('button', { name: /Sign In with Credentials/i });
+    expect(signInBtn).toBeInTheDocument();
+    fireEvent.click(signInBtn);
+    expect(handleSignIn).toHaveBeenCalled();
+  });
+
+  it('renders explicit error state with retry action when graph retrieval fails', () => {
+    const handleRetry = vi.fn();
+
+    render(
+      <EvidenceGraph
+        graphData={null}
+        isLoading={false}
+        error="Network connection timeout reaching epistemic ledger"
+        isAuthenticated={true}
+        onOpenProvenance={vi.fn()}
+        onRetry={handleRetry}
+      />
+    );
+
+    expect(screen.getByText(/Evidence Graph Query Failed/i)).toBeInTheDocument();
+    expect(screen.getByText(/Network connection timeout reaching epistemic ledger/i)).toBeInTheDocument();
+    const retryBtn = screen.getByRole('button', { name: /Retry Graph Query/i });
+    expect(retryBtn).toBeInTheDocument();
+    fireEvent.click(retryBtn);
+    expect(handleRetry).toHaveBeenCalled();
+  });
 });

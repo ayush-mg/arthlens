@@ -34,6 +34,7 @@ class QualityStatus(str, Enum):
     STALE = "STALE"
     ESTIMATED = "ESTIMATED"
     UNAVAILABLE = "UNAVAILABLE"
+    CONTRADICTED = "CONTRADICTED"
 
 
 class CalculationSuitability(str, Enum):
@@ -46,6 +47,7 @@ class CalculationSuitability(str, Enum):
     SUITABLE_HISTORICAL_ONLY = "SUITABLE_HISTORICAL_ONLY"
     ESTIMATED_PROJECTION = "ESTIMATED_PROJECTION"
     UNSUITABLE_MISSING = "UNSUITABLE_MISSING"
+    UNSUITABLE_CONTRADICTED = "UNSUITABLE_CONTRADICTED"
 
 
 @dataclass(frozen=True)
@@ -128,11 +130,22 @@ ATLAS_SHADING_TOKENS: Dict[QualityStatus, AtlasShadingToken] = {
         pattern="cross-hatch",
         default_suitability=CalculationSuitability.UNSUITABLE_MISSING,
     ),
+    QualityStatus.CONTRADICTED: AtlasShadingToken(
+        status=QualityStatus.CONTRADICTED,
+        label="Contradicted Sources",
+        color_token="atlas-quality-contradicted",
+        hex_color="#DC2626",  # Crimson Red
+        fill_opacity=0.75,
+        stroke_style="dashed",
+        pattern="cross-hatch",
+        default_suitability=CalculationSuitability.UNSUITABLE_CONTRADICTED,
+    ),
 }
 
 # Strict deterministic precedence order for primary display state selection
 PRECEDENCE_ORDER: List[QualityStatus] = [
     QualityStatus.UNAVAILABLE,
+    QualityStatus.CONTRADICTED,
     QualityStatus.INCOMPLETE,
     QualityStatus.STALE,
     QualityStatus.ESTIMATED,

@@ -1,0 +1,46 @@
+@startuml activity_dataset_ingestion
+!theme plain
+title ArthLens - Dataset Ingestion Activity (Implemented)
+
+start
+:DatasetIngestionPipeline.ingest(adapter, source input);
+
+partition "Retrieve and validate" {
+    :Adapter reads local snapshot or fetches live data;
+    :Compute content hash and source version;
+    if (Retrieval succeeded?) then (yes)
+        :Validate source schema;
+    else (no)
+        :Return failed IngestionResult;
+        stop
+    endif
+    if (Schema valid?) then (yes)
+        :Parse raw records;
+    else (no)
+        :Return failed summary with validation errors;
+        stop
+    endif
+}
+
+partition "Normalize and assess" {
+    :Normalize records, preserving original fields;
+    :Reconcile geography against canonical hierarchy;
+    :Assess quality and anomalies;
+    :Extract immutable quantities;
+    :Derive coverage and quality status;
+}
+
+partition "Persist" {
+    if (session_factory configured?) then (yes)
+        :Open session and begin transaction;
+        :Persist source, version, records, and quantities;
+        note right: DS-04 road graph rows keep exact source-version records.\nDS-09 boundaries use the dedicated ingestion service.
+        :Commit transaction;
+    else (no)
+        :Persist through configured repositories;
+    endif
+}
+
+:Return successful IngestionResult summary;
+stop
+@enduml

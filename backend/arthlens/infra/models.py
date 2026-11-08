@@ -35,7 +35,6 @@ from sqlalchemy.orm import relationship
 
 from backend.arthlens.infra.database import Base
 
-
 # ==============================================================================
 # 1. Users, Roles, and Permissions (Handbook 9.1)
 # ==============================================================================
@@ -153,6 +152,7 @@ class GeoUnitModel(Base):
     geometry_status = Column(Text, nullable=False, server_default="GEOMETRY_MISSING")
     analytical_status = Column(Text, nullable=False, server_default="ANALYSIS_UNAVAILABLE")
     census_code = Column(Text, nullable=True)
+    geometry_source_record_id = Column(Text, ForeignKey("source_records.id", ondelete="SET NULL"), nullable=True, index=True)
 
     __table_args__ = (
         CheckConstraint("level BETWEEN 0 AND 5", name="check_geo_unit_level"),
@@ -182,6 +182,69 @@ class FacilityModel(Base):
     attractiveness_proxy = Column(Double, nullable=True)
     completeness_flag = Column(Boolean, nullable=False, server_default="true")
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class RoadNodeModel(Base):
+    """OSM road node with exact source-record provenance."""
+    __tablename__ = "road_nodes"
+
+    id = Column(Text, primary_key=True)
+    source_version_id = Column(
+        Text,
+        ForeignKey("source_versions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    osm_node_id = Column(Text, nullable=False)
+    geometry = Column(Geometry(geometry_type="POINT", srid=4326, spatial_index=False), nullable=False)
+    source_record_id = Column(
+        Text,
+        ForeignKey("source_records.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        UniqueConstraint("source_version_id", "osm_node_id", name="uq_road_nodes_version_osm_node"),
+        Index("ix_road_nodes_geometry_gist", "geometry", postgresql_using="gist"),
+    )
+
+
+class RoadEdgeModel(Base):
+    """Directed OSM road segment indexed for site-local PostGIS extraction."""
+    __tablename__ = "road_edges"
+
+    id = Column(Text, primary_key=True)
+    source_version_id = Column(
+        Text,
+        ForeignKey("source_versions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    osm_way_id = Column(Text, nullable=False)
+    segment_index = Column(Integer, nullable=False)
+    direction = Column(Text, nullable=False)
+    from_node_id = Column(Text, ForeignKey("road_nodes.id", ondelete="CASCADE"), nullable=False)
+    to_node_id = Column(Text, ForeignKey("road_nodes.id", ondelete="CASCADE"), nullable=False)
+    length_m = Column(Double, nullable=False)
+    road_class = Column(Text, nullable=False)
+    geometry = Column(Geometry(geometry_type="LINESTRING", srid=4326, spatial_index=False), nullable=False)
+    source_record_id = Column(
+        Text,
+        ForeignKey("source_records.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "source_version_id",
+            "osm_way_id",
+            "segment_index",
+            "direction",
+            name="uq_road_edges_version_way_segment_direction",
+        ),
+        CheckConstraint("length_m > 0", name="check_road_edges_positive_length"),
+        CheckConstraint("direction IN ('forward', 'reverse')", name="check_road_edges_direction"),
+        Index("ix_road_edges_source_nodes", "source_version_id", "from_node_id"),
+        Index("ix_road_edges_geometry_gist", "geometry", postgresql_using="gist"),
+    )
 
 
 # ==============================================================================
@@ -233,15 +296,31 @@ class QuantityModel(Base):
 # ==============================================================================
 
 class PolicyDocumentModel(Base):
-    """Retrieved scheme policy guideline documents."""
+    """Exact registered source snapshots reviewed for policy-rule use."""
     __tablename__ = "policy_documents"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     scheme_id = Column(Text, nullable=False, index=True)
     document_url = Column(Text, nullable=False)
     sha256 = Column(Text, nullable=False)
+    source_version_id = Column(
+        Text,
+        ForeignKey("source_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+    )
     retrieved_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    status = Column(Text, nullable=False, server_default="ACTIVE")
+    status = Column(Text, nullable=False, server_default="PENDING_REVIEW")
+    verified_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    verified_at = Column(DateTime(timezone=True), nullable=True)
+    review_note = Column(Text, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('PENDING_REVIEW','VERIFIED','REJECTED')",
+            name="check_policy_document_status",
+        ),
+    )
 
 
 class PolicyRuleModel(Base):
@@ -251,16 +330,56 @@ class PolicyRuleModel(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     document_id = Column(UUID(as_uuid=True), ForeignKey("policy_documents.id"), nullable=True)
     scheme_id = Column(Text, nullable=False, index=True)
+    rule_key = Column(Text, nullable=False)
     version = Column(Text, nullable=False)
     rule_ast = Column(JSONB, nullable=False)
+    evidence_requirements = Column(JSONB, nullable=False, server_default="{}")
+    source_references = Column(JSONB, nullable=False, server_default="[]")
     effective_from = Column(Date, nullable=True)
     effective_to = Column(Date, nullable=True)
     status = Column(Text, nullable=False, server_default="DRAFT")
     approved_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    approval_note = Column(Text, nullable=True)
+    retired_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    retired_at = Column(DateTime(timezone=True), nullable=True)
+    retirement_reason = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     __table_args__ = (
         CheckConstraint("status IN ('DRAFT','APPROVED','RETIRED')", name="check_policy_rule_status"),
+        UniqueConstraint("scheme_id", "rule_key", "version", name="uq_policy_scheme_rule_version"),
+        CheckConstraint(
+            "effective_to IS NULL OR effective_from IS NULL OR effective_to >= effective_from",
+            name="check_policy_effective_period",
+        ),
+    )
+
+
+class PolicyEvaluationModel(Base):
+    """Append-only source-versioned result and evidence trace for a policy assessment."""
+
+    __tablename__ = "policy_evaluations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    scheme_id = Column(Text, nullable=False, index=True)
+    rule_id = Column(UUID(as_uuid=True), ForeignKey("policy_rules.id", ondelete="SET NULL"), nullable=True)
+    rule_key = Column(Text, nullable=False)
+    rule_version = Column(Text, nullable=True)
+    as_of = Column(Date, nullable=False)
+    outcome = Column(Text, nullable=False)
+    status = Column(Text, nullable=False)
+    fact_quantity_ids = Column(JSONB, nullable=False, server_default="{}")
+    trace = Column(JSONB, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint("outcome IN ('TRUE','FALSE','UNKNOWN')", name="check_policy_evaluation_outcome"),
+        CheckConstraint(
+            "status IN ('RULE_UNAVAILABLE','INSUFFICIENT_DATA','SCENARIO_ONLY','ASSESSED')",
+            name="check_policy_evaluation_status",
+        ),
     )
 
 
@@ -313,6 +432,24 @@ class SimulationRunModel(Base):
     )
 
 
+class ScenarioComparisonModel(Base):
+    """Immutable owner-scoped comparison between two saved scenario result snapshots."""
+    __tablename__ = "scenario_comparisons"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    left_scenario_id = Column(UUID(as_uuid=True), ForeignKey("scenarios.id", ondelete="CASCADE"), nullable=False, index=True)
+    right_scenario_id = Column(UUID(as_uuid=True), ForeignKey("scenarios.id", ondelete="CASCADE"), nullable=False, index=True)
+    status = Column(Text, nullable=False)
+    metric_results = Column(JSONB, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint("left_scenario_id <> right_scenario_id", name="check_scenario_comparison_distinct_scenarios"),
+        CheckConstraint("status IN ('COMPLETED','PARTIAL','INSUFFICIENT_DATA')", name="check_scenario_comparison_status"),
+    )
+
+
 # ==============================================================================
 # 7. Agent Runs, Steps, and Events (Handbook 9.2)
 # ==============================================================================
@@ -329,6 +466,10 @@ class AgentRunModel(Base):
     replans_used = Column(Integer, nullable=False, server_default="0")
     model_calls_used = Column(Integer, nullable=False, server_default="0")
     cost_usd = Column(Numeric(10, 4), nullable=False, server_default="0")
+    claimed_by = Column(Text, nullable=True)
+    lease_expires_at = Column(DateTime(timezone=True), nullable=True)
+    recovery_attempts = Column(Integer, nullable=False, server_default="0")
+    max_recovery_attempts = Column(Integer, nullable=False, server_default="3")
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 

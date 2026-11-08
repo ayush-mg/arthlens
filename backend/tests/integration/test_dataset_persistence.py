@@ -21,10 +21,10 @@ Verifies the 12 mandatory persistence requirements directly against PostgreSQL 1
 
 from datetime import date
 from pathlib import Path
-import pytest
-from sqlalchemy import text
 
+import pytest
 from backend.arthlens.data.adapters.census_lgd import CensusLGDAdapter
+from backend.arthlens.data.adapters.osm import OpenStreetMapAdapter
 from backend.arthlens.data.adapters.schemes import SchemeGuidelinesAdapter
 from backend.arthlens.data.pipeline import DatasetIngestionPipeline
 from backend.arthlens.domain.enums import Kind, ResolutionTier
@@ -39,13 +39,14 @@ from backend.arthlens.infra.repositories import (
     PostgresSourceRecordRepository,
     PostgresSourceRepository,
 )
-
+from sqlalchemy import text
 
 FIXTURES_DIR = Path(__file__).resolve().parents[2] / "fixtures"
 TEST_FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures"
 CENSUS_FIXTURE = FIXTURES_DIR / "geo" / "lgd_census_crosswalk.csv"
 SYNTHETIC_CENSUS_FIXTURE = TEST_FIXTURES_DIR / "synthetic_census_crosswalk.csv"
 SCHEMES_FIXTURE = FIXTURES_DIR / "schemes" / "scheme_parameters_sample.json"
+OSM_FIXTURE = FIXTURES_DIR / "osm" / "prayagraj_sample.json"
 
 
 @pytest.fixture(autouse=True)
@@ -413,4 +414,57 @@ class TestDatasetPersistencePostgresIntegration:
         assert v_count == 0, "source_versions must have rolled back completely"
         assert r_count == 0, "source_records must have rolled back completely"
         assert q_count == 0, "quantities must have rolled back completely"
+
+    def test_13_osm_fixture_persistence_and_retrieval_postgres(self):
+        """Requirement: OpenStreetMap (DS-04) approved GO adapter fixture persists and round-trips via PostgreSQL."""
+        factory = get_session_factory()
+        source_repo = PostgresSourceRepository(session_factory=factory)
+        record_repo = PostgresSourceRecordRepository(session_factory=factory)
+        quantity_repo = PostgresQuantityRepository(session_factory=factory)
+
+        adapter = OpenStreetMapAdapter()
+        pipeline = DatasetIngestionPipeline(
+            adapter=adapter,
+            quantity_repo=quantity_repo,
+            source_repo=source_repo,
+            record_repo=record_repo,
+            session_factory=factory,
+        )
+
+        result = pipeline.ingest(source_input=OSM_FIXTURE, is_local=True)
+        assert result.success is True
+        assert result.version_info.source_id == "DS-04"
+        version_id = result.version_info.version_id
+
+        # Verify version retrievable from PostgreSQL
+        v = source_repo.get_version(version_id)
+        assert v is not None
+        assert v["source_id"] == "DS-04"
+        assert v["source_url"] == adapter.official_url
+
+        # Verify raw records retrievable from PostgreSQL
+        records = record_repo.list_by_version(version_id)
+        assert len(records) >= 4
+        assert any("node" in r.record_id for r in records)
+
+        with get_engine().connect() as connection:
+            road_node_count = connection.execute(
+                text("SELECT count(*) FROM road_nodes WHERE source_version_id = :version_id"),
+                {"version_id": version_id},
+            ).scalar_one()
+            road_edge_count = connection.execute(
+                text("SELECT count(*) FROM road_edges WHERE source_version_id = :version_id"),
+                {"version_id": version_id},
+            ).scalar_one()
+            unlinked_road_record_count = connection.execute(
+                text(
+                    "SELECT count(*) FROM road_edges e "
+                    "LEFT JOIN source_records r ON r.id = e.source_record_id "
+                    "WHERE e.source_version_id = :version_id AND r.id IS NULL"
+                ),
+                {"version_id": version_id},
+            ).scalar_one()
+        assert road_node_count >= 2
+        assert road_edge_count >= 1
+        assert unlinked_road_record_count == 0
 

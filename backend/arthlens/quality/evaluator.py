@@ -18,16 +18,15 @@ Enforces:
 5. Independence from navigation, geometry, and analytical availability.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Sequence, Union
 
-from backend.arthlens.domain.enums import Kind, ResolutionTier
-from backend.arthlens.domain.geo import AnalyticalStatus, GeometryStatus, GeoUnit, NavigationStatus
+from backend.arthlens.domain.enums import Kind
+from backend.arthlens.domain.geo import GeoUnit
 from backend.arthlens.domain.quantity import Quantity
 from backend.arthlens.quality.freshness import FreshnessEvaluation, evaluate_staleness
 from backend.arthlens.quality.vocabulary import (
-    ATLAS_SHADING_TOKENS,
     AtlasShadingToken,
     CalculationSuitability,
     QualityIssue,
@@ -123,6 +122,9 @@ class DataQualityEvaluator:
         source_version_id: Optional[str] = None,
         expected_subunits: Optional[Sequence[str]] = None,
         actual_subunits: Optional[Sequence[str]] = None,
+        retrieval_date: Optional[Union[str, date, datetime]] = None,
+        provenance_complete: Optional[bool] = None,
+        source_ids: Optional[Sequence[str]] = None,
     ) -> IndicatorQualityAssessment:
         """
         Evaluate quality for a single quantity against a target geographic unit.
@@ -161,6 +163,19 @@ class DataQualityEvaluator:
                 evaluation_date=self.evaluation_date,
             )
 
+        if provenance_complete is False:
+            issues.append(
+                QualityIssue(
+                    status=QualityStatus.INCOMPLETE,
+                    reason=(
+                        f"Exact source provenance could not be verified for '{indicator_key}' "
+                        f"in '{geo_unit_id}'."
+                    ),
+                    dimension="source_provenance",
+                    severity="WARNING",
+                )
+            )
+
         # 2. Geographic completeness check (INCOMPLETE)
         if quantity.geo_unit_id != geo_unit_id:
             issues.append(
@@ -190,13 +205,102 @@ class DataQualityEvaluator:
                     )
                 )
 
+        # 2b. Numeric contradiction detection (CONTRADICTED)
+        # Verification V5: If two sources disagree beyond tolerance, mark contradicted / disputed.
+        if "CONTRADICTED" in quantity.quality_flags or "DISPUTED" in quantity.quality_flags:
+            issues.append(
+                QualityIssue(
+                    status=QualityStatus.CONTRADICTED,
+                    reason=(
+                        f"Numeric contradiction detected for '{indicator_key}' in '{geo_unit_id}': "
+                        f"multiple authoritative sources disagree beyond tolerance (Verification V5)."
+                    ),
+                    dimension="source_agreement",
+                    severity="BLOCKING",
+                )
+            )
+        if "CONTRADICTED_ANCESTRY" in quantity.quality_flags:
+            issues.append(
+                QualityIssue(
+                    status=QualityStatus.CONTRADICTED,
+                    reason=(
+                        f"Ancestral contradiction detected for '{indicator_key}' in '{geo_unit_id}': "
+                        f"ancestral derivation inputs contain numeric contradictions."
+                    ),
+                    dimension="source_agreement",
+                    severity="BLOCKING",
+                )
+            )
+
+        # 2c. Inherited and source completeness checks (INCOMPLETE)
+        if "INCOMPLETE_SOURCE" in quantity.quality_flags:
+            issues.append(
+                QualityIssue(
+                    status=QualityStatus.INCOMPLETE,
+                    reason=(
+                        f"Incomplete source data for '{indicator_key}' in '{geo_unit_id}': "
+                        f"derived from incomplete source records or partial attributes."
+                    ),
+                    dimension="source_completeness",
+                    severity="WARNING",
+                )
+            )
+        if "LOW_COVERAGE" in quantity.quality_flags:
+            issues.append(
+                QualityIssue(
+                    status=QualityStatus.INCOMPLETE,
+                    reason=(
+                        f"Low sub-unit spatial coverage detected for '{indicator_key}' in '{geo_unit_id}'."
+                    ),
+                    dimension="spatial_coverage",
+                    severity="WARNING",
+                )
+            )
+
         # 3. Observation freshness / staleness evaluation (STALE)
-        src_id = source_id or (quantity.source_refs[0] if quantity.source_refs else None)
-        freshness = evaluate_staleness(
-            as_of=quantity.as_of,
-            source_id=src_id,
-            evaluation_date=self.evaluation_date,
+        # A source-version citation is not itself a source ID. Resolve exact
+        # version records at the repository boundary and pass their registered
+        # source IDs explicitly; bare or legacy source_refs never select policy.
+        src_id = source_id.strip() if isinstance(source_id, str) and source_id.strip() else None
+        resolved_source_ids = tuple(
+            dict.fromkeys(
+                value.strip()
+                for value in (source_ids or ((src_id,) if src_id else ()))
+                if isinstance(value, str) and value.strip()
+            )
         )
+        if src_id is None and resolved_source_ids:
+            src_id = resolved_source_ids[0]
+        freshness_results = [
+            evaluate_staleness(
+                as_of=quantity.as_of,
+                source_id=resolved_id,
+                evaluation_date=self.evaluation_date,
+                retrieval_date=retrieval_date,
+            )
+            for resolved_id in resolved_source_ids
+        ]
+        if not freshness_results:
+            freshness_results = [
+                evaluate_staleness(
+                    as_of=quantity.as_of,
+                    evaluation_date=self.evaluation_date,
+                    retrieval_date=retrieval_date,
+                )
+            ]
+        freshness = freshness_results[0]
+        is_source_stale = any(result.is_stale for result in freshness_results)
+        all_sources_have_policy = all(result.has_policy for result in freshness_results)
+        if len(freshness_results) > 1:
+            freshness = replace(
+                freshness,
+                is_stale=is_source_stale,
+                max_age_days=None,
+                has_policy=all_sources_have_policy,
+                explanation=" ".join(result.explanation for result in freshness_results),
+            )
+        elif is_source_stale != freshness.is_stale:
+            freshness = replace(freshness, is_stale=is_source_stale)
 
         is_estimated = (quantity.kind == Kind.ESTIMATED or "SYNTHETIC_DATA" in quantity.quality_flags)
         if is_estimated:
@@ -213,8 +317,23 @@ class DataQualityEvaluator:
             )
 
         staleness_explanation: Optional[str] = None
-        if freshness.is_stale or "STALE" in quantity.quality_flags:
-            staleness_explanation = freshness.explanation
+        if not quantity.as_of or freshness.as_of_date is None:
+            if not is_estimated:
+                issues.append(
+                    QualityIssue(
+                        status=QualityStatus.INCOMPLETE,
+                        reason=f"Observation date (as_of) is missing or invalid ('{quantity.as_of}'); freshness cannot be certified as CURRENT.",
+                        dimension="temporal_freshness",
+                        severity="WARNING",
+                    )
+                )
+        elif is_source_stale or "STALE" in quantity.quality_flags or "STALE_ANCESTRY" in quantity.quality_flags:
+            if is_source_stale:
+                staleness_explanation = freshness.explanation
+            elif "STALE_ANCESTRY" in quantity.quality_flags:
+                staleness_explanation = "Inherited staleness: one or more ancestral calculation inputs are stale (STALE_ANCESTRY)."
+            else:
+                staleness_explanation = "Observation period exceeds approved source freshness threshold."
             issues.append(
                 QualityIssue(
                     status=QualityStatus.STALE,
@@ -223,7 +342,7 @@ class DataQualityEvaluator:
                     severity="WARNING",
                 )
             )
-        elif not freshness.has_policy and not is_estimated:
+        elif not all_sources_have_policy and not is_estimated:
             # Source lacks an approved freshness policy: never label empirical evidence CURRENT solely because no threshold exists!
             issues.append(
                 QualityIssue(
@@ -262,6 +381,7 @@ class DataQualityEvaluator:
             QualityStatus.STALE: CalculationSuitability.SUITABLE_HISTORICAL_ONLY,
             QualityStatus.ESTIMATED: CalculationSuitability.ESTIMATED_PROJECTION,
             QualityStatus.UNAVAILABLE: CalculationSuitability.UNSUITABLE_MISSING,
+            QualityStatus.CONTRADICTED: CalculationSuitability.UNSUITABLE_CONTRADICTED,
         }
         suitability = suitability_map[primary_status]
 
@@ -281,7 +401,7 @@ class DataQualityEvaluator:
             as_of=quantity.as_of,
             source_id=src_id,
             source_version_id=source_version_id,
-            is_stale=freshness.is_stale or "STALE" in quantity.quality_flags,
+            is_stale=is_source_stale or "STALE" in quantity.quality_flags or "STALE_ANCESTRY" in quantity.quality_flags,
             explanation=primary_issue.reason,
             issues=issues,
             staleness_explanation=staleness_explanation,

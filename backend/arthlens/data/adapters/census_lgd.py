@@ -10,6 +10,7 @@ import csv
 import io
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
+import urllib.request
 import uuid
 
 from backend.arthlens.data.adapters.base import SourceAdapter
@@ -47,8 +48,28 @@ class CensusLGDAdapter(SourceAdapter):
             return [dict(row) for row in reader]
 
     def fetch_live(self, params: Dict[str, Any]) -> List[Dict[str, str]]:
-        """Official Census 2011 data is distributed via static files/archives."""
-        raise NotImplementedError("Live dynamic API not supported for historical Census 2011 PCA.")
+        """
+        Fetch Census/LGD crosswalk from a remote static file release over HTTP.
+        params:
+            url (str, optional): Remote URL to CSV crosswalk.
+            timeout (int, optional): Request timeout in seconds (default 20).
+        """
+        url = params.get("url")
+        if not url:
+            # Historical Census 2011 is an archival publication without a dynamic REST API.
+            raise ValueError(
+                "Census 2011 Primary Census Abstract is an archival static publication without a dynamic REST API. "
+                "Specify 'url' in params to retrieve a remote static publication release, or use ingest_fixture()."
+            )
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "ArthLens/1.0 (Census Ingestion Pipeline)"},
+        )
+        timeout = params.get("timeout", 20)
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            content = resp.read().decode("utf-8")
+        reader = csv.DictReader(line for line in content.splitlines() if not line.strip().startswith("#"))
+        return [dict(row) for row in reader]
 
     def validate_schema(self, raw_content: Any) -> Tuple[bool, List[str]]:
         """Validate CSV columns, numeric constraints, and non-negative populations."""
@@ -139,7 +160,13 @@ class CensusLGDAdapter(SourceAdapter):
             except ValueError:
                 pass
 
-        as_of = row.get("as_of", self.as_of_default)
+        # Separate Census 2011 observation date from LGD hierarchy snapshot date
+        # Only demographic counts receive Census observation date 2011-03-01
+        has_census_demographics = any(k.startswith("population.") or k.startswith("households.") for k in norm)
+        if has_census_demographics:
+            as_of = row.get("as_of") or row.get("census_as_of") or self.as_of_default
+        else:
+            as_of = row.get("lgd_snapshot_date") or row.get("as_of") or None
 
         return NormalizedRecord(
             record_id=record.record_id,
@@ -206,6 +233,8 @@ class CensusLGDAdapter(SourceAdapter):
         record: NormalizedRecord,
         recon: GeographicReconciliation,
         quality: QualityAssessment,
+        version_id: Optional[str] = None,
+        retrieval_date: Optional[str] = None,
     ) -> List[Quantity]:
         """
         Extract immutable Quantity objects for empirical census counts.
@@ -233,6 +262,8 @@ class CensusLGDAdapter(SourceAdapter):
         target_floor = 2 if is_synthetic else 4
 
         as_of = record.as_of or self.as_of_default
+        v_id = version_id or f"{self.source_id}:snapshot"
+        ret_date = retrieval_date or date.today().isoformat()
 
         for def_key, val in record.normalized_fields.items():
             unit = record.canonical_units.get(def_key, "persons")
@@ -255,7 +286,7 @@ class CensusLGDAdapter(SourceAdapter):
                 resolution=int(recon.resolution_tier),
                 as_of=as_of,
                 uncertainty="EXACT",
-                source_refs=((self.source_id, f"row:{record.record_id}", as_of),),
+                source_refs=((v_id, f"row:{record.record_id}", ret_date),),
                 quality_flags=frozenset(flags),
                 license_meta=self.license_name,
             )

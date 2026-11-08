@@ -12,6 +12,7 @@ describe('GeographicSelector Component', () => {
       name: 'Prayagraj',
       level: 2,
       parent_id: 'in:state:09',
+      parent_name: 'Uttar Pradesh',
       lgd_code: '120',
       census_code: '175',
       navigation_status: 'NAVIGABLE',
@@ -38,7 +39,7 @@ describe('GeographicSelector Component', () => {
     expect(screen.queryByText(/Source-Gated Geographic Limitation/i)).not.toBeInTheDocument();
   });
 
-  it('displays source-gated limitation warning when geometry is missing', () => {
+  it('displays compact unobtrusive status indicator and keeps selector usable without oversized warning banner when geometry is missing', () => {
     const handleSelect = vi.fn();
     const varanasi: GeoUnitSummary = {
       id: 'in:district:187',
@@ -60,8 +61,16 @@ describe('GeographicSelector Component', () => {
       />
     );
 
-    // Warning banner must be present to accurately expose data limitations
-    expect(screen.getByText(/Source-Gated Geographic Limitation/i)).toBeInTheDocument();
+    // Crucial requirement: No blocking or oversized warning banner
+    expect(screen.queryByText(/Source-Gated Geographic Limitation/i)).not.toBeInTheDocument();
+
+    // Compact status badges accurately communicate GEOM: GEOMETRY_MISSING without obstructing the user
     expect(screen.getByText(/GEOM: GEOMETRY_MISSING/i)).toBeInTheDocument();
+    expect(screen.getByText(/NAV: NAVIGABLE/i)).toBeInTheDocument();
+    expect(screen.getByText(/ANALYSIS: ANALYSIS_UNAVAILABLE/i)).toBeInTheDocument();
+
+    // Geographic selector remains completely enabled and usable
+    const searchInput = screen.getByRole('combobox');
+    expect(searchInput).not.toBeDisabled();
   });
 });

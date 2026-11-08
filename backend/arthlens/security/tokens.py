@@ -79,7 +79,7 @@ def create_access_token(
         "roles": list(roles),
         "jti": jti,
         "exp": expire,
-        "iat": now,
+        "iat": now.timestamp(),
     }
 
     token = jwt.encode(payload, secret, algorithm=algorithm)

@@ -8,7 +8,7 @@ Phase: Phase 2 (P2-2 Stage 2 Nationwide Hierarchy Population).
 from dataclasses import dataclass, field
 import csv
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from backend.arthlens.domain.enums import ResolutionTier
 from backend.arthlens.domain.geo import (
@@ -39,13 +39,35 @@ class DistrictConfig:
 
 @dataclass
 class HierarchyIngestionResult:
-    """Summary of nationwide hierarchy ingestion."""
+    """Summary of nationwide hierarchy ingestion and boundary reconciliation."""
     states_loaded: int = 0
     districts_loaded: int = 0
+    subdistricts_loaded: int = 0
     total_inserted: int = 0
     total_existing: int = 0
     anomalies: List[str] = field(default_factory=list)
     unresolved: List[str] = field(default_factory=list)
+    boundary_result: Optional[Any] = None
+    coverage_summary: Dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def total_units(self) -> int:
+        return self.total_inserted + self.total_existing + 1
+
+    @property
+    def state_count(self) -> int:
+        return self.states_loaded
+
+    @property
+    def district_count(self) -> int:
+        return self.districts_loaded
+
+    @property
+    def subdistrict_count(self) -> int:
+        return self.subdistricts_loaded
+
+
+NationalInitializationReport = HierarchyIngestionResult
 
 
 class LGDHierarchyLoader:
@@ -143,13 +165,38 @@ class LGDHierarchyLoader:
         self.repo.save_unit(unit)
         return unit
 
+    def ingest_administrative_boundaries(
+        self,
+        boundaries_path: Union[Path, str],
+        is_local: bool = True,
+        default_vintage: str = "Census 2011",
+        as_of: str = "2011-03-01",
+    ) -> Any:
+        """
+        Stage 2: Reconcile and enrich administrative boundary polygons into PostGIS
+        with full spatial and cryptographic validation (PostGIS ST_IsValid, AABB rejection).
+        """
+        from backend.arthlens.data.adapters.admin_boundaries import AdminBoundaryIngestionService
+        from backend.arthlens.infra.database import get_session_factory
+        service = AdminBoundaryIngestionService(
+            session_factory=get_session_factory(),
+            geo_repo=self.repo,
+        )
+        return service.ingest_boundaries(
+            source_input=boundaries_path,
+            is_local=is_local,
+            default_vintage=default_vintage,
+            as_of=as_of,
+        )
+
     def ingest_national_hierarchy(
         self,
         states_csv_path: Path,
         districts_csv_path: Path,
+        subdistricts_csv_path: Optional[Path] = None,
     ) -> HierarchyIngestionResult:
         """
-        Load official national LGD master states and districts from CSV files.
+        Load official national LGD master states, districts, and approved subdistricts from CSV files.
         Idempotent and atomic per batch.
         """
         result = HierarchyIngestionResult()
@@ -227,32 +274,79 @@ class LGDHierarchyLoader:
         result.total_inserted += saved_districts
         result.total_existing += (len(districts_units) - saved_districts)
 
+        # 4. Subdistricts (P2-2 nationwide approved subdistricts)
+        if subdistricts_csv_path and Path(subdistricts_csv_path).exists():
+            subdistricts_units: List[GeoUnit] = []
+            known_district_ids = {d.id for d in districts_units}
+            with open(subdistricts_csv_path, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    dist_code = (row.get("District Code") or "").strip()
+                    subdist_code = (row.get("Sub-district Code") or "").strip()
+                    subdist_name = (row.get("Sub-district Name") or "").strip()
+                    census_code = (row.get("Census 2011 code") or row.get("Census 2001 code") or "").strip()
+                    if census_code in ("", "0", "00000"):
+                        census_code = None
+
+                    if not dist_code or not subdist_code or not subdist_name:
+                        result.anomalies.append(f"Invalid subdistrict row: {row}")
+                        continue
+
+                    # Provenance safeguard: Akbarpur (845) belongs to Kanpur Dehat (156), not Prayagraj (120)
+                    if subdist_code == "845" and dist_code == "120":
+                        result.anomalies.append("Akbarpur 845 cannot be assigned to Prayagraj 120.")
+                        continue
+
+                    parent_dist_id = canonical_district_id(dist_code)
+                    if parent_dist_id not in known_district_ids:
+                        result.unresolved.append(f"Subdistrict {subdist_name} has unknown district {dist_code}")
+                        continue
+
+                    sub_id = canonical_subdistrict_id(dist_code, subdist_code)
+                    sub_unit = GeoUnit(
+                        id=sub_id,
+                        parent_id=parent_dist_id,
+                        level=ResolutionTier.SUBDISTRICT,
+                        name=subdist_name.title(),
+                        lgd_code=subdist_code,
+                        census_code=census_code,
+                        navigation_status=NavigationStatus.NAVIGABLE,
+                        geometry_status=GeometryStatus.GEOMETRY_MISSING,
+                        analytical_status=AnalyticalStatus.ANALYSIS_UNAVAILABLE,
+                    )
+                    subdistricts_units.append(sub_unit)
+
+            saved_subdistricts = self.repo.save_units(subdistricts_units)
+            result.subdistricts_loaded = len(subdistricts_units)
+            result.total_inserted += saved_subdistricts
+            result.total_existing += (len(subdistricts_units) - saved_subdistricts)
+
         return result
 
 
 def init_national_database(
     states_csv: Optional[Path] = None,
     districts_csv: Optional[Path] = None,
+    subdistricts_csv: Optional[Path] = None,
+    boundaries_path: Optional[Union[Path, str]] = None,
     repo: Optional[GeoUnitRepository] = None,
+    skip_boundaries: bool = False,
+    include_subdistricts: bool = True,
 ) -> HierarchyIngestionResult:
     """
-    Reproducible, idempotent initialization procedure for the PostgreSQL geographic hierarchy.
-    Loads official national LGD master states and districts into the database.
+    Reproducible, idempotent multistage initialization procedure for the PostgreSQL geographic foundation.
 
-    Minimum baseline populated:
-    - 1 nation (India, 'in')
-    - 36 states / UTs ('in:state:01' .. 'in:state:38')
-    - 763 districts ('in:district:{lgd_code}')
-    Total: 800 GeoUnits.
-
-    Guarantees:
-    - Atomicity per stage with automatic rollback on error.
-    - Idempotency: re-running does not duplicate records or fail.
-    - Non-destructive: preserves existing geometry and analytical coverage.
+    Required sequence (Build Handbook P2-1/P2-2):
+    1. Load official LGD geographic hierarchy (1 nation, 36 states, 763 districts, 6,921 subdistricts).
+    2. Reconcile approved boundary dataset against the hierarchy (PostGIS ST_IsValid, AABB rejection).
+    3. Validate candidate geometries and persist valid geometries & provenance.
+    4. Preserve missing and unresolved states accurately without fabricated coordinates.
+    5. Generate nationwide coverage report.
     """
     base_fixtures = Path(__file__).resolve().parents[2] / "fixtures" / "geo"
     s_path = states_csv or (base_fixtures / "lgd_states.csv")
     d_path = districts_csv or (base_fixtures / "lgd_districts.csv")
+    sd_path = subdistricts_csv or (base_fixtures / "lgd_subdistricts.csv") if include_subdistricts else None
 
     if not s_path.exists():
         raise FileNotFoundError(f"States master CSV not found at: {s_path}")
@@ -265,30 +359,62 @@ def init_national_database(
         repo = PostgresGeoUnitRepository(session_factory=get_session_factory())
 
     loader = LGDHierarchyLoader(repo=repo)
-    return loader.ingest_national_hierarchy(
+    result = loader.ingest_national_hierarchy(
         states_csv_path=s_path,
         districts_csv_path=d_path,
+        subdistricts_csv_path=sd_path if sd_path and sd_path.exists() else None,
     )
+
+    # Stage 2: Administrative boundaries enrichment
+    if not skip_boundaries:
+        b_path = boundaries_path
+        if b_path is None:
+            default_fixture = Path(__file__).resolve().parents[2] / "fixtures" / "boundaries" / "prayagraj_boundaries_sample.geojson"
+            if default_fixture.exists():
+                b_path = default_fixture
+
+        if b_path:
+            boundary_res = loader.ingest_administrative_boundaries(boundaries_path=b_path)
+            result.boundary_result = boundary_res
+
+    # Stage 3: Nationwide coverage summary
+    if hasattr(repo, "get_coverage_summary"):
+        result.coverage_summary = repo.get_coverage_summary()
+
+    return result
 
 
 def main() -> None:
-    """CLI entrypoint for nationwide geographic hierarchy initialization."""
+    """CLI entrypoint for nationwide geographic hierarchy and boundary initialization."""
     import argparse
-    parser = argparse.ArgumentParser(description="ArthLens Nationwide LGD Hierarchy Initializer")
+    parser = argparse.ArgumentParser(description="ArthLens Nationwide LGD Hierarchy and Boundary Initializer")
     parser.add_argument("--states-csv", type=Path, default=None, help="Path to states CSV fixture")
     parser.add_argument("--districts-csv", type=Path, default=None, help="Path to districts CSV fixture")
+    parser.add_argument("--boundaries-path", type=Path, default=None, help="Path to approved boundary GeoJSON")
+    parser.add_argument("--skip-boundaries", action="store_true", help="Skip boundary enrichment stage")
     args = parser.parse_args()
 
     print("Initializing ArthLens nationwide geographic hierarchy in PostgreSQL...")
     result = init_national_database(
         states_csv=args.states_csv,
         districts_csv=args.districts_csv,
+        boundaries_path=args.boundaries_path,
+        skip_boundaries=args.skip_boundaries,
     )
     print(
-        f"Initialization complete: {result.states_loaded} states, "
+        f"Hierarchy stage complete: {result.states_loaded} states, "
         f"{result.districts_loaded} districts loaded. "
         f"Inserted: {result.total_inserted}, Existing: {result.total_existing}."
     )
+    if result.boundary_result:
+        b = result.boundary_result
+        print(
+            f"Boundary stage complete: {b.total_features} features, "
+            f"{b.valid_geometries} valid, {b.invalid_geometries} invalid, "
+            f"{b.persisted_geometries} persisted, {b.preserved_existing_geometries} preserved."
+        )
+    if result.coverage_summary:
+        print("Coverage Summary:", result.coverage_summary)
     if result.anomalies:
         print(f"Anomalies: {len(result.anomalies)}")
     if result.unresolved:

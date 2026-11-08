@@ -6,7 +6,6 @@ Phase: Phase 2 (P2-3 - Data-Quality Layer and Staleness Flags).
 """
 
 import pytest
-
 from backend.arthlens.domain.enums import Kind, ResolutionTier
 from backend.arthlens.domain.geo import AnalyticalStatus, GeometryStatus, GeoUnit, NavigationStatus
 from backend.arthlens.domain.quantity import Quantity
@@ -88,38 +87,30 @@ class TestGeographicQualityAndDecoupling:
             "agriculture.soil_fertility_index",
         ]
 
-        # Register documented static fixture policy for DS-04 (90 days, per ds-04-osm.md line 42)
-        from backend.arthlens.quality.freshness import FreshnessPolicy, FreshnessRegistry
-        FreshnessRegistry.register_policy(FreshnessPolicy("DS-04", "OSM Static Fixtures", 90))
-        try:
-            suite = evaluator.evaluate_geo_unit_indicators(
-                geo_unit=prayagraj,
-                quantities=quantities,
-                target_indicators=target_indicators,
-            )
+        suite = evaluator.evaluate_geo_unit_indicators(
+            geo_unit=prayagraj,
+            quantities=quantities,
+            target_indicators=target_indicators,
+        )
 
-            # 1. Population is STALE (Orange #F97316)
-            assert suite["population.total"].primary_status == QualityStatus.STALE
-            assert suite["population.total"].shading.hex_color == "#F97316"
-            assert suite["population.total"].suitability == CalculationSuitability.SUITABLE_HISTORICAL_ONLY
+        # 1. The explicit stale flag remains visible, and unresolved provenance prevents CURRENT.
+        assert suite["population.total"].primary_status == QualityStatus.STALE
+        assert QualityStatus.STALE in {issue.status for issue in suite["population.total"].issues}
 
-            # 2. POIs is CURRENT (Green #22C55E)
-            assert suite["pois.commercial"].primary_status == QualityStatus.CURRENT
-            assert suite["pois.commercial"].shading.hex_color == "#22C55E"
-            assert suite["pois.commercial"].suitability == CalculationSuitability.SUITABLE_CURRENT
+        # 2. A source label and freshness rule alone do not prove an exact source version.
+        assert suite["pois.commercial"].primary_status == QualityStatus.INCOMPLETE
+        assert any(issue.dimension == "temporal_freshness" for issue in suite["pois.commercial"].issues)
 
-            # 3. Demand is ESTIMATED (Blue #3B82F6)
-            assert suite["demand.monthly"].primary_status == QualityStatus.ESTIMATED
-            assert suite["demand.monthly"].shading.hex_color == "#3B82F6"
-            assert suite["demand.monthly"].suitability == CalculationSuitability.ESTIMATED_PROJECTION
+        # 3. Demand remains an estimated projection.
+        assert suite["demand.monthly"].primary_status == QualityStatus.ESTIMATED
+        assert suite["demand.monthly"].shading.hex_color == "#3B82F6"
+        assert suite["demand.monthly"].suitability == CalculationSuitability.ESTIMATED_PROJECTION
 
-            # 4. Soil index is UNAVAILABLE (Gray #94A3B8)
-            assert suite["agriculture.soil_fertility_index"].primary_status == QualityStatus.UNAVAILABLE
-            assert suite["agriculture.soil_fertility_index"].value is None
-            assert suite["agriculture.soil_fertility_index"].shading.hex_color == "#94A3B8"
-            assert suite["agriculture.soil_fertility_index"].suitability == CalculationSuitability.UNSUITABLE_MISSING
-        finally:
-            FreshnessRegistry.reset_defaults()
+        # 4. Soil index is UNAVAILABLE (Gray #94A3B8)
+        assert suite["agriculture.soil_fertility_index"].primary_status == QualityStatus.UNAVAILABLE
+        assert suite["agriculture.soil_fertility_index"].value is None
+        assert suite["agriculture.soil_fertility_index"].shading.hex_color == "#94A3B8"
+        assert suite["agriculture.soil_fertility_index"].suitability == CalculationSuitability.UNSUITABLE_MISSING
 
     def test_navigation_status_does_not_overwrite_quality(self, evaluator):
         """

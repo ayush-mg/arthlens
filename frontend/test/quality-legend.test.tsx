@@ -3,8 +3,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { QualityLegend, QUALITY_STATES } from '../components/QualityLegend';
 
-describe('QualityLegend Component (Handbook Part 7.5 Step 10 Presentation Contract)', () => {
-  it('displays all five authoritative quality states with exact names and colors', () => {
+describe('QualityLegend Component (Handbook Part 7.5 Step 10 & Spec V5 Presentation Contract)', () => {
+  it('displays all six authoritative quality states with exact names and colors', () => {
     const handleFilterChange = vi.fn();
 
     render(
@@ -14,12 +14,13 @@ describe('QualityLegend Component (Handbook Part 7.5 Step 10 Presentation Contra
       />
     );
 
-    // Assert all 5 states exist
+    // Assert all 6 states exist
     expect(screen.getByText('CURRENT')).toBeInTheDocument();
     expect(screen.getByText('INCOMPLETE')).toBeInTheDocument();
     expect(screen.getByText('STALE')).toBeInTheDocument();
     expect(screen.getByText('ESTIMATED')).toBeInTheDocument();
     expect(screen.getByText('UNAVAILABLE')).toBeInTheDocument();
+    expect(screen.getByText('CONTRADICTED')).toBeInTheDocument();
 
     // Verify filter clicking
     const staleButton = screen.getByText('STALE').closest('button');
@@ -27,6 +28,13 @@ describe('QualityLegend Component (Handbook Part 7.5 Step 10 Presentation Contra
     if (staleButton) {
       fireEvent.click(staleButton);
       expect(handleFilterChange).toHaveBeenCalledWith('STALE');
+    }
+
+    const contradictedButton = screen.getByText('CONTRADICTED').closest('button');
+    expect(contradictedButton).toBeTruthy();
+    if (contradictedButton) {
+      fireEvent.click(contradictedButton);
+      expect(handleFilterChange).toHaveBeenCalledWith('CONTRADICTED');
     }
   });
 });

@@ -1,7 +1,7 @@
 # Data Sources Documentation & Verification Standard
 
-> **Crucial Rule**: **No dataset is considered verified merely because it is listed in the ArthLens Build Handbook.**
-> Every proposed source must undergo rigorous primary human inspection during Phase 0 before an ingestion adapter may be written. Unverified data must never enter the codebase.
+> **Crucial Rule**: **No dataset is considered verified merely because it is listed in the ArthLens Build Handbook or has an adapter.**
+> Human source review and a scope-specific decision are required before a dataset may feed production calculations. Adapters and fixtures may be used for pipeline/mechanical testing only when they are not represented as approved production evidence.
 > **Authoritative Specification**: [ArthLens Build Handbook](../ArthLens_Build_Handbook.pdf) (v1.0, 17 Oct 2026)
 
 ---
@@ -119,17 +119,17 @@ For each dataset, a dedicated markdown file must be created at `docs/data-source
 
 ## 5. Canonical Register of Candidate Sources (Task P0-1 Audit Status)
 
-*Note: All sources below have undergone consolidated Phase 0 audit pursuant to Handbook Part 7 and Task P0-1 requirements. Core MVP dependencies are distinguished from deferred or restricted candidates.*
+*Status note: The entries below summarize recorded technical findings and scope decisions; they do not imply that every source has passed human review. The Master Execution Tracker is authoritative for overall P0-1 status. `GO` is scope-limited where stated, and extracted documentation alone is not a production-use approval.*
 
 ### 5.1 Core MVP Dependencies (In-Scope for Initial Implementation)
 
 | Canonical ID | Source Name | Canonical Path | MVP Role & Workflows | Decision / Gate Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **DS-01** | **data.gov.in (OGD)** | [`ds-01-data-gov-in.md`](ds-01-data-gov-in.md) | Loop A: Mandi commodity prices & agricultural indicators | `PENDING` (Audit completed; awaiting price unit sign-off) |
-| **DS-04** | **OpenStreetMap** | [`ds-04-osm.md`](ds-04-osm.md) | Loop B: Road networks (Dijkstra catchments) & POI competitor counts | `GO` (Approved with mandatory completeness caveat) |
-| **DS-05** | **Census 2011 / LGD crosswalk** | [`ds-05-lgd-crosswalk.md`](ds-05-lgd-crosswalk.md) | Canonical geographic hierarchy, LGD codes & demographic base | `GO` (Approved; frozen fixture eliminates portal downtime) |
-| **DS-08** | **Government scheme guidelines** | [`ds-08-schemes.md`](ds-08-schemes.md) | Loop C: PMFME, PMEGP, PM-MUDRA parameter registers & rule trees | `GO` (Task P0-2 Complete; 42 verified parameters extracted) |
-| **DS-09** | **Administrative boundaries** | [`ds-09-administrative-boundaries.md`](ds-09-administrative-boundaries.md) | Atlas: MapLibre vector boundaries & PMTiles edge serving | `GO` (Approved; conforms to Survey of India boundary norms) |
+| **DS-01** | **data.gov.in (OGD)** | [`ds-01-data-gov-in.md`](ds-01-data-gov-in.md) | Loop A: Mandi commodity prices & agricultural indicators | `PENDING`; unit, resource-specific terms, coverage gaps, and attribution are unresolved. |
+| **DS-04** | **OpenStreetMap** | [`ds-04-osm.md`](ds-04-osm.md) | Loop B: Road networks (Dijkstra catchments) & POI competitor counts | `GO` as documented for the pilot, subject to ODbL attribution and completeness caveats; broader scope/licence review remains tracked under P0-1. |
+| **DS-05** | **Census 2011 / LGD crosswalk** | [`ds-05-lgd-crosswalk.md`](ds-05-lgd-crosswalk.md) | Canonical geographic hierarchy, LGD codes & demographic base | `GO` only for documented, source-backed scope; population is 2011 data and must retain stale-quality treatment. Nationwide source/vintage verification remains tracked under P0-1. |
+| **DS-08** | **Government scheme guidelines** | [`ds-08-schemes.md`](ds-08-schemes.md) | Loop C: PMFME, PMEGP, PM-MUDRA source documents and parameter extraction | Official source files, hashes, and extracted references are documented; operational rule approval is `BLOCKED` pending independent human validation under P0-2. |
+| **DS-09** | **Administrative boundaries** | [`ds-09-administrative-boundaries.md`](ds-09-administrative-boundaries.md) | Atlas: MapLibre vector boundaries & PMTiles edge serving | `APPROVED FOR PRAYAGRAJ PILOT ONLY`; modern nationwide and subdistrict boundary sources remain gated. |
 
 ### 5.2 Deferred / Scope-Limited Sources (Non-Essential for MVP)
 

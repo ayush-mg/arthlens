@@ -216,9 +216,11 @@ Handbook Part 2.1 and Part 7.3 establish that the MVP build must focus strictly 
 ---
 
 ### ADR-009: Hosting Limits, Deployment Architecture, and LLM Provider Selection (Task P0-6)
-- **Status**: `ACCEPTED` (Handbook Parts 3.1, 3.2, 8.3, 8.6, 14.1–14.5; Detailed audit in [`docs/hosting-and-llm-decision.md`](hosting-and-llm-decision.md))
+- **Status**: `HISTORICAL / NOT CURRENTLY AUTHORIZED` (P0-6 remains BLOCKED; see [`docs/open-questions.md`](open-questions.md))
 - **Decision Date**: 2026-10-21
 - **Context**: Task P0-6 requires confirming hosting constraints and LLM provider terms against current official primary documentation, resolving or recording all open questions, and locking down the deployment topology before Phase 1 code is written.
+
+> **Current-use restriction**: The provider, model, price, privacy, quota, and deployment statements below record prior research only. They have not been revalidated against current primary terms, do not establish a provider or deployment selection, and do not authorize credentials, spending, or public deployment. Treat the local Docker Compose setup as development infrastructure only. P0-6 acceptance remains open.
 
 - **Key Architectural Decisions**:
   1. **Tiered Hosting Topology**:
@@ -438,3 +440,66 @@ Milestone P1-6 implements authentication, role-based authorization, append-only 
 8. **Verification & Test Coverage**:
    - 248 total backend tests pass cleanly under Python 3.14.5 with zero failures across smoke, property, unit, contract, and integration suites.
    - 56 total security, auth, RBAC, audit, cost-cap, and rate-limiting tests added across unit, contract, and integration layers.
+
+---
+
+### ADR-012: Ingestion Adapter Live vs. Fixture Ingestion & Survey of India Governance (Tasks P2-1, P2-2)
+- **Status**: `ACCEPTED` (Reconciliation of Handbook Part 13 vs Appendix A.3)
+- **Date**: 2026-11-07
+- **Task ID**: P2-1, P2-2
+- **Handbook Reference**: Part 7.1, 7.2, 7.5, Part 13 Acceptance Matrix, Appendix A.3 Test Suite Specification
+- **Deciders**: ArthLens Architecture Team, Lead Integration Engineer
+
+#### Context
+Handbook Part 13 states that every GO-approved source adapter must support both fixture and live data ingestion. Appendix A.3 specifies that live tests must be optional/opt-in (`ARTHLENS_RUN_LIVE_TESTS=1`) to prevent external network instability and rate limits from destabilizing offline CI. Furthermore, the official sources exhibit distinct operational characteristics:
+1. **DS-04 (OpenStreetMap)**: Dynamic live API supported via Overpass QL endpoint (`https://overpass-api.de/api/interpreter`).
+2. **DS-05 (Census 2011 / LGD Crosswalk)**: Official historical archival release from the Office of the Registrar General. There is no dynamic REST API for Census 2011; publication is strictly static tabular files.
+3. **DS-08 (Scheme Guidelines)**: Statutory notifications gazetted in official PDF documents by MoFPI, MoMSME, and DFS.
+4. **DS-09 (Administrative Boundaries)**: Survey of India's Online Maps portal (`onlinemaps.surveyofindia.gov.in`) requires individual mobile SMS/OTP authentication, captcha, and an interactive End User License Agreement (EULA). Programmatic automated download or redistribution without registration is barred.
+
+#### Decision
+1. **Live Retrieval Architecture**:
+   - All adapters (`census_lgd.py`, `admin_boundaries.py`, `schemes.py`, `osm.py`) implement concrete `fetch_live(params)` methods.
+   - For static/archival datasets (`DS-05`, `DS-08`, `DS-09`), `fetch_live` supports remote HTTP download from authenticated or open data release URLs (`params["url"]`) with SHA-256 integrity checks.
+   - When called without parameters, static adapters raise clear, informative exceptions explaining the specific dataset publishing model (e.g. historical static tables, gazetted statutory PDFs, or interactive SoI portal gating) rather than generic `NotImplementedError`.
+2. **Testing Policy**:
+   - Fixture ingestion tests run by default in offline CI, asserting 100% schema validation, deduplication, and PostgreSQL persistence.
+   - Live network tests against external endpoints (e.g. Overpass API) remain gated behind `ARTHLENS_RUN_LIVE_TESTS=1` per Appendix A.3.
+3. **Boundary & PMTiles Governance**:
+   - Pilot boundary geometry is explicitly sourced from the DataMeet Census 2011 repository (ODbL v1.0 / MIT license, SHA-256 `a4ea61c7...`), preserving historical accuracy.
+   - PMTiles deliverable is generated with genuine Mapbox Vector Tile (MVT) protobuf specification 2.1 payloads (`mapbox-vector-tile`), clipped to tile extents (z0–z8) and gzip compressed.
+   - Modern nationwide administrative boundaries from the Survey of India remain explicitly source-gated in the user interface until registered institutional access is provisioned.
+
+---
+
+### ADR-013: Final Phase 2 Epistemic Governance, Boundary Foreign Keys & Discriminated Ledger Unions (Tasks P2-1, P2-2, P2-3, P2-4)
+- **Status**: `ACCEPTED` (Handbook Part 4, Part 7, Part 10, Part 11)
+- **Date**: 2026-11-07
+- **Task ID**: P2-1, P2-2, P2-3, P2-4
+- **Handbook Reference**: Part 4.1, 7.1, 7.2, 7.4, 10.1, 10.3, 11
+- **Deciders**: ArthLens Architecture Team, Lead Systems Engineer
+
+#### Context
+Inspection of initial Phase 2 implementations identified subtle boundary and API leaks:
+1. Valid boundary geometries lacked an explicit referential link to their raw ingestion provenance record.
+2. The administrative hierarchy was missing subdistricts (tier 3 / tehsils), leaving 6,921 official units unpersisted.
+3. Indicators lacking ledger evidence used synthetic surrogate IDs (`unavailable:<geo_id>:<indicator>`) rather than a typed discriminated union.
+4. Transitive DAG ancestors lacked individual per-record authorization checks.
+5. Ingestion freshness evaluations were separated from query-time quality evaluator policies.
+
+#### Decision
+1. **Geometry Source Record Foreign Key**:
+   - Alembic migration `008_geo_unit_geometry_source_record.py` introduces `geometry_source_record_id VARCHAR(64) REFERENCES source_records(record_id) ON DELETE SET NULL` on table `geo_units`.
+   - `AdminBoundariesAdapter` and `GeoUnitRepository.update_geometry` require explicit source record association before verifying geometry status.
+2. **Nationwide Sub-district Hierarchy**:
+   - `backend/fixtures/geo/lgd_subdistricts.csv` (6,921 official subdistricts) is ingested into PostgreSQL alongside the 36 states and 763 districts, bringing total administrative entities to 7,721.
+   - Frontend `ResolutionTier` enum expanded to support tiers 0 through 5 (`NATION=0`, `STATE=1`, `DISTRICT=2`, `SUBDISTRICT=3`, `VILLAGE_URBAN=4`, `POINT=5`).
+3. **Discriminated Union Indicator Ledger API**:
+   - Replaced synthetic `unavailable:...` IDs with a typed discriminated union:
+     - `AvailableIndicator`: `{ status: "AVAILABLE", id: string, value: number, ... }`
+     - `UnavailableIndicator`: `{ status: "UNAVAILABLE", id: null, value: null, ... }`
+   - Removed pseudo-quantity branches from `get_ledger_quantity` and `get_ledger_graph`. Non-existent records strictly fail closed with HTTP 404.
+4. **Recursive Graph Record-Level Authorization**:
+   - `get_ledger_graph` enforces user ownership and admin role verification across all transitive ancestor quantities discovered during DAG traversal. Any inaccessible ancestor returns generic 404.
+5. **Freshness Unification**:
+   - Single canonical freshness evaluator `backend.arthlens.quality.freshness.evaluate_staleness` shared between pipeline ingestion checks and query-time quality evaluator. Anomalies recorded as `INVALID_AS_OF_DATE` or `MISSING_AS_OF_DATE` when temporal stamps cannot be verified.

@@ -12,7 +12,7 @@ Properties:
 """
 
 from collections import defaultdict, deque
-from typing import Dict, Iterator, Optional, Set
+from typing import Dict, Iterator, Set
 
 from backend.arthlens.domain.enums import Kind
 from backend.arthlens.domain.quantity import Quantity
@@ -46,6 +46,16 @@ class Ledger:
         # Check 1: Direct self-reference
         if quantity.id in quantity.parent_ids:
             raise ValueError(f"Direct self-reference rejected: Quantity '{quantity.id}' cannot be its own parent.")
+
+        if len(set(quantity.parent_ids)) != len(quantity.parent_ids):
+            raise ValueError(f"Duplicate parent references rejected for Quantity '{quantity.id}'.")
+
+        missing_parents = set(quantity.parent_ids) - self._quantities.keys()
+        if missing_parents:
+            raise ValueError(
+                f"Quantity '{quantity.id}' references unregistered parent quantities: "
+                f"{sorted(missing_parents)}."
+            )
 
         # Check 2: Kind invariants (Handbook 4.2)
         # A derived quantity (having parents) cannot be labelled OBSERVED.
@@ -212,3 +222,8 @@ class Ledger:
 
     def __iter__(self) -> Iterator[Quantity]:
         return iter(self._quantities.values())
+
+    @property
+    def quantities(self) -> tuple[Quantity, ...]:
+        """Return all registered quantities in the ledger."""
+        return tuple(self._quantities.values())

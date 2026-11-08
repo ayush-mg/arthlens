@@ -1,0 +1,43 @@
+@startuml sequence_scenario_creation
+!theme plain
+title ArthLens - Authenticated Scenario Creation (Implemented)
+
+actor Entrepreneur
+participant "FastAPI app" as API
+participant "Middleware stack" as MW
+participant "require_roles(ENTREPRENEUR)" as RBAC
+participant "get_current_user" as Auth
+participant "PostgresUserRepository" as UserRepo
+participant "PostgresTokenRevocationStore" as Revocations
+participant "PostgresScenarioRepository" as ScenarioRepo
+database "PostgreSQL" as DB
+
+Entrepreneur -> API: POST /scenarios\n{name, scenario}
+API -> MW: Apply request middleware and endpoint policy
+MW -> RBAC: Resolve endpoint dependency
+RBAC -> Auth: Resolve authenticated principal
+Auth -> Revocations: Check token revocation
+Revocations -> DB: Read revocation state
+DB --> Revocations: Revocation result
+Auth -> UserRepo: Load current user and roles
+UserRepo -> DB: Read user and role state
+DB --> UserRepo: User record
+UserRepo --> Auth: Current principal data
+Auth --> RBAC: AuthenticatedUser
+
+alt entrepreneur role is present
+    RBAC --> API: Authorized principal
+    API -> ScenarioRepo: save_scenario(owner_id, name, scenario)
+    ScenarioRepo -> DB: Insert scenario; commit
+    DB --> ScenarioRepo: Stored scenario id
+    ScenarioRepo --> API: Scenario id
+    API --> Entrepreneur: 201 Created\n{id, name, owner_id}
+else missing or invalid session
+    Auth --> RBAC: Raise HTTP 401
+    RBAC --> API: Dependency failure
+    API --> Entrepreneur: 401 Unauthorized
+else authenticated without entrepreneur role
+    RBAC --> API: Raise HTTP 403
+    API --> Entrepreneur: 403 Forbidden
+end
+@enduml

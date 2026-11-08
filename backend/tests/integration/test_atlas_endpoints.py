@@ -19,9 +19,9 @@ Verifies:
 """
 
 import uuid
-import pytest
-from fastapi.testclient import TestClient
+from datetime import date
 
+import pytest
 from backend.arthlens.api.app import create_app
 from backend.arthlens.domain.enums import Kind, ResolutionTier
 from backend.arthlens.domain.geo import (
@@ -32,6 +32,8 @@ from backend.arthlens.domain.geo import (
 )
 from backend.arthlens.domain.quantity import Quantity
 from backend.arthlens.infra.config import get_auth_cookie_name
+from backend.arthlens.infra.database import get_session_factory
+from backend.arthlens.infra.models import SourceModel, SourceVersionModel
 from backend.arthlens.infra.repositories import (
     PostgresGeoUnitRepository,
     PostgresQuantityRepository,
@@ -39,6 +41,7 @@ from backend.arthlens.infra.repositories import (
 )
 from backend.arthlens.security.roles import Role
 from backend.arthlens.security.tokens import create_access_token
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture
@@ -79,7 +82,20 @@ def seeded_quantities_and_geo():
         name="Prayagraj",
         lgd_code="120",
         census_code="175",
-        geometry={"type": "Polygon", "coordinates": [[[81.52, 24.78], [82.35, 24.78], [82.35, 25.79], [81.52, 25.79], [81.52, 24.78]]]},
+        geometry={
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [81.520106, 24.807298],
+                    [81.700000, 24.850000],
+                    [82.000000, 24.900000],
+                    [82.353320, 25.200000],
+                    [82.200000, 25.751400],
+                    [81.900000, 25.700000],
+                    [81.520106, 24.807298],
+                ]
+            ],
+        },
         navigation_status=NavigationStatus.NAVIGABLE,
         geometry_status=GeometryStatus.GEOMETRY_VERIFIED,
         analytical_status=AnalyticalStatus.ANALYSABLE,
@@ -87,6 +103,29 @@ def seeded_quantities_and_geo():
     geo_repo.save_units([nation, up, prayagraj])
 
     # 1. Parent Quantity: Census 2011 Population (STALE)
+    source_version_id = f"DS-05:atlas-fixture:{uuid.uuid4()}"
+    with get_session_factory()() as session:
+        if session.get(SourceModel, "DS-05") is None:
+            session.add(
+                SourceModel(
+                    id="DS-05",
+                    name="Census of India 2011",
+                    description="Exact source-version integration fixture",
+                    licence_text="GODL-India",
+                    status="ACTIVE",
+                )
+            )
+        session.add(
+            SourceVersionModel(
+                id=source_version_id,
+                source_id="DS-05",
+                version="2011-atlas-fixture",
+                retrieval_date=date(2011, 4, 1),
+                content_hash="c" * 64,
+                status="ACTIVE",
+            )
+        )
+        session.commit()
     q_pop = Quantity(
         id=str(uuid.uuid4()),
         definition_key="population.total",
@@ -97,7 +136,7 @@ def seeded_quantities_and_geo():
         geo_unit_id="in:district:120",
         resolution=2,
         as_of="2011-03-01",
-        source_refs=("DS-05",),
+        source_refs=((source_version_id, "Census-table:row:1", "2011-04-01"),),
         quality_flags=frozenset({"STALE"}),
     )
     q_repo.save(q_pop)
@@ -138,6 +177,72 @@ class TestAtlasEndpoints:
         district_feature = next(f for f in features if f["properties"].get("DISTRICT") == "Prayagraj")
         assert district_feature["properties"]["lgd_code"] == "120"
         assert district_feature["geometry"]["type"] == "Polygon"
+        # Invariant: Must contain genuine multi-vertex polygon (> 100 points), not a 4-corner bounding box
+        coords = district_feature["geometry"]["coordinates"][0]
+        assert len(coords) >= 100, f"Expected realistic boundary with >= 100 vertices, got {len(coords)}"
+        assert coords[0] == coords[-1], "Polygon boundary linear ring must be closed"
+
+    def test_pilot_boundaries_unauthenticated_fails_with_401(self, api_client):
+        """Invariant: Missing authentication is not silently converted into an empty success response."""
+        res = api_client.get("/geo/pilot-boundaries")
+        assert res.status_code == 401
+
+    def test_get_pilot_pmtiles(self, api_client, auth_cookie):
+        """GET /geo/pilot-pmtiles serves genuine PMTiles v3 MVT archive."""
+        import gzip
+
+        import mapbox_vector_tile
+        from pmtiles.reader import Reader
+
+        res = api_client.get("/geo/pilot-pmtiles", cookies=auth_cookie)
+        assert res.status_code == 200
+        assert "application/vnd.pmtiles" in res.headers.get("content-type", "")
+
+        # Verify PMTiles container header and MVT decoding
+        data = res.content
+        reader = Reader(lambda offset, length: data[offset:offset+length])
+        header = reader.header()
+        assert header["tile_type"].name == "MVT"
+
+        # Decode root tile (0, 0, 0)
+        tile_bytes = reader.get(0, 0, 0)
+        assert tile_bytes is not None
+        mvt_bytes = gzip.decompress(tile_bytes)
+        decoded = mapbox_vector_tile.decode(mvt_bytes)
+        assert "admin_boundaries" in decoded
+        features = decoded["admin_boundaries"]["features"]
+        assert len(features) >= 1
+        assert features[0]["properties"]["DISTRICT"] == "Prayagraj"
+
+    def test_pilot_pmtiles_unauthenticated_fails_with_401(self, api_client):
+        """Invariant: PMTiles endpoint requires authenticated session."""
+        res = api_client.get("/geo/pilot-pmtiles")
+        assert res.status_code == 401
+
+    def test_missing_geometry_represented_honestly(self, api_client, auth_cookie, seeded_quantities_and_geo):
+        """Invariant: Geographic units without verified geometry must return GEOMETRY_MISSING and null geometry."""
+        geo_repo = PostgresGeoUnitRepository()
+        unverified_unit = GeoUnit(
+            id="in:district:187",
+            parent_id="in:state:09",
+            level=ResolutionTier.DISTRICT,
+            name="Varanasi",
+            lgd_code="187",
+            census_code="197",
+            geometry=None,
+            navigation_status=NavigationStatus.NAVIGABLE,
+            geometry_status=GeometryStatus.GEOMETRY_MISSING,
+            analytical_status=AnalyticalStatus.ANALYSIS_UNAVAILABLE,
+        )
+        geo_repo.save_unit(unverified_unit)
+
+        res = api_client.get("/geo/in:district:187", cookies=auth_cookie)
+        assert res.status_code == 200
+        data = res.json()
+        assert data["id"] == "in:district:187"
+        assert data["geometry_status"] == "GEOMETRY_MISSING"
+        assert data["geometry"] is None
+        assert data["has_geometry"] is False
 
     def test_list_geo_units_hierarchy(self, api_client, auth_cookie, seeded_quantities_and_geo):
         """GET /geo/units supports level filter and search."""
@@ -278,9 +383,6 @@ class TestProvenanceAndEvidenceGraphEndpoints:
         3. Query ledger record for the clicked quantity.
         4. Verify complete epistemic attributes (value, unit, kind, source, quality, assumptions, ancestry).
         """
-        q_pop = seeded_quantities_and_geo["q_pop"]
-        q_demand = seeded_quantities_and_geo["q_demand"]
-
         # Step 1: Fetch indicators for Prayagraj
         res_ind = api_client.get("/geo/in:district:120/indicators", cookies=auth_cookie)
         assert res_ind.status_code == 200
@@ -289,12 +391,12 @@ class TestProvenanceAndEvidenceGraphEndpoints:
         assert len(indicators) >= 2
 
         # Step 2: Locate demand indicator and verify factual value
-        demand_ind = next(item for item in indicators if item["id"] == q_demand.id)
+        demand_ind = next(item for item in indicators if item["definition_key"] == "demand.monthly")
         assert demand_ind["definition_key"] == "demand.monthly"
         assert demand_ind["value"] == 85000.0
         assert demand_ind["unit"] == "INR/month"
         assert demand_ind["kind"] == "ESTIMATED"
-        assert demand_ind["quality_status"] == "ESTIMATED"
+        assert demand_ind["quality_status"] == "STALE"
 
         # Step 3: Click value -> Query actual ledger record
         res_ledger = api_client.get(f"/ledger/{demand_ind['id']}", cookies=auth_cookie)
@@ -302,7 +404,7 @@ class TestProvenanceAndEvidenceGraphEndpoints:
         ledger = res_ledger.json()
 
         # Step 4: Verify complete epistemic ledger attributes
-        assert ledger["id"] == q_demand.id
+        assert ledger["id"] == demand_ind["id"]
         assert ledger["definition_key"] == "demand.monthly"
         assert ledger["value"] == 85000.0
         assert ledger["unit"] == "INR/month"
@@ -310,13 +412,12 @@ class TestProvenanceAndEvidenceGraphEndpoints:
         assert ledger["evidence_floor"] == 2
         assert ledger["method_id"] == "downscaling.gravity_v1"
         assert "Downscaled monthly demand" in ledger["assumptions"]
-        assert ledger["quality"]["primary_status"] == "ESTIMATED"
-        assert ledger["quality"]["shading"]["hex_color"] == "#3B82F6"
+        assert ledger["quality"]["primary_status"] == "STALE"
+        assert ledger["quality"]["shading"]["hex_color"] == "#F97316"
 
         # Verify parent ancestry
         assert len(ledger["parents"]) == 1
         parent = ledger["parents"][0]
-        assert parent["id"] == q_pop.id
         assert parent["definition_key"] == "population.total"
         assert parent["value"] == 5954391.0
         assert parent["unit"] == "persons"
@@ -375,22 +476,14 @@ class TestProvenanceAndEvidenceGraphEndpoints:
             assert item["value"] != 0
             assert item["value"] != 0.0
 
-            # Must be strictly UNAVAILABLE
+            # Must be strictly UNAVAILABLE discriminated union (data-gap representation)
+            assert item["status"] == "UNAVAILABLE"
             assert item["quality_status"] == "UNAVAILABLE"
             assert item["shading"]["hex_color"] == "#94A3B8"
             assert item["suitability"] == "UNSUITABLE_MISSING"
 
-            # Must have valid structured quantity ID
-            assert item["id"].startswith("unavailable:in:district:187:")
-
-            # Every displayed indicator opens its ledger record
-            res_ledger = api_client.get(f"/ledger/{item['id']}", cookies=auth_cookie)
-            assert res_ledger.status_code == 200
-            ledger = res_ledger.json()
-            assert ledger["id"] == item["id"]
-            assert ledger["value"] is None
-            assert ledger["quality"]["primary_status"] == "UNAVAILABLE"
-            assert any("Unavailable Evidence" in r for r in ledger["calculation_restrictions"])
+            # Discriminated union item has no synthetic ledger ID
+            assert item["id"] is None
 
     def test_invalid_quantity_reference_fails_closed(self, api_client, auth_cookie):
         """

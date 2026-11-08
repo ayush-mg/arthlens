@@ -1,7 +1,18 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import AtlasPage from '../app/page';
+import { AppWorkspace } from '../components/AppWorkspace';
+
+vi.mock('next/navigation', () => ({
+  useSearchParams: vi.fn(() => ({
+    get: vi.fn(() => null),
+  })),
+  useRouter: vi.fn(() => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+  })),
+  usePathname: vi.fn(() => '/app'),
+}));
 
 // Mock maplibre-gl and cytoscape for JSDOM
 vi.mock('maplibre-gl', () => ({
@@ -258,7 +269,7 @@ describe('Complete Atlas -> Indicator -> Provenance Interaction Flow', () => {
   });
 
   it('renders verified indicators and clicking any metric opens its ledger record', async () => {
-    render(<AtlasPage />);
+    render(<AppWorkspace standalone={true} />);
 
     // Step 1: Indicators loaded for pilot Prayagraj
     await waitFor(() => {
@@ -295,7 +306,7 @@ describe('Complete Atlas -> Indicator -> Provenance Interaction Flow', () => {
   });
 
   it('unavailable metric renders Unavailable (never zero) and opens data gap ledger record', async () => {
-    render(<AtlasPage />);
+    render(<AppWorkspace standalone={true} />);
 
     await waitFor(() => {
       expect(screen.getByText('agriculture.soil_fertility_index')).toBeInTheDocument();
@@ -318,7 +329,7 @@ describe('Complete Atlas -> Indicator -> Provenance Interaction Flow', () => {
   });
 
   it('fails closed when an unknown or invalid quantity reference is inspected', async () => {
-    render(<AtlasPage />);
+    render(<AppWorkspace standalone={true} />);
 
     // Invariant reminder is permanently visible
     expect(

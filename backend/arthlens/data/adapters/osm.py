@@ -119,19 +119,25 @@ class OpenStreetMapAdapter(SourceAdapter):
         return len(errors) == 0, errors
 
     def parse_records(self, raw_content: Any) -> List[RawRecord]:
-        """Parse OSM elements into RawRecord instances."""
+        """Parse OSM elements into RawRecord instances, preserving osm3s.timestamp_osm_base."""
         if isinstance(raw_content, str):
             raw_content = json.loads(raw_content)
 
-        elements = raw_content.get("elements", [])
+        osm3s = raw_content.get("osm3s") if isinstance(raw_content, dict) else None
+        base_timestamp = osm3s.get("timestamp_osm_base") if isinstance(osm3s, dict) else None
+
+        elements = raw_content.get("elements", []) if isinstance(raw_content, dict) else []
         records: List[RawRecord] = []
         for el in elements:
             rec_id = f"osm:{el.get('type')}:{el.get('id')}"
-            records.append(RawRecord(record_id=rec_id, source_id=self.source_id, payload=el))
+            el_payload = dict(el)
+            if base_timestamp and "_osm3s_timestamp" not in el_payload:
+                el_payload["_osm3s_timestamp"] = base_timestamp
+            records.append(RawRecord(record_id=rec_id, source_id=self.source_id, payload=el_payload))
         return records
 
     def normalize_record(self, record: RawRecord) -> NormalizedRecord:
-        """Normalize OSM elements into physical facility domain attributes."""
+        """Normalize OSM elements into physical facility domain attributes with genuine timestamps."""
         el = record.payload
         tags = el.get("tags") or {}
         orig = dict(tags)
@@ -155,27 +161,55 @@ class OpenStreetMapAdapter(SourceAdapter):
         if "lat" in el and "lon" in el:
             norm["coordinates"] = (float(el["lon"]), float(el["lat"]))
 
+        if "nodes" in el:
+            norm["nodes"] = list(el["nodes"])
+            orig["nodes"] = list(el["nodes"])
+        if "members" in el:
+            norm["members"] = list(el["members"])
+            orig["members"] = list(el["members"])
+
+        # Extract observation date: element timestamp or snapshot base timestamp (YYYY-MM-DD)
+        # Never invent a date if not present in the data.
+        raw_ts = el.get("timestamp") or el.get("_osm3s_timestamp")
+        as_of_val: Optional[str] = None
+        if raw_ts and isinstance(raw_ts, str) and len(raw_ts) >= 10:
+            as_of_val = raw_ts[:10]
+
         return NormalizedRecord(
             record_id=record.record_id,
             raw_record=record,
             original_fields=orig,
             normalized_fields=norm,
             canonical_units={},
-            as_of=None,
+            as_of=as_of_val,
         )
 
     def reconcile_geography(self, record: NormalizedRecord) -> GeographicReconciliation:
-        """Reconcile OSM elements to geographic coordinates / POINT tier."""
+        """
+        Reconcile OSM elements to geographic coordinates / POINT tier.
+        Points (nodes) with valid coordinates are classified at ResolutionTier.POINT.
+        Ways and relations are geometries/collections and do not have a point tier.
+        Without explicit spatial point-in-polygon lookup, entities remain unlinked to the
+        official administrative hierarchy (resolved=False, geo_unit_id=None).
+        """
         el = record.raw_record.payload
-        el_type = el.get("type")
+        el_type = str(el.get("type") or "").lower()
         el_id = el.get("id")
 
-        return GeographicReconciliation(
-            resolved=True,
-            geo_unit_id=f"osm:{el_type}:{el_id}",
-            resolution_tier=ResolutionTier.POINT,
-            notes=f"OSM {el_type} entity",
-        )
+        if el_type == "node" and "lat" in el and "lon" in el:
+            return GeographicReconciliation(
+                resolved=False,
+                geo_unit_id=None,
+                resolution_tier=ResolutionTier.POINT,
+                notes=f"OSM node {el_id} with coordinates, unlinked to administrative hierarchy without spatial PIP lookup",
+            )
+        else:
+            return GeographicReconciliation(
+                resolved=False,
+                geo_unit_id=None,
+                resolution_tier=None,
+                notes=f"OSM {el_type} {el_id} (non-point geometry), unlinked to administrative hierarchy",
+            )
 
     def extract_quantities(
         self,

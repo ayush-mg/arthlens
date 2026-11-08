@@ -5,8 +5,9 @@ Authoritative Reference: ArthLens Build Handbook v1.0 (Part 10.1, Part 11, Part 
 Phase: P1-6 (Authentication, Roles, RBAC, Audit Events and Rate Limiting).
 """
 
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Callable, Dict, Optional, Set, Tuple, Union
 
 from fastapi import Depends, HTTPException, Request, status
 
@@ -57,8 +58,12 @@ class EndpointPolicyRegistry:
         """Register the authoritative Handbook Part 10.1 permission matrix."""
         # 1. Public or Session endpoints
         self.register("/auth/login", "POST", allowed_roles={"*"})
+        self.register("/auth/register", "POST", allowed_roles={"*"})
         self.register("/auth/logout", "POST", allowed_roles={"*"})
         self.register("/auth/ping", "GET", allowed_roles={"*"})
+        self.register("/auth/me", "GET", allowed_roles={"*"})
+        self.register("/auth/password-reset/request", "POST", allowed_roles={"*"})
+        self.register("/auth/password-reset/confirm", "POST", allowed_roles={"*"})
 
         # 2. Runs endpoints
         self.register("/runs", "POST", allowed_roles={Role.ENTREPRENEUR.value})
@@ -67,25 +72,102 @@ class EndpointPolicyRegistry:
         self.register("/runs/{id}/answer", "POST", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True, allow_admin_bypass=False)
         self.register("/runs/{id}/approve", "POST", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value}, require_ownership=True)
 
-        # 3. Scenarios endpoints
-        self.register("/scenarios", "POST", allowed_roles={Role.ENTREPRENEUR.value})
-        self.register("/scenarios/{id}/branch", "POST", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True)
+        # 2a. Persisted agent-run lifecycle API
+        self.register("/agent-runs", "POST", allowed_roles={Role.ENTREPRENEUR.value})
+        self.register(
+            "/agent-runs/{id}",
+            "GET",
+            allowed_roles={Role.ENTREPRENEUR.value, Role.ADMIN.value},
+            require_ownership=True,
+            allow_admin_bypass=True,
+        )
+        self.register(
+            "/agent-runs/{id}/events",
+            "GET",
+            allowed_roles={Role.ENTREPRENEUR.value, Role.ADMIN.value},
+            require_ownership=True,
+            allow_admin_bypass=True,
+        )
+        self.register(
+            "/agent-runs/{id}/events/stream",
+            "GET",
+            allowed_roles={Role.ENTREPRENEUR.value, Role.ADMIN.value},
+            require_ownership=True,
+            allow_admin_bypass=True,
+        )
+        self.register(
+            "/agent-runs/{id}/start",
+            "POST",
+            allowed_roles={Role.ENTREPRENEUR.value},
+            require_ownership=True,
+        )
+        self.register(
+            "/agent-runs/{id}/tasks",
+            "GET",
+            allowed_roles={Role.ENTREPRENEUR.value, Role.ADMIN.value},
+            require_ownership=True,
+            allow_admin_bypass=True,
+        )
+        self.register(
+            "/agent-runs/{id}/tasks",
+            "POST",
+            allowed_roles={Role.ENTREPRENEUR.value},
+            require_ownership=True,
+        )
 
-        # 4. Epistemic Ledger, Geo, Policy, Replay
+        # 3. Scenarios endpoints
+        self.register("/scenarios", "GET", allowed_roles={Role.ENTREPRENEUR.value})
+        self.register("/scenarios", "POST", allowed_roles={Role.ENTREPRENEUR.value})
+        self.register("/scenarios/{id}", "GET", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True)
+        self.register("/scenarios/{id}", "PUT", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True)
+        self.register("/scenarios/{id}", "DELETE", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True)
+        self.register("/scenarios/{id}/branch", "POST", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True)
+        self.register("/scenarios/{id}/calculate", "POST", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True)
+        self.register("/scenarios/{id}/simulate", "POST", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True)
+        self.register("/scenarios/{id}/spatial-demand", "POST", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True)
+        self.register("/scenarios/{id}/accessibility", "POST", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True)
+        self.register("/scenarios/{id}/policy", "POST", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value}, require_ownership=True)
+        self.register("/scenarios/{id}/report", "GET", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True)
+        self.register("/scenarios/compare", "POST", allowed_roles={Role.ENTREPRENEUR.value})
+        self.register("/scenarios/comparisons/{id}", "GET", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True)
+
+        # 4. Epistemic Ledger, Geo, Reports, Policy, Replay
+        self.register("/reports/dossier", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
         self.register("/ledger/{quantity_id}", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
         self.register("/ledger/{quantity_id}/graph", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
         self.register("/geo/units", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
         self.register("/geo/pilot-boundaries", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
+        self.register("/geo/pilot-pmtiles", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
         self.register("/geo/{id}", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
         self.register("/geo/{id}/indicators", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
         self.register("/geo/{id}/quality", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
         self.register("/policy/rules", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
         self.register("/policy/rules", "POST", allowed_roles={Role.STEWARD.value})
+        self.register("/policy/documents", "POST", allowed_roles={Role.STEWARD.value})
+        self.register("/policy/documents/{id}/review", "POST", allowed_roles={Role.STEWARD.value})
+        self.register("/policy/rules/{id}/approve", "POST", allowed_roles={Role.STEWARD.value})
+        self.register("/policy/rules/{id}/retire", "POST", allowed_roles={Role.STEWARD.value})
+        self.register(
+            "/policy/schemes/{scheme_id}/evaluate",
+            "POST",
+            allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value},
+        )
+        self.register(
+            "/policy/evaluations/{id}",
+            "GET",
+            allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value},
+            require_ownership=True,
+        )
         self.register("/replay/{id}", "GET", allowed_roles={"*"})
 
         # 5. Administrative endpoints
         self.register("/admin/users", "GET", allowed_roles={Role.ADMIN.value})
+        self.register("/admin/users/{id}/role", "POST", allowed_roles={Role.ADMIN.value})
+        self.register("/admin/users/{id}/deactivate", "POST", allowed_roles={Role.ADMIN.value})
+        self.register("/admin/users/{id}/activate", "POST", allowed_roles={Role.ADMIN.value})
         self.register("/admin/audit", "GET", allowed_roles={Role.ADMIN.value})
+        self.register("/admin/audit-events", "GET", allowed_roles={Role.ADMIN.value})
+        self.register("/admin/sources", "GET", allowed_roles={Role.ADMIN.value, Role.STEWARD.value})
 
     def register(
         self,
@@ -143,19 +225,17 @@ def get_current_user(request: Request) -> AuthenticatedUser:
     from the authoritative user repository to prevent stale JWT privilege retention.
     Raises 401 Unauthorized if missing, invalid, expired, revoked, or account is deleted.
     """
-    cookie_name = get_auth_cookie_name()
-    token = request.cookies.get(cookie_name)
-
-    # Fallback to Authorization: Bearer <token> header if cookie absent
-    if not token:
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header[7:].strip()
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header[7:].strip()
+    else:
+        cookie_name = get_auth_cookie_name()
+        token = request.cookies.get(cookie_name)
 
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required. Missing session cookie.",
+            detail="Authentication required. Missing session cookie or Bearer header.",
         )
 
     try:
@@ -178,23 +258,50 @@ def get_current_user(request: Request) -> AuthenticatedUser:
 
     user_id = claims["sub"]
 
-    # Re-validate user existence and authoritative roles from repository
+    # Re-validate user existence and authoritative roles from repository (FAIL CLOSED)
     try:
         repo = get_user_repository()
         user_record = repo.get_by_id(user_id)
         if not user_record:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User account no longer exists or has been deactivated.",
+                detail="User account no longer exists.",
             )
+
+        quota_counters = user_record.get("quota_counters") or {}
+        if quota_counters.get("is_active") is False:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User account has been deactivated.",
+            )
+
+        token_valid_after_str = quota_counters.get("token_valid_after")
+        if token_valid_after_str:
+            try:
+                tva_ts = datetime.fromisoformat(token_valid_after_str).timestamp()
+                token_iat = claims.get("iat")
+                if token_iat is not None:
+                    # Compare float timestamps (microsecond resolution) to prevent race conditions
+                    # where newly issued tokens immediately after reset are wrongly invalidated
+                    if float(token_iat) < tva_ts:
+                        raise HTTPException(
+                            status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Session has been revoked due to a security update. Please log in again.",
+                        )
+            except HTTPException:
+                raise
+            except Exception:
+                pass
+
         fresh_roles = tuple(user_record.get("roles") or [])
-        fresh_email = user_record.get("email") or claims["email"]
+        fresh_email = user_record.get("email") or claims.get("email", "")
     except HTTPException:
         raise
-    except Exception:
-        # Fallback to claims in isolated unit test environments without database connectivity
-        fresh_roles = tuple(claims.get("roles") or ())
-        fresh_email = claims.get("email", "")
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Authoritative user verification failed: {exc}",
+        )
 
     return AuthenticatedUser(
         id=user_id,

@@ -220,3 +220,16 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ArthLens local run artifacts and test outputs
+.arthlens-pids.json
+.vite/
+.next/
+frontend/.next/
+artifacts/
+test-results/
+frontend/test-results/
+frontend/screenshots/
+.env
+backend/.env
+frontend/.env.local

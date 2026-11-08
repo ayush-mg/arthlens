@@ -173,12 +173,13 @@ class TestLGDHierarchyIngestionPostgres:
         )
         assert res1.states_loaded == 36
         assert res1.districts_loaded == 763
-        assert res1.total_inserted == 36 + 763
+        assert res1.subdistricts_loaded == 6921
+        assert res1.total_inserted == 36 + 763 + 6921
 
         engine = get_engine()
         with engine.connect() as conn:
             cnt1 = conn.execute(text("SELECT count(*) FROM geo_units;")).scalar()
-            assert cnt1 == 800
+            assert cnt1 == 7721
 
         # Second run: completely idempotent, zero new records inserted
         res2 = init_national_database(
@@ -187,11 +188,11 @@ class TestLGDHierarchyIngestionPostgres:
             repo=repo,
         )
         assert res2.total_inserted == 0
-        assert res2.total_existing == 36 + 763
+        assert res2.total_existing == 36 + 763 + 6921
 
         with engine.connect() as conn:
             cnt2 = conn.execute(text("SELECT count(*) FROM geo_units;")).scalar()
-            assert cnt2 == 800
+            assert cnt2 == 7721
 
     def test_init_national_database_missing_file_raises_error(self):
         """Missing CSV file path raises FileNotFoundError without altering database."""

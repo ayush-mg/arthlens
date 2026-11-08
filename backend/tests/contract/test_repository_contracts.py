@@ -14,8 +14,8 @@ identical behavioral contract, including:
 """
 
 import uuid
-import pytest
 
+import pytest
 from backend.arthlens.domain.enums import Kind
 from backend.arthlens.domain.quantity import Quantity
 from backend.arthlens.domain.repositories import (
@@ -168,6 +168,16 @@ class TestQuantityRepositoryContract:
         """Querying a non-existent UUID returns None."""
         assert quantity_repo.get(str(uuid.uuid4())) is None
         assert not quantity_repo.exists(str(uuid.uuid4()))
+
+    def test_save_rejects_unregistered_parent_quantity(self, quantity_repo: QuantityRepository):
+        quantity = _create_sample_quantity(
+            q_id=str(uuid.uuid4()),
+            kind=Kind.CALCULATED,
+            parent_ids=(str(uuid.uuid4()),),
+        )
+
+        with pytest.raises(ValueError, match="unregistered parent quantities"):
+            quantity_repo.save(quantity)
 
     def test_exists_returns_true_for_stored_quantity(self, quantity_repo: QuantityRepository):
         """exists() returns True if and only if record is present."""

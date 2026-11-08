@@ -107,14 +107,15 @@
   - **Do not assume that noncommercial intent alone establishes legal permission to reuse data.** Lawful reuse requires adequate evidence that the applicable dataset terms or open license explicitly grant permission.
 
 ### 4.2 Resource-Specific Licensing Uncertainty
-- The inspected Catalog Info screen confirmed release under NDSAP, but **did not render an explicit resource-specific license field**.
+- **Developer recheck (2026-11-07)**: The official Terms of Use, resource page, and catalog page were retrieved over HTTPS (HTTP 200). The Terms of Use states that applicable terms are described in the `license` metadata element of each individual dataset record, except where otherwise noted. The catalog page displays `Released Under: National Data Sharing and Accessibility Policy (NDSAP)`. The resource page did not expose a separate resource-specific license value in the retrieved page text.
+- The prior Catalog Info inspection also confirmed release under NDSAP, but **did not render an explicit resource-specific license field**.
 - A disabled "Catalog API" button exists on the portal UI; per project instructions, no further time will be spent attempting to troubleshoot or open this disabled control.
-- While the platform states that public datasets published through OGD are governed by GODL-India, **legal review cannot be described as completed** until the individual resource's metadata element and any applicable exclusions are formally confirmed.
+- Although the platform footer includes a general GODL-India statement, the Terms of Use directs users to the individual record's license metadata. Therefore GODL applicability to this resource is **not established by the current page inspection alone**; verify the exact record metadata and any applicable exclusions before reuse approval.
 
 ### 4.3 Draft Attribution Statement
-Pursuant to the standard GODL-India attribution template, the draft citation for this dataset is formulated as follows:
+The following is a **non-publishable placeholder**, not an attribution recommendation, until the individual resource's license metadata and provider attribution requirements are confirmed:
 
-> *"Current Daily Price of Various Commodities from Various Markets (Mandi), Directorate of Marketing & Inspection (DMI), Ministry of Agriculture and Farmers Welfare, published on Open Government Data (OGD) Platform India (https://www.data.gov.in/resource/current-daily-price-various-commodities-various-markets-mandi), catalog updated 18/10/2026 / resource header 19/10/2026, accessed 20/10/2026, licensed under Government Open Data License - India (https://data.gov.in/Godl). (Draft attribution; exact resource-specific attribution text pending confirmation)."*
+> *"Current Daily Price of Various Commodities from Various Markets (Mandi), Directorate of Marketing & Inspection (DMI), Ministry of Agriculture and Farmers Welfare, published on Open Government Data (OGD) Platform India (https://www.data.gov.in/resource/current-daily-price-various-commodities-various-markets-mandi), accessed [date]. Applicable license and required attribution: pending confirmation from the individual resource metadata."*
 
 ---
 
@@ -145,7 +146,7 @@ Pursuant to the standard GODL-India attribution template, the draft citation for
   - The same query using `filters[district]=Allahabad` returned zero records for this test.
 
 ### 5.3 Catalog Info Page Inspection
-*(Human inspection of official portal page conducted on 2026-10-20)*
+*(Developer inspection of the portal page on 2026-10-20; not a human source-review sign-off)*
 - **Catalog Page URL**: [https://www.data.gov.in/catalog/current-daily-price-various-commodities-various-markets-mandi](https://www.data.gov.in/catalog/current-daily-price-various-commodities-various-markets-mandi)
 - **Observed Catalog Info Metadata**:
   - Description: Daily wholesale maximum, minimum, and modal prices for various commodities.

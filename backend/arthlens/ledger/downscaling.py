@@ -10,6 +10,7 @@ Registered downscaling methods must satisfy a conservation test:
 sum(downscale(method, total, weights)) == total.
 """
 
+from math import fsum, isfinite
 from typing import Callable, Dict, List, Sequence
 
 
@@ -21,12 +22,33 @@ def _popweight_v1(total: float, weights: Sequence[float]) -> List[float]:
         E_z = D_district * (pop_z * w_z) / sum over zones (pop_k * w_k)
     Conserves totals: sum(E_z) == D_district.
     """
-    if not weights:
+    if len(weights) == 0:
         raise ValueError("Cannot downscale with empty weights list.")
-    total_weight = sum(weights)
-    if total_weight <= 0:
-        raise ValueError(f"Sum of weights must be positive, got {total_weight}")
-    return [float(total * (w / total_weight)) for w in weights]
+    try:
+        total_value = float(total)
+        weight_values = [float(weight) for weight in weights]
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("Total and downscaling weights must be numeric.") from exc
+    if not isfinite(total_value) or total_value < 0:
+        raise ValueError("Total must be finite and non-negative.")
+    if any(not isfinite(weight) or weight < 0 for weight in weight_values):
+        raise ValueError("Downscaling weights must be finite and non-negative.")
+    scale = max(weight_values)
+    if scale <= 0:
+        raise ValueError("Sum of weights must be positive, got 0")
+    scaled_weights = [weight / scale for weight in weight_values]
+    total_weight = fsum(scaled_weights)
+    allocations = [
+        total_value * (weight / total_weight)
+        for weight in scaled_weights
+    ]
+    largest_weight_index = max(range(len(scaled_weights)), key=scaled_weights.__getitem__)
+    allocations[largest_weight_index] = total_value - fsum(
+        allocation
+        for index, allocation in enumerate(allocations)
+        if index != largest_weight_index
+    )
+    return allocations
 
 
 class DownscalingRegistry:

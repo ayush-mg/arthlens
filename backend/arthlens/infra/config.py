@@ -172,21 +172,23 @@ def get_auth_cookie_samesite() -> str:
 
 
 def get_rate_limit_per_minute_ip() -> int:
-    """Maximum allowed requests per minute per IP address (provisional default: 60)."""
-    val = os.environ.get("RATE_LIMIT_PER_MINUTE_IP", "60")
+    """Maximum allowed requests per minute per IP address (default: 1000 in dev/test, 60 in prod)."""
+    default_limit = "1000" if get_environment() in ("development", "test") else "60"
+    val = os.environ.get("RATE_LIMIT_PER_MINUTE_IP", default_limit)
     try:
         return int(val)
     except ValueError:
-        return 60
+        return int(default_limit)
 
 
 def get_rate_limit_per_minute_user() -> int:
-    """Maximum allowed requests per minute per authenticated user (provisional default: 120)."""
-    val = os.environ.get("RATE_LIMIT_PER_MINUTE_USER", "120")
+    """Maximum allowed requests per minute per authenticated user (default: 2000 in dev/test, 120 in prod)."""
+    default_limit = "2000" if get_environment() in ("development", "test") else "120"
+    val = os.environ.get("RATE_LIMIT_PER_MINUTE_USER", default_limit)
     try:
         return int(val)
     except ValueError:
-        return 120
+        return int(default_limit)
 
 
 def get_daily_run_quota() -> int:

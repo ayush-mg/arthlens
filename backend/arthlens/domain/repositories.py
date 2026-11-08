@@ -5,12 +5,13 @@ Authoritative Reference: ArthLens Build Handbook v1.0 (Part 5.1, Part 9.1, 9.2).
 Phase: P1-5 (Database Persistence, Repositories and Integration Tests).
 """
 
-from abc import abstractmethod
-from typing import Any, Dict, List, Optional, Sequence, Union
 import uuid
+from abc import abstractmethod
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from backend.arthlens.domain.enums import ResolutionTier
-from backend.arthlens.domain.geo import GeoUnit
+from backend.arthlens.domain.geo import GeometryStatus, GeoUnit
 from backend.arthlens.domain.interfaces import Repository
 from backend.arthlens.domain.quantity import Quantity
 
@@ -108,12 +109,25 @@ class QuantityRepository(Repository):
         raise NotImplementedError
 
 
+class UserAlreadyExistsError(Exception):
+    """Raised when attempting to create a user whose ID or email already exists."""
+    pass
+
+
 class UserRepository(Repository):
     """Abstract repository contract for user accounts and role mappings."""
 
     @abstractmethod
+    def create_user(self, user_data: Dict[str, Any]) -> str:
+        """
+        Create a new user record strictly without updating existing accounts.
+        Raises UserAlreadyExistsError if email or ID already exists.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     def save(self, user_data: Dict[str, Any]) -> str:
-        """Save a user record and return its UUID string."""
+        """Save a user record (insert or update) and return its UUID string."""
         raise NotImplementedError
 
     @abstractmethod
@@ -162,9 +176,76 @@ class UserRepository(Repository):
         """Atomically refund reserved runs or cost upon run cancellation or setup failure."""
         raise NotImplementedError
 
+    @abstractmethod
+    def deactivate_user(self, user_id: Union[str, uuid.UUID]) -> bool:
+        """Deactivate user account."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def activate_user(self, user_id: Union[str, uuid.UUID]) -> bool:
+        """Activate user account."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def set_user_roles(self, user_id: Union[str, uuid.UUID], roles: List[str]) -> bool:
+        """Set roles for user."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def count_active_admins(self) -> int:
+        """Count number of active administrators."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_password(self, user_id: Union[str, uuid.UUID], password_hash: str) -> bool:
+        """Update password hash for a user."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def set_password_reset_token(
+        self,
+        user_id: Union[str, uuid.UUID],
+        token_hash: str,
+        expires_at: datetime,
+    ) -> bool:
+        """Store an expiring, single-use password reset token hash for user."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def verify_and_consume_password_reset(
+        self,
+        token_hash: str,
+        new_password_hash: str,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Verify token hash, verify expiration and unused status, consume single-use token,
+        update password hash, invalidate previous sessions, and return user record.
+        Returns None if invalid, expired, or already used.
+        """
+        raise NotImplementedError
+
 
 class PolicyRuleRepository(Repository):
-    """Abstract repository contract for policy documents and AST rules."""
+    """Repository for source-backed policy documents, immutable rule versions, and traces."""
+
+    @abstractmethod
+    def save_document(self, document_data: Dict[str, Any]) -> str:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_document(self, document_id: Union[str, uuid.UUID]) -> Optional[Dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def review_document(
+        self,
+        document_id: Union[str, uuid.UUID],
+        *,
+        reviewer_id: Union[str, uuid.UUID],
+        verified: bool,
+        review_note: str,
+    ) -> Optional[Dict[str, Any]]:
+        raise NotImplementedError
 
     @abstractmethod
     def save_rule(self, rule_data: Dict[str, Any]) -> str:
@@ -179,6 +260,43 @@ class PolicyRuleRepository(Repository):
     @abstractmethod
     def list_rules_by_scheme(self, scheme_id: str) -> List[Dict[str, Any]]:
         """List all rules for a given scheme (e.g. 'pmfme')."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def approve_rule(
+        self,
+        rule_id: Union[str, uuid.UUID],
+        *,
+        steward_id: Union[str, uuid.UUID],
+        approval_note: str,
+    ) -> Optional[Dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def retire_rule(
+        self,
+        rule_id: Union[str, uuid.UUID],
+        *,
+        steward_id: Union[str, uuid.UUID],
+        retirement_reason: str,
+    ) -> Optional[Dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_applicable_rules(self, scheme_id: str, rule_key: str, as_of: Any) -> List[Dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def save_evaluation(self, evaluation_data: Dict[str, Any]) -> str:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_evaluation(
+        self,
+        evaluation_id: Union[str, uuid.UUID],
+        *,
+        owner_id: Union[str, uuid.UUID],
+    ) -> Optional[Dict[str, Any]]:
         raise NotImplementedError
 
 
@@ -198,6 +316,11 @@ class ScenarioRepository(Repository):
     @abstractmethod
     def list_by_owner(self, owner_id: Union[str, uuid.UUID]) -> List[Dict[str, Any]]:
         """List all scenarios owned by a user."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_scenario(self, scenario_id: Union[str, uuid.UUID], owner_id: Union[str, uuid.UUID]) -> bool:
+        """Delete a user scenario if owned by owner_id (returns True if deleted)."""
         raise NotImplementedError
 
     @abstractmethod
@@ -226,6 +349,20 @@ class ScenarioRepository(Repository):
         owner_id: Union[str, uuid.UUID],
     ) -> Optional[Dict[str, Any]]:
         """Retrieve a scenario only if owned by owner_id (IDOR defense)."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def save_comparison(self, comparison_data: Dict[str, Any]) -> str:
+        """Persist an immutable comparison snapshot and return its UUID."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_comparison_by_id_and_owner(
+        self,
+        comparison_id: Union[str, uuid.UUID],
+        owner_id: Union[str, uuid.UUID],
+    ) -> Optional[Dict[str, Any]]:
+        """Retrieve a persisted comparison only for its owner."""
         raise NotImplementedError
 
 
@@ -310,6 +447,10 @@ class GeoUnitRepository(Repository):
         """Retrieve a geographic unit by its canonical namespaced identifier."""
         raise NotImplementedError
 
+    def get_by_id(self, unit_id: str) -> Optional[GeoUnit]:
+        """Convenience alias for get_unit."""
+        return self.get_unit(unit_id)
+
     @abstractmethod
     def get_unit_by_lgd_code(self, level: ResolutionTier, lgd_code: str) -> Optional[GeoUnit]:
         """Retrieve a geographic unit by its administrative tier and raw LGD code."""
@@ -328,4 +469,27 @@ class GeoUnitRepository(Repository):
     @abstractmethod
     def search(self, query: str, limit: int = 50) -> List[GeoUnit]:
         """Search geographic units by name (case-insensitive substring match)."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_geometry(
+        self,
+        unit_id: str,
+        geometry: Optional[Dict[str, Any]],
+        geometry_status: GeometryStatus,
+        preserve_existing: bool = True,
+        geometry_source_record_id: Optional[str] = None,
+        session: Optional[Any] = None,
+    ) -> bool:
+        """Update boundary geometry and status for a unit, preserving existing valid geometry if specified."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def verify_geometry_validity(self, geometry: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+        """Verify geometry validity against spatial engine (PostGIS ST_IsValid)."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_coverage_summary(self) -> Dict[str, Any]:
+        """Retrieve nationwide geographic boundary and analytical coverage metrics."""
         raise NotImplementedError

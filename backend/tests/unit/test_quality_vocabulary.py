@@ -5,33 +5,28 @@ Authoritative Specification: ArthLens Build Handbook v1.0 (Part 7.4, 7.5 Step 10
 Phase: Phase 2 (P2-3 - Data-Quality Layer and Staleness Flags).
 """
 
-from datetime import date
 import pytest
-
 from backend.arthlens.domain.enums import Kind
 from backend.arthlens.domain.quantity import Quantity
 from backend.arthlens.quality.evaluator import DataQualityEvaluator
 from backend.arthlens.quality.vocabulary import (
     ATLAS_SHADING_TOKENS,
-    AtlasShadingToken,
     CalculationSuitability,
-    QualityIssue,
     QualityStatus,
-    get_shading_token,
     resolve_primary_status,
 )
 
 
 class TestQualityVocabularyAndPrecedence:
-    """Tests for the five quality statuses and deterministic precedence."""
+    """Tests for the six quality statuses and deterministic precedence."""
 
-    def test_vocabulary_contains_exact_five_handbook_statuses(self):
-        """Quality vocabulary must contain exactly CURRENT, INCOMPLETE, STALE, ESTIMATED, UNAVAILABLE."""
-        expected = {"CURRENT", "INCOMPLETE", "STALE", "ESTIMATED", "UNAVAILABLE"}
+    def test_vocabulary_contains_exact_six_handbook_statuses(self):
+        """Quality vocabulary must contain CURRENT, INCOMPLETE, STALE, ESTIMATED, UNAVAILABLE, CONTRADICTED."""
+        expected = {"CURRENT", "INCOMPLETE", "STALE", "ESTIMATED", "UNAVAILABLE", "CONTRADICTED"}
         actual = {s.value for s in QualityStatus}
         assert actual == expected
 
-    def test_shading_tokens_exist_for_all_five_statuses(self):
+    def test_shading_tokens_exist_for_all_six_statuses(self):
         """Every quality status must have a stable, non-null design token and hex color."""
         for status in QualityStatus:
             token = ATLAS_SHADING_TOKENS[status]
@@ -43,23 +38,31 @@ class TestQualityVocabularyAndPrecedence:
             assert token.label
 
     def test_exact_design_tokens(self):
-        """Assert exact colors for the five presentation states."""
+        """Assert exact colors for the presentation states."""
         assert ATLAS_SHADING_TOKENS[QualityStatus.CURRENT].hex_color == "#22C55E"
         assert ATLAS_SHADING_TOKENS[QualityStatus.INCOMPLETE].hex_color == "#EAB308"
         assert ATLAS_SHADING_TOKENS[QualityStatus.STALE].hex_color == "#F97316"
         assert ATLAS_SHADING_TOKENS[QualityStatus.ESTIMATED].hex_color == "#3B82F6"
         assert ATLAS_SHADING_TOKENS[QualityStatus.UNAVAILABLE].hex_color == "#94A3B8"
+        assert ATLAS_SHADING_TOKENS[QualityStatus.CONTRADICTED].hex_color == "#DC2626"
 
     def test_precedence_order_rules(self):
         """
         Deterministic precedence order:
-        UNAVAILABLE (1) > INCOMPLETE (2) > STALE (3) > ESTIMATED (4) > CURRENT (5).
+        UNAVAILABLE (1) > CONTRADICTED (2) > INCOMPLETE (3) > STALE (4) > ESTIMATED (5) > CURRENT (6).
         """
         # UNAVAILABLE beats everything
         assert resolve_primary_status([QualityStatus.CURRENT, QualityStatus.UNAVAILABLE]) == QualityStatus.UNAVAILABLE
         assert resolve_primary_status([QualityStatus.STALE, QualityStatus.UNAVAILABLE]) == QualityStatus.UNAVAILABLE
         assert resolve_primary_status([QualityStatus.ESTIMATED, QualityStatus.UNAVAILABLE]) == QualityStatus.UNAVAILABLE
         assert resolve_primary_status([QualityStatus.INCOMPLETE, QualityStatus.UNAVAILABLE]) == QualityStatus.UNAVAILABLE
+        assert resolve_primary_status([QualityStatus.CONTRADICTED, QualityStatus.UNAVAILABLE]) == QualityStatus.UNAVAILABLE
+
+        # CONTRADICTED beats INCOMPLETE, STALE, ESTIMATED, CURRENT
+        assert resolve_primary_status([QualityStatus.CURRENT, QualityStatus.CONTRADICTED]) == QualityStatus.CONTRADICTED
+        assert resolve_primary_status([QualityStatus.STALE, QualityStatus.CONTRADICTED]) == QualityStatus.CONTRADICTED
+        assert resolve_primary_status([QualityStatus.INCOMPLETE, QualityStatus.CONTRADICTED]) == QualityStatus.CONTRADICTED
+        assert resolve_primary_status([QualityStatus.ESTIMATED, QualityStatus.CONTRADICTED]) == QualityStatus.CONTRADICTED
 
         # INCOMPLETE beats STALE, ESTIMATED, CURRENT
         assert resolve_primary_status([QualityStatus.CURRENT, QualityStatus.INCOMPLETE]) == QualityStatus.INCOMPLETE
@@ -106,7 +109,9 @@ class TestClassificationEvaluatorScenarios:
             as_of="2026-10-01",  # ~36 days old, within DS-05 3650-day threshold
             source_refs=("DS-05",),
         )
-        res = evaluator.evaluate_quantity(fresh_q, "population.recent_survey", "in:district:120")
+        res = evaluator.evaluate_quantity(
+            fresh_q, "population.recent_survey", "in:district:120", source_id="DS-05"
+        )
         assert res.primary_status == QualityStatus.CURRENT
         assert res.is_stale is False
         assert res.shading.hex_color == "#22C55E"
@@ -129,10 +134,33 @@ class TestClassificationEvaluatorScenarios:
             as_of="2026-10-01",
             source_refs=("DS-04",),  # DS-04 lacks approved threshold
         )
-        res = evaluator.evaluate_quantity(unverified_q, "pois.commercial", "in:district:120")
+        res = evaluator.evaluate_quantity(
+            unverified_q, "pois.commercial", "in:district:120", source_id="DS-04"
+        )
         assert res.primary_status != QualityStatus.CURRENT
         assert res.primary_status == QualityStatus.INCOMPLETE
         assert any("lacks an approved freshness policy" in i.reason for i in res.issues)
+
+    def test_source_version_reference_is_not_treated_as_a_source_id(self, evaluator):
+        quantity = Quantity(
+            id="q_unresolved_version",
+            definition_key="population.total",
+            value=1.0,
+            unit="persons",
+            kind=Kind.OBSERVED,
+            evidence_floor=4,
+            geo_unit_id="in:district:120",
+            resolution=2,
+            as_of="2011-03-01",
+            source_refs=(("registered-version-id", "table:row:1", "2011-04-01"),),
+        )
+
+        result = evaluator.evaluate_quantity(quantity, "population.total", "in:district:120")
+
+        assert result.source_id is None
+        assert result.is_stale is False
+        assert result.primary_status == QualityStatus.INCOMPLETE
+        assert any(issue.dimension == "temporal_freshness" for issue in result.issues)
 
     def test_incomplete_geographic_coverage(self, evaluator):
         """Observation with missing sub-units is classified as INCOMPLETE."""
@@ -156,6 +184,7 @@ class TestClassificationEvaluatorScenarios:
             q,
             "population.total",
             "in:district:120",
+            source_id="DS-05",
             expected_subunits=expected_tehsils,
             actual_subunits=actual_tehsils,
         )
@@ -179,7 +208,9 @@ class TestClassificationEvaluatorScenarios:
             source_refs=("DS-05",),
             quality_flags=frozenset({"STALE"}),
         )
-        res = evaluator.evaluate_quantity(stale_q, "population.total", "in:district:120")
+        res = evaluator.evaluate_quantity(
+            stale_q, "population.total", "in:district:120", source_id="DS-05"
+        )
         assert res.primary_status == QualityStatus.STALE
         assert res.is_stale is True
         assert res.shading.hex_color == "#F97316"
@@ -231,9 +262,32 @@ class TestClassificationEvaluatorScenarios:
             source_refs=("DS-05",),
             quality_flags=frozenset({"STALE", "SYNTHETIC_DATA"}),
         )
-        res = evaluator.evaluate_quantity(stale_and_est, "population.projected", "in:district:120")
+        res = evaluator.evaluate_quantity(
+            stale_and_est, "population.projected", "in:district:120", source_id="DS-05"
+        )
         assert res.primary_status == QualityStatus.STALE  # STALE has precedence over ESTIMATED
         statuses_in_issues = {i.status for i in res.issues}
         assert QualityStatus.STALE in statuses_in_issues
         assert QualityStatus.ESTIMATED in statuses_in_issues
         assert len(res.issues) >= 2
+
+    def test_contradicted_evidence(self, evaluator):
+        """Observation with CONTRADICTED or DISPUTED quality flag receives CONTRADICTED status."""
+        contradicted_q = Quantity(
+            id="q_disputed",
+            definition_key="population.total",
+            value=6500000.0,
+            unit="persons",
+            kind=Kind.OBSERVED,
+            evidence_floor=4,
+            geo_unit_id="in:district:120",
+            resolution=2,
+            as_of="2026-10-01",
+            source_refs=("DS-05",),
+            quality_flags=frozenset({"CONTRADICTED"}),
+        )
+        res = evaluator.evaluate_quantity(contradicted_q, "population.total", "in:district:120")
+        assert res.primary_status == QualityStatus.CONTRADICTED
+        assert res.shading.hex_color == "#DC2626"
+        assert res.suitability == CalculationSuitability.UNSUITABLE_CONTRADICTED
+        assert any("contradiction" in i.reason.lower() for i in res.issues)

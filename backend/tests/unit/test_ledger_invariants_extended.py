@@ -6,15 +6,13 @@ Phase: P1-3 (Quantity, Epistemic Ledger, Propagation, Uncertainty and Units).
 """
 
 from datetime import date
-import pytest
 
+import pytest
 from backend.arthlens.domain.enums import Kind
 from backend.arthlens.domain.quantity import Quantity
-from backend.arthlens.ledger.downscaling import DownscalingRegistry
 from backend.arthlens.ledger.ledger import Ledger
 from backend.arthlens.ledger.propagation import propagate_quality_flags
 from backend.arthlens.ledger.staleness import (
-    apply_staleness_flag,
     is_source_stale,
     with_staleness_flag,
 )
@@ -22,6 +20,40 @@ from backend.arthlens.ledger.staleness import (
 
 class TestLedgerInvariantsEnforcement:
     """Verify runtime enforcement of evidence floor and downscaling rules in Ledger."""
+
+    def test_derived_quantity_requires_registered_unique_parents(self):
+        ledger = Ledger()
+        missing_parent = Quantity(
+            id="child_missing_parent",
+            definition_key="test.derived",
+            value=2.0,
+            unit="dimensionless",
+            kind=Kind.CALCULATED,
+            evidence_floor=4,
+            geo_unit_id="district_001",
+            resolution=2,
+            as_of="2026-10-20",
+            parent_ids=("not_registered",),
+        )
+
+        with pytest.raises(ValueError, match="unregistered parent quantities"):
+            ledger.register(missing_parent)
+
+        with pytest.raises(ValueError, match="Duplicate parent references"):
+            ledger.register(
+                Quantity(
+                    id="child_duplicate_parent",
+                    definition_key="test.derived",
+                    value=2.0,
+                    unit="dimensionless",
+                    kind=Kind.CALCULATED,
+                    evidence_floor=4,
+                    geo_unit_id="district_001",
+                    resolution=2,
+                    as_of="2026-10-20",
+                    parent_ids=("parent", "parent"),
+                )
+            )
 
     def test_derived_cannot_strengthen_evidence_floor(self):
         """A derived quantity cannot declare a higher evidence floor than its weakest parent (Handbook 4.2)."""

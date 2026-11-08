@@ -84,6 +84,7 @@ class GeoUnit:
     geometry_status: GeometryStatus = GeometryStatus.GEOMETRY_MISSING
     analytical_status: AnalyticalStatus = AnalyticalStatus.ANALYSIS_UNAVAILABLE
     census_code: Optional[str] = None  # Historical Census MDDS code
+    geometry_source_record_id: Optional[str] = None  # Exact foreign key linkage to source_records.id
 
     @property
     def coverage_status(self) -> str:

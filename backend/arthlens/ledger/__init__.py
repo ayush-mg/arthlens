@@ -17,6 +17,13 @@ from backend.arthlens.ledger.renderer import (
     RenderResult,
     ReportRenderer,
 )
+from backend.arthlens.ledger.reports import (
+    ReportRejected,
+    VerifiedReport,
+    build_verified_report,
+    export_report_csv,
+    export_report_json,
+)
 from backend.arthlens.ledger.specs import (
     AndSpecification,
     ContradictionVisibilitySpec,
@@ -80,4 +87,9 @@ __all__ = [
     "ReportRenderer",
     "AllowlistConfig",
     "RenderResult",
+    "ReportRejected",
+    "VerifiedReport",
+    "build_verified_report",
+    "export_report_csv",
+    "export_report_json",
 ]

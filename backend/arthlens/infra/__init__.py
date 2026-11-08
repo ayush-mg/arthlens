@@ -5,6 +5,11 @@ Authoritative Reference: ArthLens Build Handbook v1.0 (Part 9).
 Phase: P1-5 (Database Persistence, Repositories and Integration Tests).
 """
 
+from backend.arthlens.agent.budgets import (
+    RunBudgetDecision,
+    RunBudgetLimits,
+    RunBudgetReservation,
+)
 from backend.arthlens.infra.config import get_database_url, get_environment
 from backend.arthlens.infra.database import Base, get_db_session, get_engine, get_session_factory
 from backend.arthlens.infra.in_memory import (
@@ -40,6 +45,7 @@ from backend.arthlens.infra.models import (
     UserRoleModel,
 )
 from backend.arthlens.infra.repositories import (
+    PostgresAgentRunRepository,
     PostgresGeoUnitRepository,
     PostgresPolicyRuleRepository,
     PostgresQuantityRepository,
@@ -78,6 +84,10 @@ __all__ = [
     "TaskModel",
     "AuditEventModel",
     "PostgresQuantityRepository",
+    "PostgresAgentRunRepository",
+    "RunBudgetDecision",
+    "RunBudgetLimits",
+    "RunBudgetReservation",
     "PostgresGeoUnitRepository",
     "PostgresUserRepository",
     "PostgresPolicyRuleRepository",

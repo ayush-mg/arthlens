@@ -434,6 +434,107 @@ package "backend.arthlens.security_and_api" {
 }
 
 ' ==============================================================================
+' IMPLEMENTED ANALYTICAL MODELS (P3-2 through P3-4)
+' ==============================================================================
+package "backend.arthlens.demand" {
+
+    class DemandZone {
+        +id: str
+        +demand: float
+    }
+
+    class Facility {
+        +id: str
+        +attractiveness: float
+    }
+
+    class AllocationParameters {
+        +travel_time_minutes_by_pair: Mapping
+        +distance_decay_exponent: Optional[float]
+    }
+
+    class Allocation {
+        +method_id: str
+        +probabilities_by_zone: Mapping
+        +demand_by_zone: Mapping
+        +facility_demand: Mapping
+        +total_demand: float
+        +model_parameters: Mapping
+    }
+
+    class NearestFacilityAllocator implements DemandAllocator
+    class HuffAllocator implements DemandAllocator
+
+    DemandZone ..> AllocationParameters
+    Facility ..> AllocationParameters
+    AllocationParameters --> NearestFacilityAllocator
+    AllocationParameters --> HuffAllocator
+    NearestFacilityAllocator ..> Allocation
+    HuffAllocator ..> Allocation
+}
+
+package "backend.arthlens.finance" {
+
+    class FinancialScenario
+    class FinancialMonth
+    class FinancialProjection
+    class LoanTerms
+    class LoanScheduleRow
+    class LoanSchedule
+    enum MoratoriumInterestTreatment {
+        PAID
+        CAPITALISED
+    }
+    enum SubsidyTreatment {
+        ADJUSTS_PRINCIPAL
+        BACK_ENDED_RELEASE
+        LOCKED_DEPOSIT
+    }
+
+    FinancialScenario --> FinancialProjection
+    FinancialProjection *-- "1..*" FinancialMonth
+    LoanTerms --> MoratoriumInterestTreatment
+    LoanTerms --> SubsidyTreatment
+    LoanTerms --> LoanSchedule
+    LoanSchedule *-- "1..*" LoanScheduleRow
+}
+
+package "backend.arthlens.simulation" {
+
+    class SimulationOutcome {
+        +metrics: Mapping[str, float]
+        +cash_shortfall: bool
+    }
+
+    class MetricSummary {
+        +mean: float
+        +quantiles: Mapping[float, float]
+        +standard_error: float
+        +converged: bool
+    }
+
+    class MonteCarloResult {
+        +metadata: SimulationMetadata
+        +metrics: Mapping[str, MetricSummary]
+        +shortfall_probability: float
+        +shortfall_probability_standard_error: float
+        +shortfall_probability_converged: bool
+        +converged: bool
+    }
+
+    class SensitivityPoint
+    class SensitivityResult
+
+    MonteCarloResult *-- MetricSummary
+    MonteCarloResult --> SimulationMetadata
+    note right of MonteCarloResult
+      run_monte_carlo() uses explicit PCG64 inputs.
+      run_one_at_a_time_sensitivity() changes
+      only caller-selected parameters.
+    end note
+}
+
+' ==============================================================================
 ' PLANNED / FUTURE CONCEPTS (Scheduled for Phases 2, 3, 4)
 ' ==============================================================================
 package "backend.arthlens.planned_modules" {
@@ -456,14 +557,9 @@ package "backend.arthlens.planned_modules" {
         ' Scheduled: Phase 2 & 4
     }
 
-    class GravityDemandAllocator <<planned — not implemented>> implements DemandAllocator {
-        +allocate(zones: Any, facilities: Any, params: Any) : Any
-        ' Scheduled: Phase 3
-    }
-
     class MonteCarloFinancialSimulation <<planned — not implemented>> implements SimulationModel {
         +run(scenario: Any, seed: int) : Any
-        ' Scheduled: Phase 3
+        ' Scheme-specific adapter; blocked on approved P3-3 models
     }
 
     class PolicyRuleAST <<planned — not implemented>> implements RuleNode {

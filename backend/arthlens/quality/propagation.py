@@ -116,13 +116,22 @@ def inspect_calculation_inputs(
         applicable_statuses.append(QualityStatus.INCOMPLETE)
         restriction_reasons.append("Contributing inputs carry partial or incomplete coverage flags.")
 
+    # 4b. Contradiction flags (Verification V5)
+    has_contradicted_parent = any("CONTRADICTED" in q.quality_flags or "DISPUTED" in q.quality_flags for q in valid_inputs)
+    if has_contradicted_parent:
+        propagated_flags.add("CONTRADICTED_ANCESTRY")
+        applicable_statuses.append(QualityStatus.CONTRADICTED)
+        restriction_reasons.append("Contributing inputs carry disputed contradiction flags (Verification V5).")
+
     if not applicable_statuses:
         applicable_statuses.append(QualityStatus.CURRENT)
 
     primary_status = resolve_primary_status(applicable_statuses)
 
     # 5. Suitability derivation
-    if primary_status == QualityStatus.STALE:
+    if primary_status == QualityStatus.CONTRADICTED:
+        suitability = CalculationSuitability.UNSUITABLE_CONTRADICTED
+    elif primary_status == QualityStatus.STALE:
         suitability = CalculationSuitability.SUITABLE_HISTORICAL_ONLY
     elif primary_status == QualityStatus.ESTIMATED:
         suitability = CalculationSuitability.ESTIMATED_PROJECTION

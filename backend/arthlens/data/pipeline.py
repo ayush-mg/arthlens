@@ -31,6 +31,7 @@ from backend.arthlens.domain.repositories import (
     SourceRepository,
 )
 from backend.arthlens.ledger.staleness import is_source_stale
+from backend.arthlens.quality.freshness import evaluate_staleness
 
 
 class DatasetIngestionPipeline:
@@ -87,11 +88,13 @@ class DatasetIngestionPipeline:
             serialized = json.dumps(raw_content, sort_keys=True).encode("utf-8")
             content_hash = hashlib.sha256(serialized).hexdigest()
 
+        version_id = f"{self.adapter.source_id}:{content_hash[:16]}"
         version_info = SourceVersionInfo(
             source_id=self.adapter.source_id,
             content_hash=content_hash,
             retrieval_date=date.today(),
             version_tag=None,
+            version_id=version_id,
         )
         return raw_content, version_info
 
@@ -174,14 +177,37 @@ class DatasetIngestionPipeline:
                         )
                     )
 
-        # 3. Staleness evaluation
+        # 3. Staleness evaluation (unified freshness policy)
         target_as_of = as_of or self.adapter.as_of_default
         stale = False
+        date_anomaly = False
         if target_as_of:
             try:
-                stale = is_source_stale(target_as_of, self.adapter.max_age_days)
-            except Exception:
+                freshness_eval = evaluate_staleness(
+                    as_of=target_as_of,
+                    source_id=self.adapter.source_id,
+                    custom_max_age_days=self.adapter.max_age_days,
+                )
+                stale = freshness_eval.is_stale
+            except Exception as e:
+                anomalies.append(
+                    QualityAnomaly(
+                        anomaly_type="INVALID_AS_OF_DATE",
+                        field_name="as_of",
+                        description=f"Invalid observation date format '{target_as_of}': {e}",
+                    )
+                )
+                date_anomaly = True
                 stale = False
+        else:
+            anomalies.append(
+                QualityAnomaly(
+                    anomaly_type="MISSING_AS_OF_DATE",
+                    field_name="as_of",
+                    description="Missing observation date (as_of); freshness cannot be verified.",
+                )
+            )
+            date_anomaly = True
 
         # 4. Status determination
         has_unresolved = any(not r.resolved for r in reconciliations)
@@ -191,7 +217,7 @@ class DatasetIngestionPipeline:
             status = QualityStatus.UNAVAILABLE.value
         elif stale:
             status = QualityStatus.STALE.value
-        elif has_unresolved or has_missing:
+        elif has_unresolved or has_missing or date_anomaly:
             status = QualityStatus.INCOMPLETE.value
         else:
             status = QualityStatus.CURRENT.value
@@ -217,16 +243,55 @@ class DatasetIngestionPipeline:
         normalized_records: List[NormalizedRecord],
         reconciliations: List[GeographicReconciliation],
         quality_assessment: QualityAssessment,
+        version_info: Optional[SourceVersionInfo] = None,
     ) -> List[Quantity]:
-        """Step 7: Extract immutable Quantity objects with correct kind, units, and flags."""
+        """Step 7: Extract immutable Quantity objects with correct kind, units, flags, and source citations."""
         quantities: List[Quantity] = []
+        v_id = (
+            version_info.version_id
+            if version_info and version_info.version_id
+            else f"{self.adapter.source_id}:snapshot"
+        )
+        ret_date = (
+            version_info.retrieval_date.isoformat()
+            if version_info and version_info.retrieval_date
+            else date.today().isoformat()
+        )
+
         for norm, recon in zip(normalized_records, reconciliations):
-            qs = self.adapter.extract_quantities(norm, recon, quality_assessment)
+            try:
+                qs = self.adapter.extract_quantities(
+                    norm,
+                    recon,
+                    quality_assessment,
+                    version_id=v_id,
+                    retrieval_date=ret_date,
+                )
+            except TypeError:
+                qs = self.adapter.extract_quantities(norm, recon, quality_assessment)
+
             for q in qs:
+                updates: Dict[str, Any] = {}
                 # Ensure STALE flag is propagated if quality assessment indicates staleness
                 if quality_assessment.is_stale and "STALE" not in q.quality_flags:
                     flags = frozenset(set(q.quality_flags) | {"STALE"})
-                    q = replace(q, quality_flags=flags)
+                    updates["quality_flags"] = flags
+
+                # Ensure source_refs are normalized to (version_id, locator, retrieval_date)
+                if q.source_refs:
+                    norm_refs = []
+                    for ref in q.source_refs:
+                        if isinstance(ref, (tuple, list)) and len(ref) >= 2:
+                            loc = str(ref[1])
+                            norm_refs.append((v_id, loc, ret_date))
+                        elif isinstance(ref, str):
+                            norm_refs.append((v_id, ref, ret_date))
+                    updates["source_refs"] = tuple(norm_refs)
+                else:
+                    updates["source_refs"] = ((v_id, f"record:{norm.record_id}", ret_date),)
+
+                if updates:
+                    q = replace(q, **updates)
                 quantities.append(q)
         return quantities
 
@@ -346,6 +411,26 @@ class DatasetIngestionPipeline:
                 for sr in source_records:
                     self.record_repo.save_record(sr)
 
+        if self.adapter.source_id == "DS-04" and norm_records:
+            from backend.arthlens.geo.road_graph import build_road_graph_from_osm
+            from backend.arthlens.geo.road_repository import PostgresRoadGraphRepository
+
+            graph = build_road_graph_from_osm(
+                [record.raw_record.payload for record in norm_records],
+                source_version_id=v_id,
+            )
+            if graph.edges:
+                if self.record_repo is None:
+                    raise ValueError(
+                        "OSM road graph persistence requires the exact source records repository."
+                    )
+                session.flush()
+                PostgresRoadGraphRepository(session_factory=self.session_factory).save_graph(
+                    graph,
+                    source_version_id=v_id,
+                    session=session,
+                )
+
         # 4. Epistemic ledger quantities
         if self.quantity_repo is not None and quantities:
             for q in quantities:
@@ -353,6 +438,14 @@ class DatasetIngestionPipeline:
                     self.quantity_repo.save(q, session=session)
                 else:
                     self.quantity_repo.save(q)
+
+        # 5. Administrative boundary geometry persistence
+        # Authoritative Mandate: All DS-09 administrative boundary ingestion MUST go through
+        # AdminBoundaryIngestionService to ensure specialized boundary validation and atomic
+        # transaction coupling of snapshot, geometry, and SourceRecord.
+        # The generic DatasetIngestionPipeline explicitly rejects persisting DS-09 administrative boundaries.
+        if self.adapter.source_id == "DS-09":
+            return
 
     def _persist_with_repositories(
         self,
@@ -403,6 +496,14 @@ class DatasetIngestionPipeline:
         if self.quantity_repo is not None and quantities:
             for q in quantities:
                 self.quantity_repo.save(q)
+
+        # 5. Administrative boundary geometry persistence
+        # Authoritative Mandate: All DS-09 administrative boundary ingestion MUST go through
+        # AdminBoundaryIngestionService to ensure specialized boundary validation and atomic
+        # transaction coupling of snapshot, geometry, and SourceRecord.
+        # The generic DatasetIngestionPipeline explicitly rejects persisting DS-09 administrative boundaries.
+        if self.adapter.source_id == "DS-09":
+            return
 
     def _build_source_records(
         self,
@@ -535,6 +636,7 @@ class DatasetIngestionPipeline:
             normalized_records=normalized_records,
             reconciliations=reconciliations,
             quality_assessment=quality_assessment,
+            version_info=version_info,
         )
 
         # Step 8: Derive coverage and quality status
@@ -563,4 +665,3 @@ class DatasetIngestionPipeline:
             coverage_status=coverage_status,
             errors=[],
         )
-

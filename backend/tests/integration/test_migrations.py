@@ -11,13 +11,14 @@ Verifies:
 - Clean rollback via downgrade base and idempotent re-upgrade.
 """
 
+import uuid
 from pathlib import Path
+
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import inspect, text
-
 from backend.arthlens.infra.database import get_engine
+from sqlalchemy import inspect, text
 
 
 @pytest.fixture(scope="module")
@@ -72,6 +73,58 @@ class TestAlembicMigrations:
 
         missing_tables = self.EXPECTED_TABLES - existing_tables
         assert not missing_tables, f"Migration failed to create tables: {missing_tables}"
+
+    def test_policy_lifecycle_migration_downgrades_unverified_legacy_records(self, alembic_cfg):
+        """Legacy ACTIVE documents and APPROVED rules cannot survive as verified state."""
+        engine = get_engine()
+        command.upgrade(alembic_cfg, "head")
+        command.downgrade(alembic_cfg, "009_road_graph_spatial_index")
+        user_id = str(uuid.uuid4())
+        document_id = str(uuid.uuid4())
+        rule_id = str(uuid.uuid4())
+        email = f"policy-migration-{user_id}@example.test"
+        try:
+            with engine.begin() as connection:
+                connection.execute(
+                    text("INSERT INTO users (id, email, password_hash) VALUES (:id, :email, 'test-hash')"),
+                    {"id": user_id, "email": email},
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO policy_documents (id, scheme_id, document_url, sha256, status) "
+                        "VALUES (:id, 'migration-fixture', 'https://example.invalid/policy.pdf', :sha256, 'ACTIVE')"
+                    ),
+                    {"id": document_id, "sha256": "d" * 64},
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO policy_rules (id, document_id, scheme_id, version, rule_ast, status, approved_by) "
+                        "VALUES (:id, :document_id, 'migration-fixture', 'legacy-v1', '{\"type\":\"constant\",\"value\":\"TRUE\"}'::jsonb, 'APPROVED', :user_id)"
+                    ),
+                    {"id": rule_id, "document_id": document_id, "user_id": user_id},
+                )
+            command.upgrade(alembic_cfg, "head")
+            with engine.connect() as connection:
+                document = connection.execute(
+                    text("SELECT status, verified_by, source_version_id FROM policy_documents WHERE id = :id"),
+                    {"id": document_id},
+                ).one()
+                rule = connection.execute(
+                    text("SELECT status, approved_by, approved_at FROM policy_rules WHERE id = :id"),
+                    {"id": rule_id},
+                ).one()
+            assert document.status == "PENDING_REVIEW"
+            assert document.verified_by is None
+            assert document.source_version_id is None
+            assert rule.status == "DRAFT"
+            assert rule.approved_by is None
+            assert rule.approved_at is None
+        finally:
+            with engine.begin() as connection:
+                connection.execute(text("DELETE FROM policy_rules WHERE id = :id"), {"id": rule_id})
+                connection.execute(text("DELETE FROM policy_documents WHERE id = :id"), {"id": document_id})
+                connection.execute(text("DELETE FROM users WHERE id = :id"), {"id": user_id})
+            command.upgrade(alembic_cfg, "head")
 
     def test_postgis_extension_and_spatial_functions(self):
         """PostGIS 3.4 is enabled and spatial functions operate on geometry columns."""

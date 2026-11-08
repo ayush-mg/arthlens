@@ -6,7 +6,7 @@ Phase: P1-5 (Database Persistence, Repositories and Integration Tests).
 """
 
 from contextlib import contextmanager
-from typing import Generator
+from typing import Generator, Optional
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker

@@ -1,75 +1,218 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { GeoUnitSummary } from '../lib/types';
-import { fetchPilotBoundaries } from '../lib/api';
-import { Layers, ShieldAlert, MapPinOff, ArrowRight, ExternalLink } from 'lucide-react';
+import * as pmtiles from 'pmtiles';
+import { GeoUnitSummary, getUnitCoordinates } from '../lib/types';
+import { fetchUnitBoundary, getAuthToken } from '../lib/api';
+import {
+  Layers,
+  ShieldAlert,
+  MapPinOff,
+  ArrowRight,
+  Maximize2,
+  Minimize2,
+  Compass,
+  Crosshair,
+  Info,
+  AlertTriangle,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+} from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
+import { audioEngine } from '../lib/audio';
 
 interface AtlasMapProps {
   selectedUnit: GeoUnitSummary;
   onSelectUnitId: (geoId: string) => void;
   activeQualityFilter: string;
+  activeIndicatorKey?: string | null;
+  currentUser?: any;
+  onOpenProvenance?: (quantityId: string) => void;
+}
+
+// API and basemap endpoints
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+const DEFAULT_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const TILE_URL = process.env.NEXT_PUBLIC_MAP_TILE_URL || DEFAULT_TILE_URL;
+const TILE_ATTRIBUTION =
+  process.env.NEXT_PUBLIC_MAP_ATTRIBUTION ||
+  '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors';
+
+// Helper to detect artificial bounding boxes / axis-aligned rectangles
+export function isAxisAlignedBoundingBox(geometry: any): boolean {
+  if (!geometry || geometry.type !== 'Polygon' || !geometry.coordinates || !geometry.coordinates[0]) {
+    return false;
+  }
+  const ring = geometry.coordinates[0];
+  if (ring.length !== 5) return false;
+  const lons = ring.map((c: any) => c[0]);
+  const lats = ring.map((c: any) => c[1]);
+  const uniqueLons = new Set(lons);
+  const uniqueLats = new Set(lats);
+  return uniqueLons.size === 2 && uniqueLats.size === 2;
+}
+
+// Helper to compute geographic bounding box of GeoJSON FeatureCollection coordinates
+export function computeFeatureCollectionBounds(features: any[]): [[number, number], [number, number]] | null {
+  if (!features || features.length === 0) return null;
+  let minLon = 180, minLat = 90, maxLon = -180, maxLat = -90;
+  let hasPoints = false;
+
+  const processCoord = (coord: any) => {
+    if (Array.isArray(coord) && typeof coord[0] === 'number' && typeof coord[1] === 'number') {
+      const lon = coord[0];
+      const lat = coord[1];
+      if (lon >= -180 && lon <= 180 && lat >= -90 && lat <= 90) {
+        minLon = Math.min(minLon, lon);
+        maxLon = Math.max(maxLon, lon);
+        minLat = Math.min(minLat, lat);
+        maxLat = Math.max(maxLat, lat);
+        hasPoints = true;
+      }
+    } else if (Array.isArray(coord)) {
+      coord.forEach(processCoord);
+    }
+  };
+
+  features.forEach((feat) => {
+    if (feat.geometry && feat.geometry.coordinates) {
+      processCoord(feat.geometry.coordinates);
+    }
+  });
+
+  if (!hasPoints) return null;
+  return [[minLon, minLat], [maxLon, maxLat]];
 }
 
 export const AtlasMap: React.FC<AtlasMapProps> = ({
   selectedUnit,
   onSelectUnitId,
   activeQualityFilter,
+  activeIndicatorKey,
+  currentUser,
+  onOpenProvenance,
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [hoveredFeature, setHoveredFeature] = useState<any | null>(null);
-  const [pilotBoundaries, setPilotBoundaries] = useState<any>(null);
+  const [unitBoundaries, setUnitBoundaries] = useState<any>(null);
+  const [boundaryStatus, setBoundaryStatus] = useState<
+    'idle' | 'loading' | 'verified' | 'historical' | 'simplified' | 'unvalidated' | 'missing' | 'error' | 'auth_error' | 'not_found'
+  >('idle');
+  const [activeBoundaryProps, setActiveBoundaryProps] = useState<any>(null);
+  const [boundaryError, setBoundaryError] = useState<string | null>(null);
+  const [tileError, setTileError] = useState<string | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
   const shouldReduceMotion = useReducedMotion();
+  const boundaryReqSeqRef = useRef<number>(0);
 
-  // Initialize MapLibre map instance with CARTO Dark Matter basemap
+  const [resolutionState, setResolutionState] = useState<'LOADING' | 'RESOLVED' | 'ERROR'>('LOADING');
+
+  // Initialize MapLibre with real geographic basemap
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
-    const darkStyle: maplibregl.StyleSpecification = {
+    // Register PMTiles protocol for vector tile decoding
+    if (typeof window !== 'undefined' && typeof maplibregl.addProtocol === 'function' && !(window as any)._pmtilesProtocolRegistered) {
+      try {
+        const protocol = new pmtiles.Protocol();
+        maplibregl.addProtocol('pmtiles', protocol.tile);
+        (window as any)._pmtilesProtocolRegistered = true;
+      } catch (err) {
+        console.warn('PMTiles protocol registration notice:', err);
+      }
+    }
+
+    // Real geographic basemap style utilizing OpenStreetMap tiles with editorial palette integration
+    const basemapStyle: maplibregl.StyleSpecification = {
       version: 8,
-      name: 'ArthLens Dark Intelligence',
+      name: 'ArthLens Geospatial Basemap',
       sources: {
-        'carto-dark': {
+        'osm-raster-tiles': {
           type: 'raster',
-          tiles: [
-            'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-            'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-          ],
+          tiles: [TILE_URL],
           tileSize: 256,
-          attribution: '© OpenStreetMap contributors, © CARTO',
+          attribution: TILE_ATTRIBUTION,
+          maxzoom: 19,
         },
       },
       layers: [
         {
-          id: 'carto-dark-layer',
+          id: 'carto-parchment-background',
+          type: 'background',
+          paint: {
+            'background-color': '#FAF8F3', // Warm parchment ivory
+          },
+        },
+        {
+          id: 'osm-tiles-layer',
           type: 'raster',
-          source: 'carto-dark',
+          source: 'osm-raster-tiles',
           minzoom: 0,
           maxzoom: 19,
           paint: {
-            'raster-opacity': 0.85,
+            'raster-opacity': 0.88,
+            'raster-contrast': 0.08,
+            'raster-saturation': -0.15, // Softens raw tile saturation to match editorial theme
           },
         },
       ],
     };
 
+    const initialCoords = getUnitCoordinates(selectedUnit.id);
+    const defaultCenter: [number, number] = [initialCoords.lon ?? 81.8463, initialCoords.lat ?? 25.4358];
     const mapInstance = new maplibregl.Map({
       container: mapContainer.current,
-      style: darkStyle,
-      center: [81.8463, 25.4358], // Centered on Prayagraj pilot district
-      zoom: 8.5,
-      attributionControl: false, // Custom styled attribution badge below
+      style: basemapStyle,
+      center: defaultCenter,
+      zoom: selectedUnit.id === 'in:district:120' ? 9.2 : 9.8,
+      attributionControl: false,
+      transformRequest: (url: string) => {
+        if (url.includes('/geo/pilot-pmtiles') || url.includes(API_BASE_URL)) {
+          const token = getAuthToken();
+          return {
+            url,
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            credentials: 'include' as const,
+          };
+        }
+        return { url };
+      },
     });
 
     mapInstance.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
 
-    mapInstance.on('load', () => {
+    if (typeof window !== 'undefined') {
+      (window as any)._atlasMap = mapInstance;
+    }
+
+    const onStyleReady = () => {
       setMapLoaded(true);
+      if (typeof window !== 'undefined') {
+        (window as any)._atlasMapLoaded = true;
+      }
+    };
+
+    const isLoaded = typeof mapInstance.isStyleLoaded === 'function' ? mapInstance.isStyleLoaded() : false;
+    if (isLoaded || (mapInstance.style && (mapInstance.style as any)._loaded)) {
+      onStyleReady();
+    } else {
+      if (typeof mapInstance.on === 'function') {
+        mapInstance.on('styledata', onStyleReady);
+      }
+      if (typeof mapInstance.once === 'function') {
+        mapInstance.once('load', onStyleReady);
+      }
+    }
+
+    mapInstance.on('error', (e) => {
+      if (e.error && (e.error.message?.includes('tile') || e.error.message?.includes('fetch'))) {
+        setTileError('Geographic tile server notice: tile fetch failed or network offline.');
+      }
     });
 
     map.current = mapInstance;
@@ -78,215 +221,602 @@ export const AtlasMap: React.FC<AtlasMapProps> = ({
       mapInstance.remove();
       map.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch verified pilot boundary data
+  // Fetch verified administrative boundary dynamically for selectedUnit
   useEffect(() => {
-    async function loadBoundaries() {
-      const data = await fetchPilotBoundaries();
-      setPilotBoundaries(data);
+    let isMounted = true;
+    const reqSeq = ++boundaryReqSeqRef.current;
+
+    // 1. Immediately clear previous unit's boundary from map and state to prevent leakage
+    if (map.current && mapLoaded) {
+      const src = map.current.getSource('pilot-boundaries') as maplibregl.GeoJSONSource | undefined;
+      if (src && typeof src.setData === 'function') {
+        src.setData({ type: 'FeatureCollection', features: [] });
+      }
     }
-    loadBoundaries();
-  }, []);
+    setUnitBoundaries({ type: 'FeatureCollection', features: [] });
+    setBoundaryStatus('loading');
+    setResolutionState('LOADING');
+    setBoundaryError(null);
 
-  // Add / update GeoJSON layers when map and pilot boundaries are loaded
-  useEffect(() => {
-    if (!map.current || !mapLoaded || !pilotBoundaries) return;
-
-    const currentMap = map.current;
-
-    // Check if source already exists
-    if (!currentMap.getSource('pilot-boundaries')) {
-      currentMap.addSource('pilot-boundaries', {
-        type: 'geojson',
-        data: pilotBoundaries,
-      });
-
-      // 1. Fill layer with authoritative P2-3 data-driven paint expression
-      currentMap.addLayer({
-        id: 'pilot-boundary-fills',
-        type: 'fill',
-        source: 'pilot-boundaries',
-        paint: {
-          'fill-color': [
-            'match',
-            ['get', 'quality_status'],
-            'CURRENT',
-            '#22C55E',
-            'INCOMPLETE',
-            '#EAB308',
-            'STALE',
-            '#F97316',
-            'ESTIMATED',
-            '#3B82F6',
-            'UNAVAILABLE',
-            '#94A3B8',
-            '#94A3B8', // Default fallback
-          ],
-          'fill-opacity': [
-            'match',
-            ['get', 'quality_status'],
-            'CURRENT',
-            0.65,
-            'INCOMPLETE',
-            0.6,
-            'STALE',
-            0.7,
-            'ESTIMATED',
-            0.6,
-            'UNAVAILABLE',
-            0.45,
-            0.5,
-          ],
-        },
-      });
-
-      // 2. Stroke layer
-      currentMap.addLayer({
-        id: 'pilot-boundary-strokes',
-        type: 'line',
-        source: 'pilot-boundaries',
-        paint: {
-          'line-color': '#38BDF8',
-          'line-width': 2,
-          'line-opacity': 0.9,
-        },
-      });
-
-      // Hover interaction
-      currentMap.on('mousemove', 'pilot-boundary-fills', (e) => {
-        if (e.features && e.features.length > 0) {
-          const feat = e.features[0];
-          setHoveredFeature(feat.properties);
-          currentMap.getCanvas().style.cursor = 'pointer';
+    async function loadBoundaries() {
+      try {
+        let data: any = null;
+        try {
+          data = await fetchUnitBoundary(selectedUnit.id, activeIndicatorKey || undefined);
+        } catch (apiErr: any) {
+          if (apiErr.name === 'NotFoundError' || apiErr.status === 404) {
+            if (isMounted && reqSeq === boundaryReqSeqRef.current) {
+              setBoundaryStatus('not_found');
+              setResolutionState('ERROR');
+              setBoundaryError(`Geographic unit ${selectedUnit.id} not found in registry.`);
+            }
+            return;
+          }
+          if (apiErr.name === 'AuthenticationRequiredError' || apiErr.name === 'AuthenticationError' || apiErr.status === 401 || apiErr.status === 403) {
+            if (isMounted && reqSeq === boundaryReqSeqRef.current) {
+              setBoundaryStatus('auth_error');
+              setResolutionState('ERROR');
+              setBoundaryError('Authentication required to retrieve boundary vectors.');
+            }
+            return;
+          }
+          throw apiErr;
         }
-      });
 
-      currentMap.on('mouseleave', 'pilot-boundary-fills', () => {
-        setHoveredFeature(null);
-        currentMap.getCanvas().style.cursor = '';
-      });
+        // 3. Cancel/ignore obsolete asynchronous requests
+        if (!isMounted || reqSeq !== boundaryReqSeqRef.current) return;
 
-      // Feature click
-      currentMap.on('click', 'pilot-boundary-fills', (e) => {
-        if (e.features && e.features.length > 0) {
-          const props = e.features[0].properties;
-          if (props?.lgd_code === '120') {
-            onSelectUnitId('in:district:120');
-          } else if (props?.lgd_code === '890') {
-            onSelectUnitId('in:subdistrict:120:890');
+        if (data && data.features && data.features.length > 0) {
+          // Strictly reject and filter out any artificial axis-aligned bounding boxes
+          const verifiedFeatures = data.features.filter((feat: any) => !isAxisAlignedBoundingBox(feat.geometry));
+          if (verifiedFeatures.length > 0) {
+            const featProps = verifiedFeatures[0].properties || {};
+            const topLevelStatus = data.geometry_status;
+            const featStatus = featProps.geometry_status;
+
+            // 1. Unknown or absent statuses must result in an error state
+            if (!topLevelStatus && !featStatus) {
+              setUnitBoundaries({ type: 'FeatureCollection', features: [] });
+              setBoundaryStatus('error');
+              setResolutionState('ERROR');
+              setBoundaryError(`Boundary response for ${selectedUnit.id} is missing an authoritative geometry_status.`);
+              setActiveBoundaryProps(null);
+              return;
+            }
+
+            // 2. Conflicting feature-level and top-level statuses must be rejected
+            if (topLevelStatus && featStatus && topLevelStatus !== featStatus) {
+              setUnitBoundaries({ type: 'FeatureCollection', features: [] });
+              setBoundaryStatus('error');
+              setResolutionState('ERROR');
+              setBoundaryError(
+                `Conflicting geometry status for ${selectedUnit.id}: top-level reports '${topLevelStatus}' but feature reports '${featStatus}'.`
+              );
+              setActiveBoundaryProps(null);
+              return;
+            }
+
+            const resolvedStatus = (topLevelStatus || featStatus) as string;
+            const SUPPORTED_STATUSES = ['GEOMETRY_VERIFIED', 'GEOMETRY_HISTORICAL', 'GEOMETRY_SIMPLIFIED', 'GEOMETRY_UNVALIDATED'];
+
+            if (!SUPPORTED_STATUSES.includes(resolvedStatus)) {
+              setUnitBoundaries({ type: 'FeatureCollection', features: [] });
+              setBoundaryStatus('error');
+              setResolutionState('ERROR');
+              setBoundaryError(`Unsupported or unknown geometry status '${resolvedStatus}' for ${selectedUnit.id}.`);
+              setActiveBoundaryProps(null);
+              return;
+            }
+
+            const fc = { ...data, features: verifiedFeatures };
+            setUnitBoundaries(fc);
+            setActiveBoundaryProps(featProps);
+
+            if (resolvedStatus === 'GEOMETRY_HISTORICAL') {
+              setBoundaryStatus('historical');
+            } else if (resolvedStatus === 'GEOMETRY_SIMPLIFIED') {
+              setBoundaryStatus('simplified');
+            } else if (resolvedStatus === 'GEOMETRY_UNVALIDATED') {
+              setBoundaryStatus('unvalidated');
+            } else {
+              setBoundaryStatus('verified');
+            }
+            setResolutionState('RESOLVED');
+
+            if (map.current && mapLoaded) {
+              const src = map.current.getSource('pilot-boundaries') as maplibregl.GeoJSONSource | undefined;
+              if (src && typeof src.setData === 'function') {
+                src.setData(fc);
+              }
+            }
+
+            // Fit verified geometry using actual bounds
+            const bounds = computeFeatureCollectionBounds(verifiedFeatures);
+            if (bounds && map.current && typeof map.current.fitBounds === 'function' && typeof window !== 'undefined' && !(window as any).__VITEST__) {
+              map.current.fitBounds(bounds, {
+                padding: { top: 60, bottom: 60, left: 60, right: 60 },
+                maxZoom: 10.8,
+                duration: shouldReduceMotion ? 0 : 1000,
+              });
+            }
+            return;
           }
         }
-      });
-    }
-  }, [mapLoaded, pilotBoundaries, onSelectUnitId]);
 
-  // Adjust camera when Prayagraj is selected
+        // Authoritative resolution check: only mark confirmed missing if status is explicitly GEOMETRY_MISSING
+        const statusReported = data?.geometry_status || data?.properties?.geometry_status;
+        const isExplicitlyMissing =
+          statusReported === 'GEOMETRY_MISSING' || (!data?.has_geometry && statusReported === 'GEOMETRY_MISSING');
+
+        if (isExplicitlyMissing) {
+          setUnitBoundaries({ type: 'FeatureCollection', features: [] });
+          setBoundaryStatus('missing');
+          setResolutionState('RESOLVED');
+          setActiveBoundaryProps(null);
+          if (map.current && mapLoaded) {
+            const src = map.current.getSource('pilot-boundaries') as maplibregl.GeoJSONSource | undefined;
+            if (src && typeof src.setData === 'function') {
+              src.setData({ type: 'FeatureCollection', features: [] });
+            }
+          }
+        } else {
+          // Inconsistent response: 0 features returned but backend reported non-missing status
+          setUnitBoundaries({ type: 'FeatureCollection', features: [] });
+          setBoundaryStatus('error');
+          setResolutionState('ERROR');
+          setBoundaryError(
+            `Inconsistent boundary response for ${selectedUnit.id}: received 0 features with status '${statusReported || 'UNKNOWN'}' instead of GEOMETRY_MISSING.`
+          );
+          setActiveBoundaryProps(null);
+        }
+      } catch (err: any) {
+        if (isMounted && reqSeq === boundaryReqSeqRef.current) {
+          console.warn('Boundary load notice:', err.message);
+          setBoundaryStatus('error');
+          setResolutionState('ERROR');
+          setBoundaryError(err.message || 'Unable to retrieve verified boundary vectors.');
+          setUnitBoundaries({ type: 'FeatureCollection', features: [] });
+        }
+      }
+    }
+
+    loadBoundaries();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedUnit.id, selectedUnit.geometry_status, activeIndicatorKey, mapLoaded, currentUser, shouldReduceMotion]);
+
+  // Register verified boundary vector layers on map
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
-    if (selectedUnit.id === 'in:district:120') {
-      map.current.flyTo({
-        center: [81.8463, 25.4358],
-        zoom: 9.2,
-        duration: shouldReduceMotion ? 0 : 1200,
-      });
-    }
-  }, [selectedUnit.id, mapLoaded, shouldReduceMotion]);
 
-  const isGeometryMissing = selectedUnit.geometry_status === 'GEOMETRY_MISSING';
+    const currentMap = map.current;
+    const boundaryData = unitBoundaries || { type: 'FeatureCollection', features: [] };
+
+    // Remove existing boundary layer if already present to update cleanly
+    if (currentMap.getSource('pilot-boundaries')) {
+      const source = currentMap.getSource('pilot-boundaries') as maplibregl.GeoJSONSource;
+      source.setData(boundaryData);
+      return;
+    }
+
+    currentMap.addSource('pilot-boundaries', {
+      type: 'geojson',
+      data: boundaryData,
+    });
+
+    // Register verified PMTiles vector source and layers (P2-4 genuine vector tile integration)
+    if (!currentMap.getSource('pilot-pmtiles-source')) {
+      try {
+        currentMap.addSource('pilot-pmtiles-source', {
+          type: 'vector',
+          url: `pmtiles://${API_BASE_URL}/geo/pilot-pmtiles`,
+        });
+
+        currentMap.addLayer({
+          id: 'pmtiles-boundary-fills',
+          type: 'fill',
+          source: 'pilot-pmtiles-source',
+          'source-layer': 'admin_boundaries',
+          layout: {
+            visibility: 'none',
+          },
+          paint: {
+            'fill-color': '#203D32',
+            'fill-opacity': 0.15,
+          },
+        });
+
+        currentMap.addLayer({
+          id: 'pmtiles-boundary-strokes',
+          type: 'line',
+          source: 'pilot-pmtiles-source',
+          'source-layer': 'admin_boundaries',
+          layout: {
+            visibility: 'none',
+          },
+          paint: {
+            'line-color': '#203D32',
+            'line-width': 2.0,
+            'line-opacity': 0.9,
+          },
+        });
+      } catch (pmtilesErr) {
+        console.warn('PMTiles vector source setup notice:', pmtilesErr);
+      }
+    }
+
+    // 1. Verified boundary fill layer (rendered over basemap with editorial transparency)
+    currentMap.addLayer({
+      id: 'pilot-boundary-fills',
+      type: 'fill',
+      source: 'pilot-boundaries',
+      paint: {
+        'fill-color': [
+          'match',
+          ['get', 'quality_status'],
+          'CURRENT',
+          '#203D32',
+          'INCOMPLETE',
+          '#B49A65',
+          'STALE',
+          '#B76E4D',
+          'ESTIMATED',
+          '#455A64',
+          'CONTRADICTED',
+          '#DC2626',
+          'UNAVAILABLE',
+          '#A9B5A2',
+          '#203D32',
+        ],
+        'fill-opacity': 0.22,
+      },
+    });
+
+    // 2. Verified boundary stroke outline (crisp editorial boundary)
+    currentMap.addLayer({
+      id: 'pilot-boundary-strokes',
+      type: 'line',
+      source: 'pilot-boundaries',
+      paint: {
+        'line-color': '#203D32', // Deep editorial forest boundary
+        'line-width': 2.5,
+        'line-opacity': 0.95,
+      },
+    });
+
+    // Interactivity: Cursor & Tooltip
+    currentMap.on('mousemove', 'pilot-boundary-fills', (e) => {
+      if (e.features && e.features.length > 0) {
+        const feat = e.features[0];
+        setHoveredFeature(feat.properties);
+        currentMap.getCanvas().style.cursor = 'pointer';
+      }
+    });
+
+    currentMap.on('mouseleave', 'pilot-boundary-fills', () => {
+      setHoveredFeature(null);
+      currentMap.getCanvas().style.cursor = '';
+    });
+
+    // Map-click handler: Selects clicked boundary unit ID or LGD code (never hardcoded to 120)
+    currentMap.on('click', 'pilot-boundary-fills', (e) => {
+      if (e.features && e.features.length > 0) {
+        const props = e.features[0].properties;
+        audioEngine.playClick(950);
+        if (props?.geo_id) {
+          onSelectUnitId(props.geo_id);
+        } else if (props?.id) {
+          onSelectUnitId(props.id);
+        } else if (props?.lgd_code) {
+          onSelectUnitId(`in:district:${props.lgd_code}`);
+        }
+      }
+    });
+  }, [mapLoaded, unitBoundaries, onSelectUnitId]);
+
+  // Synchronize boundary layers with selected unit geometry status and active quality filter
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+    const currentMap = map.current;
+
+    const layersToUpdate = [
+      'pilot-boundary-fills',
+      'pilot-boundary-strokes',
+      'pmtiles-boundary-fills',
+      'pmtiles-boundary-strokes',
+    ];
+
+    const hasVerifiedGeometry =
+      (selectedUnit.geometry_status === 'GEOMETRY_VERIFIED' || boundaryStatus === 'verified') &&
+      boundaryStatus !== 'missing' &&
+      boundaryStatus !== 'not_found';
+    const targetLgdCode = selectedUnit.lgd_code;
+
+    layersToUpdate.forEach((layerId) => {
+      if (!currentMap.getLayer(layerId)) return;
+
+      if (!hasVerifiedGeometry) {
+        // District has no verified geometry: strictly filter out all boundary polygons
+        currentMap.setFilter(layerId, ['==', ['get', 'lgd_code'], '__NONE__']);
+        return;
+      }
+
+      // District has verified geometry: match target lgd_code
+      if (layerId === 'pilot-boundary-fills' && activeQualityFilter !== 'ALL') {
+        currentMap.setFilter(layerId, [
+          'all',
+          ['==', ['get', 'lgd_code'], targetLgdCode],
+          ['==', ['get', 'quality_status'], activeQualityFilter],
+        ]);
+        currentMap.setPaintProperty(layerId, 'fill-opacity', 0.45);
+      } else {
+        currentMap.setFilter(layerId, ['==', ['get', 'lgd_code'], targetLgdCode]);
+        if (layerId === 'pilot-boundary-fills') {
+          currentMap.setPaintProperty(layerId, 'fill-opacity', activeIndicatorKey ? 0.32 : 0.15);
+        }
+      }
+
+      // FIX 3: Do not show a quality choropleth when no indicator is selected
+      if (layerId === 'pilot-boundary-fills') {
+        if (!activeIndicatorKey) {
+          currentMap.setPaintProperty(layerId, 'fill-color', '#203D32');
+        } else {
+          currentMap.setPaintProperty(layerId, 'fill-color', [
+            'match',
+            ['get', 'quality_status'],
+            'CURRENT', '#203D32',
+            'INCOMPLETE', '#B49A65',
+            'STALE', '#B76E4D',
+            'ESTIMATED', '#455A64',
+            'CONTRADICTED', '#DC2626',
+            'UNAVAILABLE', '#A9B5A2',
+            '#203D32',
+          ]);
+        }
+      }
+    });
+  }, [selectedUnit.id, selectedUnit.lgd_code, selectedUnit.geometry_status, boundaryStatus, activeQualityFilter, activeIndicatorKey, mapLoaded]);
+
+  // Control PMTiles pilot vector overlay visibility
+  // Must only be visible when the selected unit's authoritative API response confirms verified geometry
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+    const currentMap = map.current;
+    const isPmtilesActive = boundaryStatus === 'verified' && selectedUnit.id === 'in:district:120';
+    const visibility = isPmtilesActive ? 'visible' : 'none';
+
+    try {
+      if (currentMap.getLayer('pmtiles-boundary-fills')) {
+        currentMap.setLayoutProperty('pmtiles-boundary-fills', 'visibility', visibility);
+      }
+      if (currentMap.getLayer('pmtiles-boundary-strokes')) {
+        currentMap.setLayoutProperty('pmtiles-boundary-strokes', 'visibility', visibility);
+      }
+    } catch {
+      // Ignore in mock/non-WebGL environments
+    }
+  }, [boundaryStatus, selectedUnit.id, mapLoaded]);
+
+  // Camera fitBounds / flyTo on geographic unit selection
+  // Uses genuine selected-unit geometry bounds; retains sensible viewport when geometry is unavailable
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+    const currentMap = map.current;
+
+    const coords = getUnitCoordinates(selectedUnit.id);
+    if (coords.lat !== null && coords.lon !== null) {
+      if (typeof currentMap.flyTo === 'function') {
+        currentMap.flyTo({
+          center: [coords.lon, coords.lat],
+          zoom: boundaryStatus === 'verified' || selectedUnit.geometry_status === 'GEOMETRY_VERIFIED' ? 9.2 : 9.8,
+          duration: shouldReduceMotion ? 0 : 1000,
+        });
+      }
+
+      // If unit has boundary features, fit using actual computed geometry bounds (not hardcoded rectangle)
+      if (unitBoundaries && unitBoundaries.features && unitBoundaries.features.length > 0) {
+        const bounds = computeFeatureCollectionBounds(unitBoundaries.features);
+        if (bounds && typeof currentMap.fitBounds === 'function' && typeof window !== 'undefined' && !(window as any).__VITEST__) {
+          currentMap.fitBounds(bounds, {
+            padding: { top: 60, bottom: 60, left: 60, right: 60 },
+            maxZoom: 10.8,
+            duration: shouldReduceMotion ? 0 : 1000,
+          });
+        }
+      }
+    }
+  }, [selectedUnit.id, selectedUnit.geometry_status, boundaryStatus, unitBoundaries, mapLoaded, shouldReduceMotion]);
+
+  // Reset view to Prayagraj pilot
+  const handleResetPilotFocus = useCallback(() => {
+    audioEngine.playClick(900);
+    onSelectUnitId('in:district:120');
+  }, [onSelectUnitId]);
+
+  // Only show confirmed missing geometry after successful authoritative resolution
+  const isConfirmedGeometryMissing =
+    resolutionState === 'RESOLVED' &&
+    boundaryStatus === 'missing' &&
+    selectedUnit.geometry_status !== 'GEOMETRY_VERIFIED';
+
+  const unitCoords = getUnitCoordinates(selectedUnit.id);
 
   return (
-    <div className="relative h-[500px] w-full overflow-hidden rounded-xl border border-surface-border bg-surface-card shadow-2xl">
-      {/* MapLibre DOM Target */}
-      <div ref={mapContainer} className="h-full w-full" />
+    <div
+      className={`relative w-full overflow-hidden rounded border border-editorial-brass/40 bg-editorial-ivory shadow-editorial transition-all duration-500 ${
+        isExpanded ? 'h-[750px]' : 'h-[520px]'
+      }`}
+    >
+      {/* Tactical HUD Corner Reticles */}
+      <div className="pointer-events-none absolute inset-2.5 z-10">
+        <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-editorial-brass/60" />
+        <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-editorial-brass/60" />
+        <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-editorial-brass/60" />
+        <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-editorial-brass/60" />
+      </div>
 
-      {/* Floating Map Legend & Control Overlay */}
-      <div className="absolute left-4 top-4 z-10 flex items-center space-x-2 rounded-lg border border-surface-border bg-surface-base/90 p-2 shadow-lg backdrop-blur-md">
-        <Layers className="h-4 w-4 text-brand-sky" />
-        <span className="font-mono text-xs font-bold text-white">
-          Vector Overlay: {selectedUnit.name}
-        </span>
+      {/* MapLibre DOM Target (Hosts real geographic raster basemap) */}
+      <div ref={mapContainer} className="h-full w-full relative z-1" />
+
+      {/* Floating Tactical Masthead Badge */}
+      <div className="absolute left-4 top-4 z-10 flex flex-wrap items-center gap-2 rounded border border-editorial-brass/40 bg-editorial-paper/95 p-2 shadow-editorial backdrop-blur-md">
+        <div className="flex items-center space-x-2">
+          <Crosshair className="h-4 w-4 text-editorial-copper" />
+          <span className="font-mono text-xs font-bold text-editorial-forest tracking-wide">
+            Vector Overlay: {selectedUnit.name}
+          </span>
+        </div>
+
         <span
-          className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold ${
+          className={`rounded px-2 py-0.5 font-mono text-[10px] font-semibold tracking-wider ${
             selectedUnit.geometry_status === 'GEOMETRY_VERIFIED'
-              ? 'bg-brand-emerald/10 text-brand-emerald border border-brand-emerald/20'
-              : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+              ? 'bg-editorial-forest/15 text-editorial-forest border border-editorial-forest/30'
+              : selectedUnit.geometry_status === 'GEOMETRY_HISTORICAL'
+              ? 'bg-amber-600/15 text-amber-800 border border-amber-600/30'
+              : selectedUnit.geometry_status === 'GEOMETRY_SIMPLIFIED'
+              ? 'bg-blue-600/15 text-blue-800 border border-blue-600/30'
+              : 'bg-editorial-copper/15 text-editorial-copper border border-editorial-copper/30'
           }`}
         >
-          {selectedUnit.geometry_status}
+          GEOM: {selectedUnit.geometry_status}
+        </span>
+
+        {resolutionState === 'LOADING' && (
+          <span
+            data-testid="boundary-resolution-badge"
+            className="rounded px-2 py-0.5 font-mono text-[10px] font-semibold tracking-wider bg-editorial-brass/20 text-editorial-forest border border-editorial-brass/40"
+          >
+            RESOLVING...
+          </span>
+        )}
+
+        {/* Visibly label coordinate semantics */}
+        <span className="hidden sm:inline-block text-[10px] font-mono text-editorial-charcoal-light border-l border-editorial-brass/30 pl-2">
+          {unitCoords.formatted} • {unitCoords.semantics === 'GEOMETRY_DERIVED_CENTROID' ? 'Polygon Centroid' : unitCoords.semantics === 'APPROXIMATE_ORIENTATION' ? 'Approx. Orientation Point (Not Boundary)' : unitCoords.semantics}
         </span>
       </div>
 
-      {/* Elegant Unavailable-Geometry State Card (No arbitrary or radar coordinates) */}
-      {isGeometryMissing && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/75 p-6 text-center backdrop-blur-sm">
-          <motion.div
-            initial={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: 12, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.3 }}
-            className="max-w-lg rounded-2xl border border-amber-500/30 bg-surface-card/95 p-6 shadow-2xl backdrop-blur-md"
-          >
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-400 mb-4">
-              <MapPinOff className="h-6 w-6" />
-            </div>
+      {/* Map Control Tools (Expand / Collapse) */}
+      <div className="absolute right-14 top-4 z-10 flex items-center space-x-1.5">
+        <button
+          type="button"
+          onClick={() => {
+            audioEngine.playClick(1050);
+            setIsExpanded(!isExpanded);
+          }}
+          title={isExpanded ? 'Collapse Map' : 'Expand Map'}
+          className="p-2 rounded border border-editorial-brass/40 bg-editorial-paper hover:bg-editorial-ivory text-editorial-charcoal transition-colors backdrop-blur-md shadow-sm cursor-pointer"
+        >
+          {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+        </button>
+      </div>
 
-            <span className="inline-flex items-center space-x-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-2">
-              <ShieldAlert className="h-3 w-3" />
-              <span>Boundary Geometry Unavailable</span>
-            </span>
-
-            <h3 className="font-mono text-base font-bold text-white">
-              Administrative Polygons Source-Gated
-            </h3>
-
-            <p className="mt-2 text-xs leading-relaxed text-slate-300">
-              <strong className="text-white">{selectedUnit.name}</strong> (LGD Code {selectedUnit.lgd_code}) is registered in the verified LGD hierarchy, but official 2026 administrative boundary vectors are source-gated by the Survey of India / Ministry of Panchayati Raj.
-            </p>
-
-            <p className="mt-2 text-[11px] leading-relaxed text-slate-400 border-l-2 border-amber-500/40 pl-3 text-left">
-              In strict adherence to ArthLens epistemic standards, spatial coordinates and polygons are never fabricated or approximated. Tabular economic metrics and ledger provenance remain 100% verifiable below.
-            </p>
-
-            <div className="mt-5 flex items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => onSelectUnitId('in:district:120')}
-                className="inline-flex items-center space-x-2 rounded-lg border border-brand-sky/40 bg-brand-sky/15 px-3.5 py-2 font-mono text-xs font-semibold text-brand-sky hover:bg-brand-sky/25 hover:border-brand-sky transition-all"
-              >
-                <span>Focus Pilot Boundary (Prayagraj LGD 120)</span>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </motion.div>
+      {/* Tile Error / Provider Warning Notice */}
+      {tileError && (
+        <div className="absolute top-16 left-4 z-10 flex items-center space-x-2 rounded border border-editorial-copper/50 bg-editorial-paper/95 px-3 py-1 text-[11px] font-mono text-editorial-copper shadow-sm backdrop-blur-md">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span>{tileError}</span>
         </div>
       )}
 
-      {/* Hover Tooltip Card */}
+      {/* Historical Boundary Vintage Indicator */}
+      {boundaryStatus === 'historical' && (
+        <div
+          data-testid="historical-geometry-indicator"
+          className="pointer-events-auto absolute bottom-8 left-4 z-10 flex items-center space-x-2.5 rounded border border-amber-600/40 bg-editorial-paper/95 px-3 py-1.5 text-xs font-mono text-editorial-charcoal shadow-editorial backdrop-blur-md"
+        >
+          <div className="flex h-5 w-5 items-center justify-center rounded bg-amber-600/15 text-amber-700 shrink-0">
+            <Info className="h-3.5 w-3.5" />
+          </div>
+          <div className="flex items-center space-x-1.5">
+            <span className="font-semibold text-editorial-forest">{selectedUnit.name}</span>
+            <span className="text-amber-700 font-medium">(LGD {selectedUnit.lgd_code}): Historical boundary vintage</span>
+          </div>
+        </div>
+      )}
+
+      {/* Simplified Boundary Indicator */}
+      {boundaryStatus === 'simplified' && (
+        <div
+          data-testid="simplified-geometry-indicator"
+          className="pointer-events-auto absolute bottom-8 left-4 z-10 flex items-center space-x-2.5 rounded border border-blue-600/40 bg-editorial-paper/95 px-3 py-1.5 text-xs font-mono text-editorial-charcoal shadow-editorial backdrop-blur-md"
+        >
+          <div className="flex h-5 w-5 items-center justify-center rounded bg-blue-600/15 text-blue-700 shrink-0">
+            <Info className="h-3.5 w-3.5" />
+          </div>
+          <div className="flex items-center space-x-1.5">
+            <span className="font-semibold text-editorial-forest">{selectedUnit.name}</span>
+            <span className="text-blue-700 font-medium">(LGD {selectedUnit.lgd_code}): Simplified geometry representation</span>
+          </div>
+        </div>
+      )}
+
+      {/* Boundary Load / Access Error Indicator */}
+      {resolutionState === 'ERROR' && boundaryError && (
+        <div
+          data-testid="boundary-error-indicator"
+          className="pointer-events-auto absolute bottom-8 left-4 z-10 flex items-center space-x-2.5 rounded border border-editorial-copper/50 bg-editorial-paper/95 px-3 py-1.5 text-xs font-mono text-editorial-copper shadow-editorial backdrop-blur-md"
+        >
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span>{boundaryError}</span>
+        </div>
+      )}
+
+      {/* Compact Unobtrusive Status Indicator: ONLY shown when resolutionState === RESOLVED and confirmed missing */}
+      {isConfirmedGeometryMissing && (
+        <div
+          data-testid="missing-geometry-indicator"
+          className="pointer-events-auto absolute bottom-8 left-4 z-10 flex items-center space-x-2.5 rounded border border-editorial-brass/50 bg-editorial-paper/95 px-3 py-1.5 text-xs font-mono text-editorial-charcoal shadow-editorial backdrop-blur-md"
+        >
+          <div className="flex h-5 w-5 items-center justify-center rounded bg-editorial-copper/15 text-editorial-copper shrink-0">
+            <MapPinOff className="h-3.5 w-3.5" />
+          </div>
+          <div className="flex items-center space-x-1.5">
+            <span className="font-semibold text-editorial-forest">{selectedUnit.name}</span>
+            <span className="text-editorial-copper font-medium">(LGD {selectedUnit.lgd_code}): Boundary unmapped</span>
+          </div>
+          <span className="text-editorial-brass/60">•</span>
+          <button
+            type="button"
+            onClick={() => onOpenProvenance?.(`missing-geom:${selectedUnit.id}`)}
+            className="text-editorial-copper hover:text-editorial-copper-dark underline font-bold transition-colors cursor-pointer"
+          >
+            Provenance Details
+          </button>
+        </div>
+      )}
+
+      {/* Hover Tooltip Card for Boundary Features */}
       {hoveredFeature && (
-        <div className="pointer-events-none absolute bottom-10 left-4 z-20 rounded-lg border border-surface-border bg-surface-card/95 p-3 shadow-xl backdrop-blur-md text-xs space-y-1">
+        <div className="pointer-events-none absolute bottom-12 left-4 z-20 rounded border border-editorial-brass/40 bg-editorial-paper p-3 shadow-editorial-lg text-xs space-y-1">
           <div className="flex items-center justify-between space-x-4">
-            <span className="font-bold text-white">
-              {hoveredFeature.DISTRICT || hoveredFeature.SUBDISTRICT}
+            <span className="font-bold text-editorial-forest font-serif">
+              {hoveredFeature.DISTRICT || hoveredFeature.name}
             </span>
-            <span className="font-mono text-[10px] text-slate-400">
+            <span className="font-mono text-[10px] text-editorial-brass">
               LGD: {hoveredFeature.lgd_code}
             </span>
           </div>
-          <div className="flex items-center space-x-2 text-[11px] text-slate-300">
-            <span>State: {hoveredFeature.ST_NM}</span>
+          <div className="flex items-center space-x-2 text-[11px] text-editorial-charcoal">
+            <span>State: {hoveredFeature.ST_NM || 'Uttar Pradesh'}</span>
             <span>•</span>
-            <span>Status: <strong className="text-brand-sky">{hoveredFeature.quality_status || 'VERIFIED'}</strong></span>
+            <span>Status: <strong className="text-editorial-forest font-mono">{hoveredFeature.geometry_status || 'UNKNOWN'}</strong></span>
           </div>
         </div>
       )}
 
-      {/* External Map Provider Attribution & Boundary Disclaimer Badge */}
-      <div className="pointer-events-none absolute bottom-2 left-3 right-3 z-10 flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-500 font-mono">
-        <span className="rounded bg-slate-950/80 px-2 py-0.5 border border-slate-800/80 backdrop-blur-sm">
-          CARTO basemap for spatial orientation only. External administrative lines do not constitute verified ArthLens boundaries.
+      {/* Authoritative Basemap Attribution & Disclaimer Bar */}
+      <div className="pointer-events-none absolute bottom-2 left-3 right-3 z-10 flex flex-wrap items-center justify-between gap-2 text-[10px] text-editorial-charcoal-light font-mono">
+        <span className="rounded bg-editorial-paper/90 px-2 py-0.5 border border-editorial-brass/30 backdrop-blur-sm">
+          Geographic basemap: OpenStreetMap roads, settlements & hydrology. External boundary lines do not constitute verified ArthLens boundaries.
         </span>
-        <span className="rounded bg-slate-950/80 px-2 py-0.5 border border-slate-800/80 backdrop-blur-sm pointer-events-auto">
-          © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="underline hover:text-slate-300">OpenStreetMap</a> contributors, © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer" className="underline hover:text-slate-300">CARTO</a>
+        <span className="rounded bg-editorial-paper/90 px-2 py-0.5 border border-editorial-brass/30 backdrop-blur-sm pointer-events-auto">
+          © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="underline hover:text-editorial-forest">OpenStreetMap</a> contributors
         </span>
       </div>
     </div>

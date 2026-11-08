@@ -21,6 +21,9 @@ Acceptance Criteria:
 8. Pilot district regression is preserved.
 """
 
+import json
+from pathlib import Path
+
 import pytest
 from sqlalchemy import text
 
@@ -98,10 +101,16 @@ class TestSecondDistrictAcceptance:
         # 1. Prayagraj Pilot District Configuration (LGD: 120, Census: 175)
         # In the pure geographic hierarchy baseline, analytical_status is ANALYSIS_UNAVAILABLE
         # until the economic dataset ingestion pipeline populates the epistemic ledger (Handbook 7.4).
-        prayagraj_geom = {
-            "type": "Polygon",
-            "coordinates": [[[81.52, 24.78], [82.35, 24.78], [82.35, 25.79], [81.52, 25.79], [81.52, 24.78]]],
-        }
+        fixture_path = Path(__file__).resolve().parents[2] / "fixtures" / "boundaries" / "prayagraj_boundaries_sample.geojson"
+        if fixture_path.exists():
+            with open(fixture_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                prayagraj_geom = data["features"][0]["geometry"]
+        else:
+            prayagraj_geom = {
+                "type": "Polygon",
+                "coordinates": [[[81.52, 24.78], [82.10, 24.95], [82.35, 25.40], [82.15, 25.79], [81.52, 24.78]]],
+            }
         prayagraj_config = DistrictConfig(
             name="Prayagraj",
             state_code="09",

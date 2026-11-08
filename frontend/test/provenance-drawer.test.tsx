@@ -87,7 +87,7 @@ describe('ProvenanceDrawer Component', () => {
 
     // 2. Kind & floor
     expect(screen.getAllByText('ESTIMATED').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText(/Floor 2/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Floor 2/i).length).toBeGreaterThanOrEqual(1);
 
     // 3. Method & Assumptions
     expect(screen.getByText('downscaling.gravity_v1')).toBeInTheDocument();
@@ -146,5 +146,30 @@ describe('ProvenanceDrawer Component', () => {
     const graphBtn = screen.getByRole('button', { name: /Explore in Evidence Graph/i });
     fireEvent.click(graphBtn);
     expect(handleViewInGraph).toHaveBeenCalledWith('q-demand-120-2026');
+  });
+
+  it('renders strictly floors 1-4 on monotonicity ladder and never displays Level 0 / Floor 0', () => {
+    render(
+      <ProvenanceDrawer
+        isOpen={true}
+        onClose={vi.fn()}
+        quantity={sampleQuantity}
+        isLoading={false}
+      />
+    );
+
+    // Monotonicity ladder header
+    expect(screen.getByText(/Floor Monotonicity Ladder \(Floors 1–4\)/i)).toBeInTheDocument();
+
+    // Valid floors 1-4 must exist
+    expect(screen.getAllByText('Floor 4').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Floor 3').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Floor 2').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Floor 1').length).toBeGreaterThan(0);
+
+    // Floor 0 / Level 0 must strictly NOT exist
+    expect(screen.queryByText(/Floor 0/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Level 0/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/UNAVAILABLE is a QualityStatus token/i)).toBeInTheDocument();
   });
 });

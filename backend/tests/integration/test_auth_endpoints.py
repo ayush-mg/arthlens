@@ -99,8 +99,9 @@ class TestAuthEndpoints:
         token = login_res.cookies[cookie_name]
 
         # 2. Access protected endpoint -> succeeds
-        res_auth = client.get("/geo/IND.MH.PU/indicators", cookies={cookie_name: token})
+        res_auth = client.get("/auth/me", cookies={cookie_name: token})
         assert res_auth.status_code == 200
+        assert res_auth.json()["email"] == seeded_user["email"]
 
         # 3. Logout
         logout_res = client.post("/auth/logout", cookies={cookie_name: token})
@@ -112,6 +113,6 @@ class TestAuthEndpoints:
         assert "max-age=0" in set_cookie.lower() or "expires=" in set_cookie.lower()
 
         # 4. Attempt to reuse previous token -> rejected (401 Token revoked)
-        res_reused = client.get("/geo/IND.MH.PU/indicators", cookies={cookie_name: token})
+        res_reused = client.get("/auth/me", cookies={cookie_name: token})
         assert res_reused.status_code == 401
         assert "revoked" in res_reused.json()["detail"].lower()

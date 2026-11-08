@@ -163,6 +163,7 @@
      - **Implementation Status Notice**: In Phase 2 Task P2-1, only backend data ingestion (`OpenStreetMapAdapter`) is implemented. Downstream POI metric computation (Phase 3) and UI presentation components (Phase 4) remain unimplemented; this display requirement is a documented binding contract for those subsequent phases.
 2. **Topological Disconnections**:
    - Unconnected dead-end ways in rural areas can cause Dijkstra pathfinding to return infinite distance. The graph ingestion pipeline must extract the largest strongly connected component (SCC).
+   - **P3-1 implementation note**: The complete directed snapshot is retained with exact source-record provenance for replay. Site-local catchment analysis selects a deterministic largest SCC before Dijkstra, excluding disconnected dead ends from the routing calculation without discarding the underlying OSM records.
 
 ---
 

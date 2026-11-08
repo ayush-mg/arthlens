@@ -6,9 +6,11 @@ Licence: Government Open Data License - India (GODL-India).
 Phase: Phase 2 (Real-Data Foundation and Atlas).
 """
 
+from datetime import date
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
+import urllib.request
 import uuid
 
 from backend.arthlens.data.adapters.base import SourceAdapter
@@ -35,8 +37,8 @@ class SchemeGuidelinesAdapter(SourceAdapter):
     official_url = "https://pmfme.mofpi.gov.in"
     license_name = "Government Open Data License - India (GODL)"
     attribution = "Source: Ministry of Food Processing Industries (MoFPI), Ministry of Micro, Small & Medium Enterprises (MoMSME), and Department of Financial Services (DFS), Ministry of Finance, Government of India."
-    max_age_days = 730
-    as_of_default = "2024-10-24"
+    max_age_days = None  # Statutory policy rules do not have an invented expiration shelf-life unless gazetted
+    as_of_default = None  # Never apply a blanket fallback date; preserve explicit document dates
 
     def read_local(self, path: Union[Path, str]) -> Dict[str, Any]:
         """Read scheme parameter JSON fixture from disk."""
@@ -45,8 +47,26 @@ class SchemeGuidelinesAdapter(SourceAdapter):
             return json.load(f)
 
     def fetch_live(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Scheme guidelines are sourced from verified hashed PDF documents."""
-        raise NotImplementedError("Scheme parameters are compiled from verified hashed PDF gazettes and notifications.")
+        """
+        Fetch statutory scheme parameters from a remote notification/gazette JSON release over HTTP.
+        params:
+            url (str, optional): Remote URL to scheme guidelines parameter matrix.
+            timeout (int, optional): Request timeout in seconds (default 20).
+        """
+        url = params.get("url")
+        if not url:
+            raise ValueError(
+                "Statutory scheme guidelines are gazetted in official PDF documents. "
+                "Specify 'url' in params to retrieve a remote parameter matrix or verified PDF, "
+                "or use ingest_fixture()."
+            )
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "ArthLens/1.0 (Scheme Parameters Pipeline)"},
+        )
+        timeout = params.get("timeout", 20)
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
 
     def validate_schema(self, raw_content: Any) -> Tuple[bool, List[str]]:
         """Validate parameter schema and structural types."""
@@ -104,7 +124,12 @@ class SchemeGuidelinesAdapter(SourceAdapter):
 
         norm = {def_key: val}
         units = {def_key: unit}
-        as_of = p.get("as_of", self.as_of_default)
+
+        # Preserve publication dates, effective dates, and retrieval dates separately
+        pub_date = p.get("publication_date")
+        eff_date = p.get("effective_from") or p.get("effective_date")
+        ret_date = p.get("retrieval_date")
+        as_of = p.get("as_of") or eff_date or pub_date or None
 
         return NormalizedRecord(
             record_id=record.record_id,
@@ -118,6 +143,9 @@ class SchemeGuidelinesAdapter(SourceAdapter):
                 "page": p.get("page"),
                 "clause": p.get("clause"),
                 "mechanism": p.get("mechanism"),
+                "publication_date": pub_date,
+                "effective_date": eff_date,
+                "retrieval_date": ret_date,
             },
         )
 
@@ -135,14 +163,18 @@ class SchemeGuidelinesAdapter(SourceAdapter):
         record: NormalizedRecord,
         recon: GeographicReconciliation,
         quality: QualityAssessment,
+        version_id: Optional[str] = None,
+        retrieval_date: Optional[str] = None,
     ) -> List[Quantity]:
         """
         Extract immutable Quantity domain models.
         Scheme parameters are Kind.POLICY_RULE with evidence_floor=4.
         """
         quantities: List[Quantity] = []
-        as_of = record.as_of or self.as_of_default
+        as_of = str(record.as_of) if record.as_of else ""
         p = record.raw_record.payload
+        v_id = version_id or f"{self.source_id}:snapshot"
+        ret_date = retrieval_date or p.get("retrieval_date") or date.today().isoformat()
 
         for def_key, val in record.normalized_fields.items():
             unit = record.canonical_units.get(def_key, "dimensionless")
@@ -160,7 +192,7 @@ class SchemeGuidelinesAdapter(SourceAdapter):
                 resolution=int(ResolutionTier.NATION),
                 as_of=as_of,
                 uncertainty="EXACT",
-                source_refs=((self.source_id, doc_ref, as_of),),
+                source_refs=((v_id, doc_ref, ret_date),),
                 quality_flags=frozenset(),
                 license_meta=self.license_name,
             )

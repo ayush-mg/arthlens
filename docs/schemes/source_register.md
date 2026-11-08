@@ -1,17 +1,31 @@
-# ArthLens Official Government Scheme Source Register
+# ArthLens Government Scheme Candidate Source Register
 
 > **Task Reference**: Task P0-2 (Handbook Part 7, 13.1)
 > **Retrieval & Inspection Date**: 2026-10-20
-> **Status**: VERIFIED OFFICIAL SOURCES DOWNLOADED & HASHED
+> **Status**: SOURCE FILES AND HASHES DOCUMENTED; HUMAN PARAMETER / EFFECTIVE-DATE APPROVAL PENDING (P0-2 BLOCKED)
 > **Storage Directory**: [`docs/schemes/source_files/`](source_files/)
 
 ---
 
 ## 1. Overview & Verification Policy
 
-In accordance with ArthLens Build Handbook Section 0.2, 7.2, and 13.1, all scheme eligibility rules, financial mechanisms, subsidy percentages, contribution requirements, and loan ceilings are derived exclusively from primary government gazettes, ministry notifications, and official operational guideline documents. No numbers have been copied from secondary blogs, aggregator summaries, or handbook illustrative placeholders.
+This working register records candidate scheme documents and their attributed
+issuers for P0-2 review. It does not certify the authority, currentness, or
+completeness of those documents. Extracted scheme values must be checked against
+current primary records before use. No numbers should be copied from secondary
+blogs, aggregator summaries, or handbook illustrative placeholders.
 
-Every source document listed below has been retrieved directly from official government domains, stored locally in [`docs/schemes/source_files/`](source_files/), and cryptographically hashed using SHA-256.
+The source URLs, local files, and hashes are recorded below. Publisher/domain
+authority and current official provenance must still be confirmed by a human,
+especially for documents hosted by an implementing agency, press-information
+portal, or other non-ministry host.
+
+The local hashes can be mechanically checked against this register. That check
+does not validate the current legal status, source authority, supersession,
+parameter interpretation, or financial mechanism. The separate parameter
+register currently reports 42 `SOURCE_SUPPORTED` extractions and 0
+`INDEPENDENTLY_VERIFIED` entries. No scheme-specific rules are approved for
+production use until a qualified human completes and records that review.
 
 ---
 
@@ -29,8 +43,8 @@ Every source document listed below has been retrieved directly from official gov
 | **File Size** | 2,489,589 bytes (2.49 MB) | 344,630 bytes (344 KB) | 280,347 bytes (280 KB) | 283,329 bytes (283 KB) |
 | **Page Count** | 33 pages | 9 pages | 5 pages | 1 page |
 | **SHA-256 Hash** | `632c359d08289866abb104c642b0efb1bf9e007baf06b651a13fd0de47f90ce8` | `46495e2b2772997a59557bb4e1d96d791f1060a23674c4f2f569483218212d24` | `7145c0e400c6aefef245a34b78d51e72fe11e570067753c53568496dba33bbd9` | `803697eb0e4bbc3ec9533fd10bd6e6f9878222d8defa05f3d9c049f3f10df0a2` |
-| **Effective Period** | 2020-21 to 2024-25, extended through 31.03.2027 | July 2021 operational framework | May 2022 revision onwards | May 2022 revision onwards |
-| **Current / Applicable** | **YES — CURRENT** | **YES — CURRENT** | **YES — CURRENT** | **YES — CURRENT** |
+| **Effective Period** | Document states 2020-21 to 2024-25, with extension through 31.03.2027; current extension/status not independently revalidated | July 2021 operational framework; current applicability not independently revalidated | May 2022 revision; current applicability not independently revalidated | May 2022 revision; current applicability not independently revalidated |
+| **Current / Applicable** | **NOT REVALIDATED at 2026-11-07** | **NOT REVALIDATED at 2026-11-07** | **NOT REVALIDATED at 2026-11-07** | **NOT REVALIDATED at 2026-11-07** |
 
 ---
 
@@ -47,8 +61,8 @@ Every source document listed below has been retrieved directly from official gov
 | **File Size** | 6,467,377 bytes (6.47 MB) | 246,945 bytes (246 KB) |
 | **Page Count** | 29 pages | 24 pages |
 | **SHA-256 Hash** | `90e9d90f6c61ee8c81dc6125a24cc3389e391987cd404c0d81f085a96e9d21fb` | `7645217492064a2e0805828cef63a47ef811a25cc86da46b52132c529f9a56bd` |
-| **Effective Period** | 15th Finance Commission Cycle (FY 2021-22 to FY 2025-26) | Historical baseline and procedural framework |
-| **Current / Applicable** | **YES — CURRENT (Authoritative master for P0-2)** | **REFERENCE (Superceded limits by 2.1)** |
+| **Effective Period** | 15th Finance Commission Cycle (FY 2021-22 to FY 2025-26); continuation/applicability after FY 2025-26 must be confirmed from a current official order | Historical baseline and procedural framework |
+| **Current / Applicable** | **NOT VERIFIED FOR FY 2026-27; continuation must be checked** | **REFERENCE (superseded limits by 2.1)** |
 
 ---
 
@@ -65,5 +79,5 @@ Every source document listed below has been retrieved directly from official gov
 | **File Size** | 1,804,997 bytes (1.80 MB) | 614,295 bytes (614 KB) | 449,137 bytes (449 KB) |
 | **Page Count** | 3 pages | 7 pages | 9 pages |
 | **SHA-256 Hash** | `124749532d958079f5fb2c162afc60ea74b3b70054f74dafb5f944c8b43c33c8` | `c6b69f099b0ede596df875721fdbb5540bd449cf6344fcd751ff981f66ad0b7d` | `5ba7cf40fb2d79ea159f830cd57ec168b40290afb1426027a66a7411619caadc` |
-| **Effective Period** | Effective w.e.f. **24.10.2024** onwards | Current as of 2026 | Refinance framework aligned to ₹20 lakh limit |
-| **Current / Applicable** | **YES — CURRENT (Authoritative Gazette Legal Master)** | **YES — CURRENT** | **YES — CURRENT** |
+| **Effective Period** | Notification dated 24.10.2024; continuing legal status not independently revalidated | PIB overview dated 29.10.2024; not a current-status determination | Document revision/effective date not independently confirmed |
+| **Current / Applicable** | **NOT REVALIDATED at 2026-11-07** | **NOT REVALIDATED at 2026-11-07** | **NOT REVALIDATED at 2026-11-07** |

@@ -1,0 +1,69 @@
+@startuml component_architecture
+!theme plain
+title ArthLens - Component Architecture
+
+skinparam componentStyle rectangle
+skinparam component<<planned>> {
+    BackgroundColor #F5F5F5
+    BorderColor #888888
+    BorderStyle dashed
+    FontColor #555555
+}
+
+package "Client" {
+    [Next.js frontend] as Frontend
+}
+
+package "backend.arthlens" {
+    package "API" {
+        [FastAPI application] as ApiService
+        [Auth, RBAC and middleware] as Security
+        [Indicators, scenarios, runs,\npolicy and admin routers] as Routers
+    }
+
+    package "Domain and services" {
+        [Domain models and interfaces] as Domain
+        [Epistemic ledger and verifier] as Ledger
+        [Quality evaluation and shading] as Quality
+        [Dataset ingestion pipeline] as Ingestion
+        [Source adapters] as Adapters
+        [Road graph and demand allocation] as GeoDemand
+        [Finance and simulation primitives] as FinanceSimulation
+    }
+
+    package "Infrastructure" {
+        [PostgreSQL repositories] as Repositories
+        [SQLAlchemy models and sessions] as ORM
+    }
+
+    [Agent orchestration engine] as Agent <<planned>>
+    [LLM provider adapters and router] as LLM <<planned>>
+}
+
+database "PostgreSQL + PostGIS" as DB
+cloud "External data sources" as Sources
+
+Frontend --> ApiService : HTTP API
+ApiService --> Security : request authentication and policy
+ApiService --> Routers
+Routers --> Domain
+Routers --> Repositories
+Routers --> Ledger
+Ledger --> Domain
+Ledger --> Quality
+Ingestion --> Adapters
+Adapters --> Sources : optional live fetch
+Ingestion --> Domain
+Ingestion --> Repositories : persist versioned inputs
+GeoDemand --> Domain
+FinanceSimulation --> Domain
+Repositories --> ORM
+ORM --> DB
+Agent ..> API : future integration
+Agent ..> LLM : future provider integration
+
+note bottom of Agent
+  Planned: orchestration implementation
+  is not part of the current runtime.
+end note
+@enduml

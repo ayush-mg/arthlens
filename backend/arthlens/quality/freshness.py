@@ -64,14 +64,20 @@ class FreshnessRegistry:
     _policies: Dict[str, FreshnessPolicy] = dict(DEFAULT_FRESHNESS_POLICIES)
 
     @classmethod
-    def get_policy(cls, source_id: Optional[str]) -> Optional[FreshnessPolicy]:
+    def get_policy(cls, source_id: Optional[Any]) -> Optional[FreshnessPolicy]:
         """
         Return the approved freshness policy for a source.
         Returns None if source_id is missing or unconfigured (does NOT guess or invent defaults).
+        Handles string, tuple/list source_refs, and version-prefixed identifiers (e.g. 'DS-05:55a4...').
         """
         if not source_id:
             return None
-        return cls._policies.get(source_id.strip().upper())
+        if isinstance(source_id, (tuple, list)):
+            source_id = source_id[0] if source_id else None
+        if not isinstance(source_id, str):
+            return None
+        clean_id = source_id.split(":")[0].strip().upper()
+        return cls._policies.get(clean_id)
 
     @classmethod
     def register_policy(cls, policy: FreshnessPolicy) -> None:

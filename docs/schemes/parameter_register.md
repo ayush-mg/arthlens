@@ -2,8 +2,9 @@
 
 > **Task Reference**: Task P0-2 (Handbook Part 7, Section 7.2, Section 13.1)
 > **Extraction Date**: 2026-10-20
-> **Status**: SOURCE-SUPPORTED (MACHINE-EXTRACTED & CITATION-VERIFIED)
-> **Authority**: Primary Government Gazettes, Ministry Notifications, and Master Operational Guidelines
+> **Status**: SOURCE-SUPPORTED EXTRACTIONS; NOT INDEPENDENTLY APPROVED FOR OPERATIONAL RULES
+> **Attributed issuers**: Government departments, agencies, and scheme documents as identified in the candidate source register; not independently confirmed for currentness or authority
+> **Use restriction**: The register reports 42 source-supported extractions and 0 independently verified entries. `SOURCE_SUPPORTED` means an extraction has a page/clause citation in this working register; it is not legal advice, confirmation that the source remains current, human sign-off, or approval to encode production eligibility/finance rules. In particular, the PMEGP source document covers FY 2021-22 to FY 2025-26; applicability after that period must be confirmed from a current official order. P0-2 remains blocked pending qualified human review.
 
 ---
 
@@ -16,7 +17,7 @@ To prevent policy hallucinations and confusion between different financial mecha
 | Status Code | Meaning | Usage in ArthLens |
 | :--- | :--- | :--- |
 | `MACHINE_EXTRACTED` | Directly extracted by automated PDF parsing; pending textual citation check. | Raw extraction stage. |
-| `SOURCE_SUPPORTED` | Extracted and verified against primary government document page/clause; fully cited. | Production candidate; ready for formal verification pass. |
+| `SOURCE_SUPPORTED` | Extracted and given a page/clause citation in this working register; independent human validation may still be pending. | Research candidate only; not approved for production rules until independently verified and signed off. |
 | `INDEPENDENTLY_VERIFIED`| Independently cross-checked and signed off by two domain experts or legal counsel. | Production certified. |
 | `CONFLICTING` | Contradictory rules exist between different ministry notifications. | Requires explicit resolution rule. |
 | `UNKNOWN` | Parameter not specified in published guidelines. | Inferred values strictly prohibited. |

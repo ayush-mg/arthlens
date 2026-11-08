@@ -33,3 +33,27 @@ class TestDownscalingRegistry:
         result = downscale("uniform_test_v1", 300.0, [1.0, 2.0, 3.0])
         assert result == [100.0, 100.0, 100.0]
         assert sum(result) == 300.0
+
+    def test_popweight_v1_conserves_totals_and_handles_large_finite_weights(self):
+        assert downscale("popweight_v1", 120.0, [1.0, 2.0, 3.0]) == pytest.approx(
+            [20.0, 40.0, 60.0]
+        )
+        assert downscale("popweight_v1", 100.0, [1e308, 1e308]) == pytest.approx(
+            [50.0, 50.0]
+        )
+        assert downscale("popweight_v1", 0.0, [0.0, 2.0]) == [0.0, 0.0]
+
+    @pytest.mark.parametrize(
+        ("total", "weights", "message"),
+        [
+            (1.0, [], "empty weights"),
+            (1.0, [0.0, 0.0], "positive"),
+            (1.0, [1.0, -1.0], "non-negative"),
+            (1.0, [1.0, float("nan")], "non-negative"),
+            (float("inf"), [1.0], "Total must be finite"),
+            (-1.0, [1.0], "Total must be finite"),
+        ],
+    )
+    def test_popweight_v1_rejects_invalid_inputs(self, total, weights, message):
+        with pytest.raises(ValueError, match=message):
+            downscale("popweight_v1", total, weights)

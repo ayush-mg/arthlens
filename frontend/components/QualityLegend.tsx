@@ -2,14 +2,15 @@
 
 import React from 'react';
 import { QualityStatus } from '../lib/types';
-import { Info, HelpCircle } from 'lucide-react';
+import { Info } from 'lucide-react';
+import { audioEngine } from '../lib/audio';
 
 interface QualityLegendProps {
   activeFilter: QualityStatus | 'ALL';
   onFilterChange: (status: QualityStatus | 'ALL') => void;
 }
 
-interface QualityStateInfo {
+export interface QualityStateInfo {
   status: QualityStatus;
   label: string;
   color: string;
@@ -59,6 +60,14 @@ export const QUALITY_STATES: QualityStateInfo[] = [
     epistemicBasis: 'No observation exists for geographic unit. Never substituted with 0.',
     handbookCitation: 'Part 7.5 & 10.3 (No silent zeroes)',
   },
+  {
+    status: 'CONTRADICTED',
+    label: 'Contradicted',
+    color: '#DC2626',
+    pattern: 'Cross Hatch',
+    epistemicBasis: 'Multiple official sources disagree beyond tolerance on definition, geography or period.',
+    handbookCitation: 'Part 4.5 Spec V5 (ContradictionVisibilitySpec)',
+  },
 ];
 
 export const QualityLegend: React.FC<QualityLegendProps> = ({
@@ -66,55 +75,57 @@ export const QualityLegend: React.FC<QualityLegendProps> = ({
   onFilterChange,
 }) => {
   return (
-    <div className="rounded-xl border border-surface-border bg-surface-card p-3 shadow-lg">
+    <div className="rounded border border-editorial-brass/40 bg-editorial-paper p-3 shadow-editorial">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center space-x-1.5">
-          <Info className="h-4 w-4 text-brand-sky" />
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+          <Info className="h-4 w-4 text-editorial-copper" />
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-editorial-forest font-serif">
             Atlas Quality Shading Overlay
           </h3>
         </div>
-        <span className="font-mono text-[10px] text-slate-500">
-          Handbook Part 7.5 Step 10 Precedence: UNAVAILABLE &gt; INCOMPLETE &gt; STALE &gt; ESTIMATED &gt; CURRENT
+        <span className="font-mono text-[10px] text-editorial-charcoal-light hidden sm:inline">
+          Handbook Part 7.5 Precedence: UNAVAILABLE &gt; CONTRADICTED &gt; INCOMPLETE &gt; STALE &gt; ESTIMATED &gt; CURRENT
         </span>
       </div>
 
       {/* State Filter Buttons */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-6">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-7">
         <button
           type="button"
-          onClick={() => onFilterChange('ALL')}
-          className={`flex items-center justify-center rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all ${
+          onClick={() => {
+            audioEngine.playClick(850);
+            onFilterChange('ALL');
+          }}
+          className={`flex items-center justify-center rounded border px-2.5 py-1.5 text-xs font-mono font-medium transition-all cursor-pointer ${
             activeFilter === 'ALL'
-              ? 'border-brand-sky bg-brand-sky/15 text-white shadow-glow-sky'
-              : 'border-surface-border bg-surface-panel/60 text-slate-400 hover:text-slate-200'
+              ? 'border-editorial-forest bg-editorial-forest text-editorial-ivory shadow-sm'
+              : 'border-editorial-brass/30 bg-editorial-ivory text-editorial-charcoal hover:bg-editorial-paper'
           }`}
         >
           <span>All Indicators</span>
         </button>
 
-        {QUALITY_STATES.map((item) => {
+        {QUALITY_STATES.map((item, idx) => {
           const isActive = activeFilter === item.status;
           return (
             <button
               key={item.status}
               type="button"
-              onClick={() => onFilterChange(isActive ? 'ALL' : item.status)}
-              className={`group flex items-center space-x-2 rounded-lg border px-2.5 py-1.5 text-left text-xs transition-all ${
+              onClick={() => {
+                audioEngine.playClick(900 + idx * 80);
+                onFilterChange(item.status);
+              }}
+              className={`flex items-center space-x-2 rounded border px-2 py-1.5 text-xs font-mono transition-all cursor-pointer ${
                 isActive
-                  ? 'border-white/40 bg-surface-panel text-white shadow-md'
-                  : 'border-surface-border bg-surface-panel/50 text-slate-300 hover:border-slate-600 hover:bg-surface-panel'
+                  ? 'border-editorial-copper bg-editorial-copper/15 font-bold shadow-sm'
+                  : 'border-editorial-brass/30 bg-editorial-ivory text-editorial-charcoal hover:bg-editorial-paper'
               }`}
-              title={`${item.status}: ${item.epistemicBasis}`}
             >
               <span
-                className="h-3 w-3 shrink-0 rounded-sm border border-black/40 shadow-sm"
+                className="h-2 w-2 rounded-full shrink-0 shadow-sm"
                 style={{ backgroundColor: item.color }}
               />
-              <div className="min-w-0 flex-1 truncate">
-                <span className="font-semibold block truncate">{item.status}</span>
-                <span className="text-[10px] text-slate-400 block truncate">{item.label}</span>
-              </div>
+              <span className="truncate">{item.status}</span>
             </button>
           );
         })}

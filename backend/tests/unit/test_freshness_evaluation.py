@@ -5,14 +5,11 @@ Authoritative Specification: ArthLens Build Handbook v1.0 (Section 4.4, Part 7.1
 Phase: Phase 2 (P2-3 - Data-Quality Layer and Staleness Flags).
 """
 
-from datetime import date, timedelta
-import pytest
+from datetime import date
 
 from backend.arthlens.domain.enums import Kind
 from backend.arthlens.domain.quantity import Quantity
 from backend.arthlens.quality.freshness import (
-    FreshnessEvaluation,
-    FreshnessPolicy,
     FreshnessRegistry,
     evaluate_staleness,
 )
@@ -165,8 +162,6 @@ class TestFreshnessEvaluation:
         assert "lacks an approved freshness policy" in res.explanation
 
         # Verify evaluator behavior: NEVER classified as CURRENT
-        from backend.arthlens.domain.enums import Kind
-        from backend.arthlens.domain.quantity import Quantity
         from backend.arthlens.quality.evaluator import DataQualityEvaluator
         from backend.arthlens.quality.vocabulary import QualityStatus
 
@@ -204,6 +199,8 @@ class TestFreshnessEvaluation:
             source_refs=("DS-05",),
             quality_flags=frozenset({"STALE"}),
         )
-        census_assessment = evaluator.evaluate_quantity(q_census, "population.total", "in:district:120")
+        census_assessment = evaluator.evaluate_quantity(
+            q_census, "population.total", "in:district:120", source_id="DS-05"
+        )
         assert census_assessment.primary_status == QualityStatus.STALE
         assert census_assessment.is_stale is True

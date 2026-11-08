@@ -8,22 +8,26 @@ This directory contains the authoritative PlantUML (`.puml`) source files repres
 
 | File | Diagram Type | Core Subject | Handbook Reference | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| [`use_case.puml`](file:///c:/arthlens/docs/uml/use_case.puml) | UML Use Case Diagram | System boundary, primary MVP actors, deferred future actors, implemented vs planned workflows. | Part 2.1, Part 5.5 | Baseline Defined (P1-7) |
-| [`class_diagram.puml`](file:///c:/arthlens/docs/uml/class_diagram.puml) | UML Class Diagram | Domain entities, Epistemic Ledger, ORM models, Repositories, Security & API structure, Planned concepts. | Part 3.3, Part 5.5, Part 9 | Baseline Defined (P1-7) |
-| [`agent_run_state_machine.puml`](file:///c:/arthlens/docs/uml/agent_run_state_machine.puml) | UML State Machine Diagram | 13-state AgentRun lifecycle, 4 terminal states, retry limits, budget exhaustion vs quota separation, gated actions. | Part 8.1, Part 8.2 | Target Specified (P1-7; Execution Engine Phase 4) |
+| [`use_case.puml`](./use_case.puml) | UML Use Case Diagram | System boundary, primary MVP actors, deferred future actors, implemented vs planned workflows. | Part 2.1, Part 5.5 | Baseline Defined (P1-7) |
+| [`class_diagram.puml`](./class_diagram.puml) | UML Class Diagram | Domain entities, Epistemic Ledger, ORM models, Repositories, Security & API structure, allocation/finance/simulation primitives, and planned concepts. | Part 3.3, Part 5.5, Part 9 | Baseline Defined (P1-7) |
+| [`agent_run_state_machine.puml`](./agent_run_state_machine.puml) | UML State Machine Diagram | 13-state AgentRun lifecycle, 4 terminal states, retry limits, budget exhaustion vs quota separation, gated actions. | Part 8.1, Part 8.2 | Target Specified (P1-7; Execution Engine Phase 4) |
+| [`sequence_scenario_creation.puml`](./sequence_scenario_creation.puml) | UML Sequence Diagram | Implemented scenario creation with middleware, current-role authentication, repository persistence, and error responses. | Part 5.5, Part 10 | Implemented flow |
+| [`activity_dataset_ingestion.puml`](./activity_dataset_ingestion.puml) | UML Activity Diagram | Implemented 10-step dataset ingestion lifecycle, schema failure paths, and persistence modes. | Part 5.5, Part 7.5 | Implemented flow |
+| [`component_architecture.puml`](./component_architecture.puml) | UML Component Diagram | Current FastAPI, domain, ledger, data, quality, repository and database components; orchestration/provider integrations marked planned. | Part 5.5, Part 9 | Implementation-mapped |
+| [`deployment_local.puml`](./deployment_local.puml) | UML Deployment Diagram | Current local database Compose service and separate frontend/API processes, distinguished from planned production deployment. | Part 3.2, Part 5.5, Part 14 | Implementation-mapped |
 
 ---
 
 ## 2. Implementation vs. Planned Mapping
 
-To maintain fidelity and prevent architectural drift, the UML diagrams visually and syntactically distinguish between **currently implemented code** (P1-1 through P1-6) and **planned concepts** scheduled for future development phases.
+To maintain fidelity and prevent architectural drift, the UML diagrams visually and syntactically distinguish between **currently implemented code** (including P1-P3 foundations) and **planned concepts** scheduled for future development phases. The sequence and activity diagrams show implemented flows; component and deployment diagrams mark planned integrations and production topology explicitly.
 
 ### A. Use Case Scope Breakdown
 
 | Actor | Tier | Status in Codebase | Workflows & Use Cases |
 | :--- | :--- | :--- | :--- |
 | **Entrepreneur** | MVP Primary | Authentication (`/auth/login`, `/auth/logout`) and run API stubs implemented (P1-6); registration, profile, orchestration, and report generation workflows planned (Phases 2–4). | **Implemented:** Authenticate Session, Logout/Token Revocation, Create & Branch Scenarios (`/scenarios`).<br>**Planned:** Register User Account (Phase 2), Define Business Profile (Phase 2), Autonomous AgentRun Orchestration (Phase 4), Interactive Clarification Dialog (Phase 4), Gated Action Sign-off (Phase 4), Generate Full Report (Phase 4), Stochastic Risk Simulation (Phase 3). |
-| **Data Steward** | MVP Primary | Epistemic Ledger DAG (P1-3), Verifier V1–V9 & ReportRenderer (P1-4), PostGIS & Repositories (P1-5), Policy API (P1-6) implemented. | **Implemented:** Persist Quantities & Immutability, Trace Lineage & Provenance, Evaluate Verifier V1–V9, Format Verified Chips & Scan Free Numbers, Manage Draft Policy Rules (`/policy/rules`).<br>**Planned:** Automated Dataset Ingestion Pipeline (Phase 2), Policy AST & Evaluation Engine (Phase 3). |
+| **Data Steward** | MVP Primary | Epistemic Ledger DAG (P1-3), Verifier V1–V9 & ReportRenderer (P1-4), PostGIS & Repositories (P1-5), Policy API (P1-6), and dataset ingestion pipeline (P2) implemented. | **Implemented:** Persist Quantities & Immutability, Trace Lineage & Provenance, Evaluate Verifier V1–V9, Format Verified Chips & Scan Free Numbers, Manage Draft Policy Rules (`/policy/rules`), ingest source datasets with quality and provenance checks.<br>**Planned:** Policy AST & Evaluation Engine (Phase 3). |
 | **Administrator** | MVP Primary | RBAC Matrix, Audit Logging, Token Revocation, Rate Limiting & Cost Caps fully implemented (P1-6). | **Implemented:** Inspect Users & Quotas (`GET /admin/users`), Enforce Rate Limits & Quotas, Inspect Security Audit Trail (`GET /admin/audit`). |
 | **Customer / Community** | Release 1 | Deferred to Release 1 (greyed out in diagram). | Submit Local Demand Signals & Feedback. |
 | **Investor / Funder** | Advanced | Deferred to Advanced (greyed out in diagram). | Access District Viability Benchmarks. |
@@ -41,7 +45,7 @@ To maintain fidelity and prevent architectural drift, the UML diagrams visually 
   - `AgentRun` & `ActionPlan` (Deferred to Phase 4 Orchestration).
   - Concrete `Tool` implementations (e.g., `CensusDataProviderTool`, deferred to Phase 2/4).
   - `BusinessProfile` (Deferred to Phase 2).
-  - Concrete simulation models (`MonteCarloFinancialSimulation`, `GravityDemandAllocator`, deferred to Phase 3).
+  - Scheme-specific financial simulation model (`MonteCarloFinancialSimulation`, deferred pending finance acceptance); generic PCG64 Monte Carlo summaries, one-at-a-time sensitivity, nearest-facility allocation, and Huff allocation are implemented.
   - Policy AST nodes (`PolicyRuleAST`, deferred to Phase 3).
 
 ### C. AgentRun State Machine Breakdown
@@ -64,6 +68,19 @@ To maintain fidelity and prevent architectural drift, the UML diagrams visually 
   - **Per-Run Cost Cap:** Evaluated at each execution step. Default initial value is $0.25 (configurable per run, not an immutable universal constant). Breaching this limit transitions the run to `BUDGET_EXHAUSTED`.
   - **Daily Run Quotas (e.g., 50 runs/day):** Enforced at the API boundary before run instantiation (`POST /runs` returns HTTP 429). It does **NOT** cause an AgentRun state machine transition.
   - **Daily Monetary Cap ($5.00/day):** Reserved at API boundary; reconciled mid-run.
+
+### D. Component and Deployment Boundaries
+
+- The local Compose file defines only the PostGIS database service. The frontend
+  and backend can run separately; the backend Dockerfile is a build definition,
+  not a production deployment.
+- The production stack, worker, managed storage, hosting provider, and public
+  deployment are planned and require separate authorization/configuration.
+- The data-ingestion activity diagram describes the existing generic pipeline.
+  DS-09 administrative boundaries use the dedicated boundary ingestion service;
+  they are not persisted by the generic pipeline.
+- The authenticated scenario-creation sequence is an implemented API path.
+  Agent orchestration is not implied by the persisted run API stubs.
 
 ---
 

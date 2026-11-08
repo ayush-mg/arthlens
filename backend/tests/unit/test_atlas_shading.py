@@ -8,9 +8,7 @@ Acceptance Criterion:
 Atlas shades quality states correctly.
 """
 
-import json
 import pytest
-
 from backend.arthlens.domain.enums import Kind
 from backend.arthlens.domain.quantity import Quantity
 from backend.arthlens.quality.evaluator import DataQualityEvaluator
@@ -97,7 +95,9 @@ class TestAtlasQualityShading:
             source_refs=("DS-05",),
             quality_flags=frozenset({"STALE"}),
         )
-        assessment = evaluator.evaluate_quantity(q_census, "population.total", "in:district:120")
+        assessment = evaluator.evaluate_quantity(
+            q_census, "population.total", "in:district:120", source_id="DS-05"
+        )
 
         shaded = AtlasQualityShadingAdapter.apply_quality_shading_to_feature(feature, assessment)
         props = shaded["properties"]

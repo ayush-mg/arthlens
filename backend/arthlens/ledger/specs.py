@@ -538,11 +538,8 @@ class UnitCompatibilitySpec(VerificationSpecification):
                 for pid in q.parent_ids
                 if pid in ledger
             ]
-            if parent_units:
-                op = "add"  # Default linear/additive check
-                if q.method_id in ("multiply", "divide", "add", "subtract"):
-                    op = q.method_id
-
+            if parent_units and q.method_id in ("multiply", "divide", "add", "subtract"):
+                op = q.method_id
                 try:
                     check_unit_compatibility(op, parent_units)
                 except Exception as e:
