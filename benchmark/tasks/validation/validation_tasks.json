@@ -229,6 +229,14 @@
       "gold_resolution": 2,
       "notes": "Exact deterministic break-even calculation: 15000 / (120 - 60) = 250 units."
     },
+    "injected_failures": [
+      {
+        "tool_name": "calculate_break_even",
+        "failure_type": "timeout",
+        "failure_on_call": 1,
+        "description": "First call to calculate_break_even times out, simulating transient compute overload; agent recovers per the recovery decision table (Handbook 8.4) and completes calculation."
+      }
+    ],
     "evaluation": {
       "metrics": [
         "completion_and_recovery",

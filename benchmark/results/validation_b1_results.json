@@ -1,5 +1,5 @@
 {
-  "dataset_sha256": "01cf9b9e35e98ba1767ede3eb5eb1a0728a008cf6a618011cbbb7e9c25304f44",
+  "dataset_sha256": "d13ff08cbc477c9b181f680ef5c08b129349a275858654ef8c3b1496289f669a",
   "run_id": "benchmark-b1-validation-run",
   "scored_by": "arthlens-automated-evaluator-v1",
   "scores": [
@@ -28,7 +28,7 @@
     {
       "metrics": {
         "class_mislabel_rate": 0.0,
-        "resolution_overclaim_rate": 0.0,
+        "resolution_overclaim_rate": 1.0,
         "unsupported_numeric_claim_rate": 1.0
       },
       "task_id": "BT-104"
@@ -36,14 +36,14 @@
     {
       "metrics": {
         "class_mislabel_rate": 0.0,
-        "eligibility_accuracy": 1.0
+        "eligibility_accuracy": 0.0
       },
       "task_id": "BT-105"
     },
     {
       "metrics": {
-        "completion_and_recovery": 1.0,
-        "numerical_correctness": 1.0,
+        "completion_and_recovery": 0.0,
+        "numerical_correctness": 0.0,
         "unsupported_numeric_claim_rate": 1.0
       },
       "task_id": "BT-106"

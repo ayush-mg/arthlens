@@ -44,7 +44,7 @@ def test_benchmark_system_factory():
 @pytest.mark.unit
 def test_b4_full_arthlens_execution_produces_ledger_backed_claims(sample_tasks):
     b4 = SystemB4FullArthLens()
-    task = sample_tasks[0]  # BT-001 break-even
+    task = sample_tasks[0]  # BT-001 factual mandi price
     output = b4.execute_task(task)
 
     assert output.task_id == "BT-001"
@@ -52,7 +52,7 @@ def test_b4_full_arthlens_execution_produces_ledger_backed_claims(sample_tasks):
     assert output.status == "SUCCEEDED"
     assert len(output.claims) >= 1
     assert output.claims[0].ledger_id is not None
-    assert output.claims[0].kind == "CALCULATED"
+    assert output.claims[0].kind == "OBSERVED"
 
     scores = score_task_output(task, output)
     assert scores["unsupported_numeric_claim_rate"] == 0.0

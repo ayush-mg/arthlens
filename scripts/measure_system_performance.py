@@ -36,15 +36,23 @@ from backend.arthlens.security.tokens import create_access_token
 from backend.arthlens.simulation.monte_carlo import SimulationOutcome, run_monte_carlo
 
 
-def _percentiles(values: list[float]) -> dict[str, float]:
+def _percentiles(values: list[float]) -> dict[str, Any]:
     """Compute min, p50, p95, and max for a sample series in milliseconds."""
     if not values:
-        return {"min_ms": 0.0, "p50_ms": 0.0, "p95_ms": 0.0, "max_ms": 0.0, "mean_ms": 0.0}
+        return {
+            "iterations": 0,
+            "min_ms": 0.0,
+            "p50_ms": 0.0,
+            "p95_ms": 0.0,
+            "max_ms": 0.0,
+            "mean_ms": 0.0,
+        }
     sorted_vals = sorted(values)
     n = len(sorted_vals)
     p50_idx = int(n * 0.50)
     p95_idx = min(n - 1, int(n * 0.95))
     return {
+        "iterations": n,
         "min_ms": round(sorted_vals[0] * 1000, 2),
         "mean_ms": round(statistics.mean(sorted_vals) * 1000, 2),
         "p50_ms": round(sorted_vals[p50_idx] * 1000, 2),
@@ -86,11 +94,11 @@ def measure_api_latencies(client: TestClient, iterations: int = 50) -> dict[str,
 
 def measure_engine_job_durations(iterations: int = 50) -> dict[str, Any]:
     """Measure computational engine execution timings."""
-    # 1. Break-even formula
+    # 1. Break-even formula: (price_per_unit, variable_cost_per_unit, fixed_costs)
     be_durations = []
     for _ in range(iterations):
         start = time.perf_counter()
-        calculate_break_even_quantity(12000.0, 100.0, 40.0)
+        calculate_break_even_quantity(100.0, 40.0, 12000.0)
         be_durations.append(time.perf_counter() - start)
 
     # 2. Loan amortization schedule (36 months)
@@ -111,13 +119,15 @@ def measure_engine_job_durations(iterations: int = 50) -> dict[str, Any]:
         loan_durations.append(time.perf_counter() - start)
 
     # 3. Monte Carlo simulation (200 draws, PCG64)
+    mc_sample_count = 200
     meta = SimulationMetadata(
         scenario_id="perf-benchmark",
         model_version="1.0",
         seed=42,
-        sample_count=200,
+        sample_count=mc_sample_count,
         data_versions=("DS-05:55a424884c0674b4",),
     )
+
     def sample_func(rng):
         rev = rng.uniform(80000.0, 120000.0)
         cost = rng.triangular(30000.0, 40000.0, 50000.0)
@@ -125,7 +135,8 @@ def measure_engine_job_durations(iterations: int = 50) -> dict[str, Any]:
         return SimulationOutcome(metrics={"profit": profit}, cash_shortfall=profit < 0)
 
     mc_durations = []
-    for _ in range(max(10, iterations // 5)):
+    mc_iterations = max(10, iterations // 5)
+    for _ in range(mc_iterations):
         start = time.perf_counter()
         run_monte_carlo(
             sample_func,
@@ -140,7 +151,7 @@ def measure_engine_job_durations(iterations: int = 50) -> dict[str, Any]:
     return {
         "Job: Break-Even Calculation": _percentiles(be_durations),
         "Job: 36-Month Loan Schedule Amortization": _percentiles(loan_durations),
-        "Job: Monte Carlo Simulation (500 draws)": _percentiles(mc_durations),
+        f"Job: Monte Carlo Simulation ({mc_sample_count} draws, PCG64)": _percentiles(mc_durations),
     }
 
 
@@ -175,8 +186,15 @@ def main() -> int:
 
     summary = {
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "trials_per_target": args.iterations,
-        "api_latencies": api_metrics,
+        "requested_iterations": args.iterations,
+        "api_latencies": {
+            "transport": "in_process_asgi_testclient",
+            "measurement_note": (
+                "In-process Starlette TestClient timings over ASGI memory transport. "
+                "Excludes external TCP/IP network latency, load balancer overhead, and TLS termination."
+            ),
+            "endpoints": api_metrics,
+        },
         "job_durations": job_metrics,
         "database_timings": db_metrics,
         "cost_governance": {

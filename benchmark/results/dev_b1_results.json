@@ -28,7 +28,7 @@
     {
       "metrics": {
         "class_mislabel_rate": 0.0,
-        "resolution_overclaim_rate": 0.0,
+        "resolution_overclaim_rate": 1.0,
         "unsupported_numeric_claim_rate": 1.0
       },
       "task_id": "BT-004"
@@ -36,13 +36,13 @@
     {
       "metrics": {
         "class_mislabel_rate": 0.0,
-        "eligibility_accuracy": 1.0
+        "eligibility_accuracy": 0.0
       },
       "task_id": "BT-005"
     },
     {
       "metrics": {
-        "completion_and_recovery": 1.0,
+        "completion_and_recovery": 0.0,
         "cost_and_effort": 0.04,
         "unsupported_numeric_claim_rate": 1.0
       },

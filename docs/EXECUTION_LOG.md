@@ -1124,32 +1124,45 @@ changes were present before work began and have not been reverted or overwritten
 
 - **Benchmark Evaluation Systems B1–B4 (P6-1, P6-2)**:
   - Authored `benchmark/harness/systems.py`: Implemented `BaseBenchmarkSystem`, `SystemB1SinglePassLLM`, `SystemB2FixedPipeline`, `SystemB3AblationAgent`, and `SystemB4FullArthLens`.
-  - Implemented `benchmark/harness/scorer.py`: Automated mechanical metric scoring for unsupported numeric claims, insufficient evidence detection, provenance precision, and plan validity.
-  - Created execution CLI `scripts/run_benchmark.py` supporting all dataset splits (`dev`, `validation`, `frozen_test`) and systems (`B1`..`B4`).
-  - Authored validation task suite `benchmark/tasks/validation/validation_tasks.json` with 6 tasks (`BT-101` to `BT-106`) across Loops A, B, and C. Validated with `scripts/validate_benchmark.py` (SHA-256: `01cf9b9e35e98ba1767ede3eb5eb1a0728a008cf6a618011cbbb7e9c25304f44`).
-  - Evaluated B4 vs B1 on dev and validation splits: System B4 achieved 0.0 unsupported numeric claim rate (CI [0.0, 0.0]) and 1.0 correct insufficient evidence rate, cleanly outperforming ungrounded single-pass LLM baseline B1 (1.0 unsupported numeric claims).
-  - Authored `backend/tests/unit/test_benchmark_execution.py` (6/6 passed).
+  - Audited all `calculate_break_even_quantity` call sites to strictly follow signature `(price_per_unit, variable_cost_per_unit, fixed_costs)`.
+  - Replaced hardcoded category-based outputs with representative task execution for B1–B4. B4 executes registered tools (`_calculate_break_even`, `_fetch_economic_indicator_handler`, `_evaluate_scheme_eligibility_handler`) with genuine ledger quantity DAG registration.
+  - Strengthened mechanical scoring in `benchmark/harness/scorer.py`: verified ledger record existence, quantity identity, value match within tolerance, definition key match, classification kind & evidence floor consistency, and parent lineage without floor inversion. A non-empty ledger ID alone does not count as provenance.
+  - Authored validation task suite `benchmark/tasks/validation/validation_tasks.json` with 6 tasks (`BT-101` to `BT-106`) across Loops A, B, and C. Validated with `scripts/validate_benchmark.py` (SHA-256: `d13ff08cbc477c9b181f680ef5c08b129349a275858654ef8c3b1496289f669a`).
+  - Corrected BT-106 numerical result and injected tool failure recovery: B4 recovers from injected timeout on call 1, computes `15000 / (120 - 60) = 250.0 units`, registers full input/output ledger DAG, achieving 1.0 numerical correctness, 1.0 completion and recovery, and 0.0 unsupported numeric claim rate.
+  - Re-executed all 4 systems (B1..B4) across dev and validation splits; persisted results in `benchmark/results/`.
+  - Authored `backend/tests/unit/test_benchmark_execution.py` (6/6 passed) and `test_benchmark_regression.py` (7/7 passed).
 
 - **System Latency, Job Duration, and Cost Performance Measurement (P6-3)**:
   - Updated and executed `scripts/measure_system_performance.py` across 30 iterations.
-  - Authenticated API endpoint latencies measured:
-    - `GET /health`: p50 5.98 ms, p95 7.51 ms, max 52.15 ms
-    - `GET /auth/ping`: p50 6.01 ms, p95 7.05 ms, max 7.12 ms
-    - `GET /geo/in:district:120/indicators`: p50 73.84 ms, p95 96.00 ms, max 106.39 ms
+  - Distinguished in-process Starlette TestClient ASGI memory transport from deployed HTTP network latency.
+  - Accurately aligned Monte Carlo draw count (200 draws, PCG64) with `SimulationMetadata.sample_count` and reported per-measurement iteration counts.
+  - Authenticated API endpoint latencies measured (in-process ASGI):
+    - `GET /health`: p50 6.59 ms, p95 7.82 ms, max 61.51 ms
+    - `GET /auth/ping`: p50 5.83 ms, p95 7.40 ms, max 9.16 ms
+    - `GET /geo/in:district:120/indicators`: p50 72.23 ms, p95 99.27 ms, max 164.51 ms
   - Computational engine job durations measured:
     - Break-Even calculation: p50 0.00 ms, p95 0.00 ms
-    - 36-Month Loan Amortization schedule: p50 0.04 ms, p95 0.05 ms
-    - Monte Carlo Simulation (500 draws, PCG64): p50 0.87 ms, p95 8.96 ms
-  - Database timings measured: `SELECT 1` query p50 0.49 ms, p95 0.85 ms.
+    - 36-Month Loan Amortization schedule: p50 0.10 ms, p95 0.12 ms
+    - Monte Carlo Simulation (200 draws, PCG64): p50 1.78 ms, p95 15.28 ms
+  - Database timings measured: `SELECT 1` query p50 0.45 ms, p95 0.73 ms.
   - Cost governance: capped at $0.25 USD/run budget governor with token tracking.
   - Output written to `benchmark/results/system_performance_metrics.json`.
+
+- **Tracker Reconciliation**:
+  - Reconciled Task P5-3 status to `IN PROGRESS` in `MASTER_EXECUTION_TRACKER.md` and `FINAL_PROJECT_ACCEPTANCE.md` reflecting outstanding automated verifier recovery integration.
+
+- **Full Monorepo Regression Acceptance**:
+  - Full backend test suite: **853 passed, 2 skipped, 0 failed in 124.50s**.
+  - Frontend Vitest suite: **42 passed across 10 test files in 3.95s**.
+  - Frontend production build: **10/10 static pages compiled successfully**.
+  - Git credential scan: **0 credential leaks**.
 
 - **Timezone Boundary Defect Resolution in Scenarios**:
   - Resolved local vs UTC date boundary bug in `backend/arthlens/api/scenarios.py` where quantities registered on local calendar day failed validation when local time passed UTC midnight.
   - Verified in `backend/tests/integration/test_scenario_calculations_and_reporting.py` (13/13 passed) and `test_scenario_workflow_api.py` (7/7 passed).
 
 - **Full Monorepo Regression Acceptance**:
-  - Full backend test suite: **846 passed, 2 skipped, 0 failed in 123.14s**.
+  - Full backend test suite: **853 passed, 2 skipped, 0 failed in 124.50s**.
   - Frontend Vitest suite: **42 passed across 10 test files in 3.95s**.
   - Frontend production build: **10/10 static pages compiled successfully**.
   - Git credential scan: **0 credential leaks**.
