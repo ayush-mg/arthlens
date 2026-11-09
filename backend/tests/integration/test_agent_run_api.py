@@ -177,6 +177,71 @@ def test_agent_run_tasks_are_persisted_and_owner_scoped(api_client):
         cookies=steward_cookie,
     ).status_code == 403
 
+    task_id = created_task["id"]
+    # Owner updates task priority
+    patch_resp = api_client.patch(
+        f"/agent-runs/{run_id}/tasks/{task_id}",
+        json={"priority": "HIGH"},
+        cookies=owner_cookie,
+    )
+    assert patch_resp.status_code == 200
+    assert patch_resp.json()["priority"] == "HIGH"
+    assert patch_resp.json()["status"] == "OPEN"
+
+    # Owner updates task status to COMPLETED
+    patch_resp2 = api_client.patch(
+        f"/agent-runs/{run_id}/tasks/{task_id}",
+        json={"status": "COMPLETED"},
+        cookies=owner_cookie,
+    )
+    assert patch_resp2.status_code == 200
+    assert patch_resp2.json()["status"] == "COMPLETED"
+    assert patch_resp2.json()["priority"] == "HIGH"
+
+    # Admin updates task status to CANCELLED
+    patch_resp_admin = api_client.patch(
+        f"/agent-runs/{run_id}/tasks/{task_id}",
+        json={"status": "CANCELLED"},
+        cookies=admin_cookie,
+    )
+    assert patch_resp_admin.status_code == 200
+    assert patch_resp_admin.json()["status"] == "CANCELLED"
+
+    # Other owner cannot update (404 / IDOR protected)
+    assert api_client.patch(
+        f"/agent-runs/{run_id}/tasks/{task_id}",
+        json={"status": "OPEN"},
+        cookies=other_cookie,
+    ).status_code == 404
+
+    # Invalid status rejected (400)
+    assert api_client.patch(
+        f"/agent-runs/{run_id}/tasks/{task_id}",
+        json={"status": "UNKNOWN_STATUS"},
+        cookies=owner_cookie,
+    ).status_code == 400
+
+    # Invalid priority rejected (400)
+    assert api_client.patch(
+        f"/agent-runs/{run_id}/tasks/{task_id}",
+        json={"priority": "CRITICAL"},
+        cookies=owner_cookie,
+    ).status_code == 400
+
+    # Empty body rejected (400)
+    assert api_client.patch(
+        f"/agent-runs/{run_id}/tasks/{task_id}",
+        json={},
+        cookies=owner_cookie,
+    ).status_code == 400
+
+    # Steward cannot update (403)
+    assert api_client.patch(
+        f"/agent-runs/{run_id}/tasks/{task_id}",
+        json={"status": "OPEN"},
+        cookies=steward_cookie,
+    ).status_code == 403
+
 
 @pytest.mark.integration
 def test_agent_run_sse_stream_replays_events_and_honors_last_event_id(api_client):

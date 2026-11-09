@@ -94,6 +94,7 @@ class AgentRunOrchestrator:
         *,
         model_call_cost: ModelCallCost,
         verifier: RunVerifier | None,
+        task_repository: Any | None = None,
     ) -> None:
         if not callable(model_call_cost):
             raise TypeError("model_call_cost must be a callable cost estimator.")
@@ -105,6 +106,7 @@ class AgentRunOrchestrator:
         self._executor = executor
         self._model_call_cost = model_call_cost
         self._verifier = verifier
+        self._task_repository = task_repository
 
     def run(self, run_id: str) -> OrchestrationResult:
         run = self._repository.get_run(run_id)
@@ -245,33 +247,13 @@ class AgentRunOrchestrator:
             expected_state=AgentRunState.OBSERVING,
         )
         if self._verifier is None:
-            self._repository.transition(
-                run_id,
-                AgentRunEvent.CHECK_FAILS,
-                {"reason": "verification_unavailable"},
-                expected_state=AgentRunState.VERIFYING,
-            )
-            return self._fail(
-                run_id,
-                AgentRunState.RECOVERING,
-                "verification_unavailable",
-            )
+            return self._handle_verification_failure(run_id, outputs, "verification_unavailable")
         try:
             verified = self._verifier(objective_payload, tuple(outputs))
         except Exception:
             verified = False
         if not isinstance(verified, bool) or not verified:
-            self._repository.transition(
-                run_id,
-                AgentRunEvent.CHECK_FAILS,
-                {"reason": "verification_failed"},
-                expected_state=AgentRunState.VERIFYING,
-            )
-            return self._fail(
-                run_id,
-                AgentRunState.RECOVERING,
-                "verification_failed",
-            )
+            return self._handle_verification_failure(run_id, outputs, "verification_failed")
         self._repository.transition(
             run_id,
             AgentRunEvent.ALL_CHECKS_PASS,
@@ -359,33 +341,13 @@ class AgentRunOrchestrator:
             expected_state=AgentRunState.OBSERVING,
         )
         if self._verifier is None:
-            self._repository.transition(
-                run_id,
-                AgentRunEvent.CHECK_FAILS,
-                {"reason": "verification_unavailable"},
-                expected_state=AgentRunState.VERIFYING,
-            )
-            return self._fail(
-                run_id,
-                AgentRunState.RECOVERING,
-                "verification_unavailable",
-            )
+            return self._handle_verification_failure(run_id, outputs, "verification_unavailable")
         try:
             verified = self._verifier(objective_payload, tuple(outputs))
         except Exception:
             verified = False
         if not isinstance(verified, bool) or not verified:
-            self._repository.transition(
-                run_id,
-                AgentRunEvent.CHECK_FAILS,
-                {"reason": "verification_failed"},
-                expected_state=AgentRunState.VERIFYING,
-            )
-            return self._fail(
-                run_id,
-                AgentRunState.RECOVERING,
-                "verification_failed",
-            )
+            return self._handle_verification_failure(run_id, outputs, "verification_failed")
         self._repository.transition(
             run_id,
             AgentRunEvent.ALL_CHECKS_PASS,
@@ -507,6 +469,64 @@ class AgentRunOrchestrator:
             replans_used=int(run.get("replans_used", 0)),
             model_calls_used=int(run.get("model_calls_used", 0)),
             cost_usd=Decimal(str(run.get("cost_usd", "0"))),
+        )
+
+    def _handle_verification_failure(
+        self,
+        run_id: str,
+        outputs: list[dict[str, Any]],
+        reason: str = "verification_failed",
+    ) -> OrchestrationResult:
+        self._repository.transition(
+            run_id,
+            AgentRunEvent.CHECK_FAILS,
+            {"reason": reason},
+            expected_state=AgentRunState.VERIFYING,
+        )
+        if self._task_repository is not None:
+            try:
+                from backend.arthlens.agent.followups import (
+                    UnresolvedGap,
+                    extract_evidence_gaps,
+                    tasks_from_unresolved_gaps,
+                )
+
+                gaps = extract_evidence_gaps(outputs)
+                if not gaps and reason != "verification_unavailable":
+                    gaps = [
+                        UnresolvedGap(
+                            description="Verifier rejected execution outputs: provide supporting evidence or review assumptions.",
+                            priority="HIGH",
+                        )
+                    ]
+                if gaps:
+                    run = self._repository.get_run(run_id)
+                    owner_id = run.get("owner_id") if run else None
+                    if owner_id is not None:
+                        tasks = tasks_from_unresolved_gaps(gaps)
+                        self._task_repository.create_for_run(run_id, owner_id, tasks)
+                        self._repository.transition(
+                            run_id,
+                            AgentRunEvent.NEEDS_USER_FACT,
+                            {
+                                "reason": "unresolved_evidence_gaps",
+                                "task_count": len(tasks),
+                                "tasks": [t["text"] for t in tasks],
+                            },
+                            expected_state=AgentRunState.RECOVERING,
+                        )
+                        return self._current_result(
+                            run_id,
+                            outputs=tuple(outputs),
+                            reason="unresolved_evidence_gaps",
+                        )
+            except Exception:
+                pass
+
+        return self._fail(
+            run_id,
+            AgentRunState.RECOVERING,
+            reason,
         )
 
     def _fail(

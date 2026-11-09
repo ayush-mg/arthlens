@@ -392,3 +392,40 @@ class TestAlembicMigrations:
         inspector_head = inspect(engine)
         constraints_head = {c["name"] for c in inspector_head.get_check_constraints("geo_units")}
         assert "check_geo_unit_coverage_status" in constraints_head
+
+
+    def test_task_priority_migration_013(self, alembic_cfg):
+        """Migration 013 adds priority column and status/priority CHECK constraints to tasks."""
+        engine = get_engine()
+        inspector = inspect(engine)
+
+        columns = {c["name"]: c for c in inspector.get_columns("tasks")}
+        assert "priority" in columns
+        assert "MEDIUM" in str(columns["priority"].get("default", ""))
+
+        constraints = {c["name"] for c in inspector.get_check_constraints("tasks")}
+        assert "check_task_status" in constraints
+        assert "check_task_priority" in constraints
+
+        # Test downgrade to 012_agent_run_worker_leases
+        engine.dispose()
+        command.downgrade(alembic_cfg, "012_agent_run_worker_leases")
+        engine.dispose()
+
+        inspector_012 = inspect(engine)
+        cols_012 = {c["name"]: c for c in inspector_012.get_columns("tasks")}
+        assert "priority" not in cols_012
+        constraints_012 = {c["name"] for c in inspector_012.get_check_constraints("tasks")}
+        assert "check_task_priority" not in constraints_012
+        assert "check_task_status" not in constraints_012
+
+        # Restore to head
+        command.upgrade(alembic_cfg, "head")
+        engine.dispose()
+
+        inspector_restored = inspect(engine)
+        cols_restored = {c["name"]: c for c in inspector_restored.get_columns("tasks")}
+        assert "priority" in cols_restored
+        constraints_restored = {c["name"] for c in inspector_restored.get_check_constraints("tasks")}
+        assert "check_task_status" in constraints_restored
+        assert "check_task_priority" in constraints_restored

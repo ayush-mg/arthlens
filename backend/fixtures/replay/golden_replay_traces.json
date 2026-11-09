@@ -17,7 +17,7 @@
       },
       "planning_trace": {
         "task_type": "planning",
-        "prompt_sha256": "b69d75f2c8cf251720b8a9171e4946c45d54fe03bdd435b05b7e2137f4df71a4",
+        "prompt_sha256": "6a09704ead0a051b3a82dd980c8c48a3fd92dfcca41dfb563d1f5550e27d5b9e",
         "schema_sha256": "9d50e2d12a1d401af56e70bc3ad9d5b0feb9d2d72e768baf58798d451580c382",
         "response_json": "{\"steps\":[{\"depends_on\":[],\"step_id\":\"step_1\",\"tool_input\":{\"fixed_costs\":150000.0,\"price\":100.0,\"variable_cost\":40.0},\"tool_name\":\"calculate_break_even\"}]}"
       }
@@ -41,7 +41,7 @@
       },
       "planning_trace": {
         "task_type": "planning",
-        "prompt_sha256": "b6890d75afb3454d6c4dec2757dd8569ff160fd603ac821e8fc9e9a0fba6de4d",
+        "prompt_sha256": "13e8bfcbb319e8adfc1d1543f69bb460bb2583eb42b91fa62e860af947b7d3de",
         "schema_sha256": "9d50e2d12a1d401af56e70bc3ad9d5b0feb9d2d72e768baf58798d451580c382",
         "response_json": "{\"steps\":[{\"depends_on\":[],\"step_id\":\"step_1\",\"tool_input\":{\"minutes\":45.0,\"mode\":\"driving\",\"site\":{\"lat\":25.3176,\"lon\":82.9739,\"name\":\"Varanasi Hub\"}},\"tool_name\":\"compute_catchment\"}]}"
       }
@@ -64,7 +64,7 @@
       },
       "planning_trace": {
         "task_type": "planning",
-        "prompt_sha256": "7e930a544734c44cf358a57e301c1a5dd3e4f632252af27c0fc247358801ad14",
+        "prompt_sha256": "069dd67105df9abab05788036eb63da9e34c7a382159043e23795787e38f45c9",
         "schema_sha256": "9d50e2d12a1d401af56e70bc3ad9d5b0feb9d2d72e768baf58798d451580c382",
         "response_json": "{\"steps\":[{\"depends_on\":[],\"step_id\":\"step_1\",\"tool_input\":{\"as_of\":\"2026-03-31\",\"facts\":{\"cost\":1000000.0,\"enterprise_type\":\"micro\"},\"scheme\":\"PMFME\"},\"tool_name\":\"evaluate_scheme_eligibility\"}]}"
       }

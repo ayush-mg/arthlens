@@ -1171,3 +1171,45 @@ changes were present before work began and have not been reverted or overwritten
 
 
 
+
+
+## 2026-11-10 — P5-3 Follow-Up Task Integration, Local Runtime Acceptance & Deployment Preflight
+
+- **P5-3 Follow-Up Tasks & Automatic Verifier Recovery Completed**:
+  - Added `priority` column (`TEXT`, default `'MEDIUM'`) and PostgreSQL check constraints `check_task_status` (`'OPEN', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'`) and `check_task_priority` (`'HIGH', 'MEDIUM', 'LOW'`) to `tasks` table.
+  - Authored Alembic migration `013_task_priority.py`; verified upgrade, downgrade (`-1`), and re-upgrade to head against PostgreSQL.
+  - Updated `TaskModel` in `backend/arthlens/infra/models.py` and `PostgresFollowupTaskRepository` in `backend/arthlens/infra/repositories.py` (`create_for_run` supports priority and status; added `update_task` with run ownership check; `_serialize` includes priority).
+  - Added authenticated `PATCH /agent-runs/{run_id}/tasks/{task_id}` endpoint in `backend/arthlens/api/agent_runs.py` accepting `status` and `priority` with role enforcement (`Role.ENTREPRENEUR`, `Role.ADMIN`) and IDOR isolation.
+  - Added automatic verifier recovery in `AgentRunOrchestrator` (`backend/arthlens/agent/orchestration.py`): when tool execution outputs contain missing evidence or insufficient data, the orchestrator extracts gaps via `extract_evidence_gaps`, converts them to neutral follow-up tasks via `tasks_from_unresolved_gaps`, persists them against the owned run via `PostgresFollowupTaskRepository`, and transitions the run from `RECOVERING` via `AgentRunEvent.NEEDS_USER_FACT` to `AgentRunState.AWAITING_USER`.
+  - Injected `task_repository=PostgresFollowupTaskRepository()` into `create_default_orchestrator()` in `backend/arthlens/agent/worker.py`.
+  - Regenerated golden replay traces via `scripts/generate_replay_fixtures.py` to align with the updated tool schema hash (`golden_replay_traces.json`); verified in `test_replay_golden_traces.py` (6/6 passed).
+  - Authored unit and integration tests: `test_agent_followups.py` (5/5 passed), `test_agent_orchestration.py` (9/9 passed), `test_agent_run_api.py` (4/4 passed), `test_migrations.py` (14/14 passed).
+
+- **Local Runtime Orchestration & Process Lifecycle**:
+  - Verified local startup sequence via `run-local.ps1` with active PostgreSQL port 5433 TCP check, active query readiness check, fatal migration and seed execution, FastAPI backend launch on port 8000, background worker launch, and Next.js frontend launch on port 3000.
+  - Updated `run-local.ps1` with `-WindowStyle Hidden` so child processes remain decoupled from the parent PowerShell script session.
+  - Verified clean termination via `stop-local.ps1`: cleanly shuts down process trees recorded in `.arthlens-pids.json` and clears any residual port bindings.
+
+- **Complete User Journey & Worker Recovery Acceptance**:
+  - Executed and verified `backend/tests/integration/test_complete_user_journey.py` (3/3 passed in 79.74s):
+    1. User Registration -> Login -> Economic Atlas indicators (`/geo/in:district:120/indicators`) -> Scenario Creation -> Input Financial Assumptions -> Deterministic Calculations (`/scenarios/{id}/calculate`).
+    2. Agent Planning with live Gemini LLM -> Deterministic Tool Execution (`calculate_break_even`) -> Evidence Inspection & Audit SSE Stream -> Scenario Persistence.
+    3. Multi-format Decision Dossier generation and download across all four formats (JSON, CSV, XLSX with `openpyxl`, PDF with `pypdf`).
+    4. Worker lease recovery and checkpoint resume.
+    5. Deterministic mode operation without external API credentials.
+  - Executed and verified `backend/tests/integration/test_durable_worker.py` (7/7 passed in 1.78s): verified atomic leasing with `FOR UPDATE SKIP LOCKED`, step memento resume, crash recovery, and bounded attempts.
+
+- **Production Deployment Configuration & Preflight**:
+  - Inspected `deployment/Dockerfile`, `deployment/compose.yaml`, and `deployment/env.example`.
+  - Verified `scripts/deployment_preflight.py`: checks 5 required production keys (`ENVIRONMENT`, `DATABASE_URL`, `JWT_SECRET_KEY`, `AUTH_COOKIE_SECURE`, `AUTH_COOKIE_SAMESITE`), verifies URL credentials and host without placeholders, enforces minimum 32-byte JWT secret, checks exactly 1 Alembic migration head, and performs checks without connecting to external databases or leaking secrets.
+  - Verified `backend/tests/unit/test_deployment_preflight.py` (9/9 passed).
+
+- **Human-Review Governance Packages**:
+  - Reviewed `docs/schemes/SCHEME_RULES_HUMAN_APPROVAL_RECORD.md` (PMFME, PMEGP, PM-MUDRA) and `docs/data-sources/DATA_GOVERNANCE_AND_SOURCE_REGISTER.md` (DS-01, DS-04, DS-05, DS-08, DS-09).
+  - Maintained strict governance: all unapproved statutory schemes and licensing terms remain explicitly marked `HUMAN_REVIEW_REQUIRED`; no approvals were fabricated.
+
+- **Full Monorepo Acceptance Verification**:
+  - Full backend test suite: **857 passed, 2 skipped** (live network opt-ins), **0 failed in 123.57s**.
+  - Frontend Vitest suite: **42 passed across 10 test files in 3.64s**.
+  - Next.js production build: **10/10 static pages compiled successfully**.
+  - Security and credential leak scan: **0 leaks across tracked repository**.

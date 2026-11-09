@@ -163,7 +163,7 @@ class MemoryAgentRunRepository:
         )
 
 
-def _orchestrator(repository, *, verifier=_test_verifier, llm=None):
+def _orchestrator(repository, *, verifier=_test_verifier, llm=None, task_repository=None, executor=None):
     client = llm or FakeLLMClient(
         {
             "goal_interpretation": [_GOAL_RESPONSE],
@@ -175,9 +175,10 @@ def _orchestrator(repository, *, verifier=_test_verifier, llm=None):
         repository,
         GoalInterpreter(client),
         Planner(client, PlanValidator(registry)),
-        build_default_tool_executor(),
+        executor or build_default_tool_executor(),
         model_call_cost=_test_model_call_cost,
         verifier=verifier,
+        task_repository=task_repository,
     )
 
 
@@ -422,3 +423,41 @@ def test_orchestrator_records_fallback_event_when_llm_client_falls_back(monkeypa
     assert "sensitive-secret-token-xyz" not in fallback_events[0]["payload"]["reason"]
     assert "[REDACTED_SECRET]" in fallback_events[0]["payload"]["reason"]
 
+
+
+@pytest.mark.unit
+def test_orchestrator_auto_recovers_verifier_gaps_into_followup_tasks():
+    class MemoryTaskRepo:
+        def __init__(self):
+            self.tasks = []
+
+        def create_for_run(self, run_id, owner_id, tasks):
+            for t in tasks:
+                self.tasks.append({"run_id": run_id, "owner_id": owner_id, **t})
+            return list(self.tasks)
+
+    task_repo = MemoryTaskRepo()
+    repository = MemoryAgentRunRepository(
+        {
+            "objective": "Calculate break-even quantity.",
+            "supplied_slots": {
+                "price": 100,
+                "variable_cost": 40,
+                "fixed_costs": 300,
+            },
+        }
+    )
+    repository.run["owner_id"] = "owner-123"
+
+    orchestrator = _orchestrator(
+        repository,
+        verifier=lambda *_: False,
+        task_repository=task_repo,
+    )
+
+    result = orchestrator.run("run-1")
+
+    assert result.state is AgentRunState.AWAITING_USER
+    assert result.reason == "unresolved_evidence_gaps"
+    assert len(task_repo.tasks) == 1
+    assert "Verifier rejected execution outputs" in task_repo.tasks[0]["text"]

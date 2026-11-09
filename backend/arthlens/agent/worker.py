@@ -61,6 +61,7 @@ from backend.arthlens.geo.road_graph import RoadSpeedScenario
 from backend.arthlens.geo.road_repository import PostgresRoadGraphRepository
 from backend.arthlens.infra.repositories import (
     PostgresAgentRunRepository,
+    PostgresFollowupTaskRepository,
     PostgresPolicyRuleRepository,
     PostgresQuantityRepository,
     PostgresScenarioRepository,
@@ -1214,9 +1215,11 @@ def _finite_tree(value: Any) -> bool:
 def create_default_orchestrator(
     repository: Any | None = None,
     llm_client: Any | None = None,
+    task_repository: Any | None = None,
 ) -> AgentRunOrchestrator:
     """Instantiate a production-ready agent orchestrator."""
     repo = repository or PostgresAgentRunRepository()
+    task_repo = task_repository or PostgresFollowupTaskRepository()
     client = llm_client or get_llm_client()
     tools = build_default_tool_registry()
     validator = PlanValidator(tools, max_steps=25)
@@ -1234,6 +1237,7 @@ def create_default_orchestrator(
         executor=executor,
         model_call_cost=model_cost_calc,
         verifier=default_production_verifier,
+        task_repository=task_repo,
     )
 
 

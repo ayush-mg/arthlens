@@ -1,7 +1,10 @@
 """Generate golden replay traces for Loop A, Loop B, and Loop C."""
 
 import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from backend.arthlens.agent.planning import (
     AgentPlan,

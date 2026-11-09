@@ -4,7 +4,16 @@ import asyncio
 import json
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, Request, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    status,
+)
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
@@ -32,6 +41,13 @@ class CreateFollowupTasksRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     unresolved_gaps: list[UnresolvedGap] = Field(min_length=1, max_length=100)
+
+
+class UpdateTaskRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: str | None = None
+    priority: str | None = None
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -111,6 +127,43 @@ def list_agent_run_tasks(
             detail="Agent run not found.",
         )
     return tasks
+
+
+@router.patch("/{run_id}/tasks/{task_id}")
+def update_agent_run_task(
+    run_id: str,
+    task_id: str,
+    body: UpdateTaskRequest,
+    current_user: AuthenticatedUser = Depends(
+        require_roles(Role.ENTREPRENEUR, Role.ADMIN)
+    ),
+) -> dict[str, Any]:
+    """Update task status or priority for an owned agent run."""
+    if body.status is None and body.priority is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one of status or priority must be provided.",
+        )
+    owner_id = None if current_user.has_role(Role.ADMIN) else current_user.id
+    repository = PostgresFollowupTaskRepository()
+    try:
+        return repository.update_task(
+            run_id=run_id,
+            task_id=task_id,
+            owner_id=owner_id,
+            status=body.status,
+            priority=body.priority,
+        )
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Agent run or task not found.",
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get("/{run_id}")

@@ -6,8 +6,6 @@ Phase: P1-5 (Database Persistence, Repositories and Integration Tests).
 """
 
 import uuid
-from datetime import date, datetime
-from typing import Any, List, Optional
 
 from geoalchemy2 import Geometry
 from sqlalchemy import (
@@ -18,14 +16,11 @@ from sqlalchemy import (
     Date,
     DateTime,
     Double,
-    Float,
     ForeignKey,
     Index,
     Integer,
     Numeric,
-    PrimaryKeyConstraint,
     SmallInteger,
-    String,
     Text,
     UniqueConstraint,
     func,
@@ -547,7 +542,19 @@ class TaskModel(Base):
     text = Column(Text, nullable=False)
     linked_gap_quantity_id = Column(UUID(as_uuid=True), ForeignKey("quantities.id"), nullable=True)
     status = Column(Text, nullable=False, server_default="OPEN")
+    priority = Column(Text, nullable=False, server_default="MEDIUM")
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('OPEN', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED')",
+            name="check_task_status",
+        ),
+        CheckConstraint(
+            "priority IN ('HIGH', 'MEDIUM', 'LOW')",
+            name="check_task_priority",
+        ),
+    )
 
 
 class AuditEventModel(Base):

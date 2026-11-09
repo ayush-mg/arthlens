@@ -140,6 +140,7 @@ $BackendProcess = Start-Process `
     -FilePath "$RepoRoot\.venv\Scripts\python.exe" `
     -ArgumentList "-m uvicorn backend.arthlens.api.app:create_app --factory --host 127.0.0.1 --port 8000" `
     -WorkingDirectory $RepoRoot `
+    -WindowStyle Hidden `
     -PassThru
 
 # Poll for backend readiness
@@ -183,6 +184,7 @@ $WorkerProcess = Start-Process `
     -FilePath "$RepoRoot\.venv\Scripts\python.exe" `
     -ArgumentList "$RepoRoot\scripts\run_agent_worker.py --poll-interval 1.0" `
     -WorkingDirectory $RepoRoot `
+    -WindowStyle Hidden `
     -PassThru
 
 Start-Sleep -Seconds 1
@@ -217,6 +219,7 @@ $FrontendProcess = Start-Process `
     -FilePath "cmd.exe" `
     -ArgumentList "/c npm --prefix frontend run $FrontendScript" `
     -WorkingDirectory $RepoRoot `
+    -WindowStyle Hidden `
     -PassThru
 
 # Poll for frontend responsiveness on port 3000

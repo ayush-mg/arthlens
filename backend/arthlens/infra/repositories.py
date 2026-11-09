@@ -830,11 +830,21 @@ class PostgresFollowupTaskRepository:
                     linked_quantity_id = uuid.UUID(str(linked_quantity_id))
                 except (ValueError, AttributeError) as exc:
                     raise ValueError("linked_gap_quantity_id must be a UUID.") from exc
+            raw_priority = task.get("priority", "MEDIUM")
+            priority = str(raw_priority if raw_priority is not None else "MEDIUM").strip().upper()
+            if priority not in {"HIGH", "MEDIUM", "LOW"}:
+                raise ValueError(f"Invalid task priority: {priority}")
+            raw_status = task.get("status", "OPEN")
+            status = str(raw_status if raw_status is not None else "OPEN").strip().upper()
+            if status not in {"OPEN", "IN_PROGRESS", "COMPLETED", "CANCELLED"}:
+                raise ValueError(f"Invalid task status: {status}")
             prepared.append(
                 TaskModel(
                     run_id=run_uuid,
                     text=text.strip(),
                     linked_gap_quantity_id=linked_quantity_id,
+                    priority=priority,
+                    status=status,
                 )
             )
 
@@ -879,6 +889,47 @@ class PostgresFollowupTaskRepository:
             ).scalars().all()
             return [self._serialize(task) for task in tasks]
 
+    def update_task(
+        self,
+        run_id: Union[str, uuid.UUID],
+        task_id: Union[str, uuid.UUID],
+        owner_id: Optional[Union[str, uuid.UUID]] = None,
+        *,
+        status: Optional[str] = None,
+        priority: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        run_uuid = _to_uuid(run_id)
+        task_uuid = _to_uuid(task_id)
+        with self._session_factory() as session:
+            run_statement = select(AgentRunModel.id).where(AgentRunModel.id == run_uuid)
+            if owner_id is not None:
+                run_statement = run_statement.where(AgentRunModel.owner_id == _to_uuid(owner_id))
+            if session.execute(run_statement).scalar_one_or_none() is None:
+                raise KeyError(f"Agent run {run_id!s} was not found for this owner.")
+
+            task = session.execute(
+                select(TaskModel)
+                .where(TaskModel.id == task_uuid, TaskModel.run_id == run_uuid)
+                .with_for_update()
+            ).scalar_one_or_none()
+            if task is None:
+                raise KeyError(f"Task {task_id!s} was not found for run {run_id!s}.")
+
+            if status is not None:
+                norm_status = status.strip().upper()
+                if norm_status not in {"OPEN", "IN_PROGRESS", "COMPLETED", "CANCELLED"}:
+                    raise ValueError(f"Invalid task status: {status}")
+                task.status = norm_status
+
+            if priority is not None:
+                norm_priority = priority.strip().upper()
+                if norm_priority not in {"HIGH", "MEDIUM", "LOW"}:
+                    raise ValueError(f"Invalid task priority: {priority}")
+                task.priority = norm_priority
+
+            session.commit()
+            return self._serialize(task)
+
     @staticmethod
     def _serialize(task: TaskModel) -> Dict[str, Any]:
         return {
@@ -891,6 +942,7 @@ class PostgresFollowupTaskRepository:
                 else None
             ),
             "status": task.status,
+            "priority": getattr(task, "priority", "MEDIUM") or "MEDIUM",
             "created_at": task.created_at,
         }
 
