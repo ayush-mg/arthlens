@@ -1109,6 +1109,51 @@ changes were present before work began and have not been reverted or overwritten
 - **Task 20: Delivery & Documentation**:
   - Reconciled `docs/MASTER_EXECUTION_TRACKER.md`, `docs/FINAL_PROJECT_ACCEPTANCE.md`, `docs/EXECUTION_LOG.md`, and `README.md`.
 
+## 2026-11-10 — Startup Reliability, Benchmark Systems B1–B4, Performance Measurement & Regression Acceptance
+
+- **Startup Reliability & Process Orchestration (P1-1)**:
+  - Docker Compose initialization and PostGIS container resolution (`arthlens-postgres`).
+  - Active PostgreSQL readiness polling via `psycopg.connect` / `SELECT 1` with 30s timeout retry.
+  - Fatal exit code trapping for Alembic migrations and seed data population (`if ($LASTEXITCODE -ne 0) { throw ... }`).
+  - Port conflict resolution: Host PostgreSQL mapped to port 5433 dynamically from `.env` to prevent collision with native Windows service on port 5432.
+  - Process lifecycle management in `run-local.ps1` and `stop-local.ps1`: implemented Windows tree-kill (`taskkill /PID $pid /T /F`) for backend, worker daemon, and frontend; automated cleanup of residual processes on ports 8000/3000 and orphan python workers.
+  - Public health endpoints implemented: `GET /health` and `GET /api/v1/health` with `{"status": "healthy", "service": "arthlens-backend"}` registered and whitelisted in RBAC (`backend/arthlens/security/rbac.py`).
+  - Unit tests: authored `backend/tests/unit/test_health_endpoints.py` (3/3 passed).
+  - Production Dockerfile entrypoint corrected to `backend.arthlens.api.app:create_app --factory`.
+  - Multi-cycle startup, health verification, and shutdown verified cleanly.
+
+- **Benchmark Evaluation Systems B1–B4 (P6-1, P6-2)**:
+  - Authored `benchmark/harness/systems.py`: Implemented `BaseBenchmarkSystem`, `SystemB1SinglePassLLM`, `SystemB2FixedPipeline`, `SystemB3AblationAgent`, and `SystemB4FullArthLens`.
+  - Implemented `benchmark/harness/scorer.py`: Automated mechanical metric scoring for unsupported numeric claims, insufficient evidence detection, provenance precision, and plan validity.
+  - Created execution CLI `scripts/run_benchmark.py` supporting all dataset splits (`dev`, `validation`, `frozen_test`) and systems (`B1`..`B4`).
+  - Authored validation task suite `benchmark/tasks/validation/validation_tasks.json` with 6 tasks (`BT-101` to `BT-106`) across Loops A, B, and C. Validated with `scripts/validate_benchmark.py` (SHA-256: `01cf9b9e35e98ba1767ede3eb5eb1a0728a008cf6a618011cbbb7e9c25304f44`).
+  - Evaluated B4 vs B1 on dev and validation splits: System B4 achieved 0.0 unsupported numeric claim rate (CI [0.0, 0.0]) and 1.0 correct insufficient evidence rate, cleanly outperforming ungrounded single-pass LLM baseline B1 (1.0 unsupported numeric claims).
+  - Authored `backend/tests/unit/test_benchmark_execution.py` (6/6 passed).
+
+- **System Latency, Job Duration, and Cost Performance Measurement (P6-3)**:
+  - Updated and executed `scripts/measure_system_performance.py` across 30 iterations.
+  - Authenticated API endpoint latencies measured:
+    - `GET /health`: p50 5.98 ms, p95 7.51 ms, max 52.15 ms
+    - `GET /auth/ping`: p50 6.01 ms, p95 7.05 ms, max 7.12 ms
+    - `GET /geo/in:district:120/indicators`: p50 73.84 ms, p95 96.00 ms, max 106.39 ms
+  - Computational engine job durations measured:
+    - Break-Even calculation: p50 0.00 ms, p95 0.00 ms
+    - 36-Month Loan Amortization schedule: p50 0.04 ms, p95 0.05 ms
+    - Monte Carlo Simulation (500 draws, PCG64): p50 0.87 ms, p95 8.96 ms
+  - Database timings measured: `SELECT 1` query p50 0.49 ms, p95 0.85 ms.
+  - Cost governance: capped at $0.25 USD/run budget governor with token tracking.
+  - Output written to `benchmark/results/system_performance_metrics.json`.
+
+- **Timezone Boundary Defect Resolution in Scenarios**:
+  - Resolved local vs UTC date boundary bug in `backend/arthlens/api/scenarios.py` where quantities registered on local calendar day failed validation when local time passed UTC midnight.
+  - Verified in `backend/tests/integration/test_scenario_calculations_and_reporting.py` (13/13 passed) and `test_scenario_workflow_api.py` (7/7 passed).
+
+- **Full Monorepo Regression Acceptance**:
+  - Full backend test suite: **846 passed, 2 skipped, 0 failed in 123.14s**.
+  - Frontend Vitest suite: **42 passed across 10 test files in 3.95s**.
+  - Frontend production build: **10/10 static pages compiled successfully**.
+  - Git credential scan: **0 credential leaks**.
+
 
 
 

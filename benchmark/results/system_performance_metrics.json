@@ -1,0 +1,63 @@
+{
+  "timestamp": "2026-11-09T19:15:47Z",
+  "trials_per_target": 30,
+  "api_latencies": {
+    "GET /health": {
+      "min_ms": 5.68,
+      "mean_ms": 7.71,
+      "p50_ms": 5.98,
+      "p95_ms": 7.51,
+      "max_ms": 52.15
+    },
+    "GET /auth/ping": {
+      "min_ms": 5.69,
+      "mean_ms": 6.13,
+      "p50_ms": 6.01,
+      "p95_ms": 7.05,
+      "max_ms": 7.12
+    },
+    "GET /geo/in:district:120/indicators": {
+      "min_ms": 69.58,
+      "mean_ms": 75.09,
+      "p50_ms": 73.84,
+      "p95_ms": 96.0,
+      "max_ms": 106.39
+    }
+  },
+  "job_durations": {
+    "Job: Break-Even Calculation": {
+      "min_ms": 0.0,
+      "mean_ms": 0.0,
+      "p50_ms": 0.0,
+      "p95_ms": 0.0,
+      "max_ms": 0.01
+    },
+    "Job: 36-Month Loan Schedule Amortization": {
+      "min_ms": 0.04,
+      "mean_ms": 0.04,
+      "p50_ms": 0.04,
+      "p95_ms": 0.05,
+      "max_ms": 0.07
+    },
+    "Job: Monte Carlo Simulation (500 draws)": {
+      "min_ms": 0.81,
+      "mean_ms": 1.71,
+      "p50_ms": 0.87,
+      "p95_ms": 8.96,
+      "max_ms": 8.96
+    }
+  },
+  "database_timings": {
+    "Database Query: SELECT 1": {
+      "min_ms": 0.42,
+      "mean_ms": 0.54,
+      "p50_ms": 0.49,
+      "p95_ms": 0.85,
+      "max_ms": 1.24
+    }
+  },
+  "cost_governance": {
+    "max_cost_usd_per_run_cap": 0.25,
+    "cost_model": "Fixed budget governor with deterministic token usage tracking"
+  }
+}

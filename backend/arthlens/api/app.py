@@ -222,6 +222,12 @@ def create_app() -> FastAPI:
     app.include_router(indicators_router)
     app.include_router(admin_router)
 
+    @app.get("/health", tags=["Health"])
+    @app.get("/api/v1/health", tags=["Health"])
+    def health_check() -> dict[str, str]:
+        """Unauthenticated health check endpoint for deployment monitoring."""
+        return {"status": "healthy", "service": "arthlens-backend"}
+
     return app
 
 

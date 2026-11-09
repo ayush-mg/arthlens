@@ -61,6 +61,8 @@ class EndpointPolicyRegistry:
         self.register("/auth/register", "POST", allowed_roles={"*"})
         self.register("/auth/logout", "POST", allowed_roles={"*"})
         self.register("/auth/ping", "GET", allowed_roles={"*"})
+        self.register("/health", "GET", allowed_roles={"*"})
+        self.register("/api/v1/health", "GET", allowed_roles={"*"})
         self.register("/auth/me", "GET", allowed_roles={"*"})
         self.register("/auth/password-reset/request", "POST", allowed_roles={"*"})
         self.register("/auth/password-reset/confirm", "POST", allowed_roles={"*"})

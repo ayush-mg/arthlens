@@ -1,0 +1,54 @@
+{
+  "dataset_sha256": "ebef2d61f04ba32c20f27086be8fbd101c604da5f4db4e7e9194239a6cda02b5",
+  "run_id": "benchmark-b4-dev-run",
+  "scored_by": "arthlens-automated-evaluator-v1",
+  "scores": [
+    {
+      "metrics": {
+        "class_mislabel_rate": 0.0,
+        "numerical_correctness": 1.0,
+        "unsupported_numeric_claim_rate": 0.0
+      },
+      "task_id": "BT-001"
+    },
+    {
+      "metrics": {
+        "correct_insufficient_evidence_rate": 1.0,
+        "resolution_overclaim_rate": 0.0
+      },
+      "task_id": "BT-002"
+    },
+    {
+      "metrics": {
+        "class_mislabel_rate": 0.0,
+        "unsupported_numeric_claim_rate": 0.0
+      },
+      "task_id": "BT-003"
+    },
+    {
+      "metrics": {
+        "class_mislabel_rate": 0.0,
+        "resolution_overclaim_rate": 0.0,
+        "unsupported_numeric_claim_rate": 0.0
+      },
+      "task_id": "BT-004"
+    },
+    {
+      "metrics": {
+        "class_mislabel_rate": 0.0,
+        "eligibility_accuracy": 1.0
+      },
+      "task_id": "BT-005"
+    },
+    {
+      "metrics": {
+        "completion_and_recovery": 1.0,
+        "cost_and_effort": 0.09999999999999999,
+        "unsupported_numeric_claim_rate": 0.0
+      },
+      "task_id": "BT-006"
+    }
+  ],
+  "split": "dev",
+  "system_id": "System-B4"
+}

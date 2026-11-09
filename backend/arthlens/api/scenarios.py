@@ -320,6 +320,11 @@ def _json_compatible(value: Any) -> Any:
     return value
 
 
+def _current_analysis_date() -> date:
+    """Return effective analysis date, supporting both UTC and local timezone dates."""
+    return max(datetime.now(timezone.utc).date(), date.today())
+
+
 def _validate_scenario_quantity(
     quantity: Optional[Quantity],
     *,
@@ -852,7 +857,7 @@ def compare_scenarios(
     right_ids = _scenario_output_quantity_ids(right_data)
     all_keys = sorted(set(left_ids) | set(right_ids))
     quantity_repo = PostgresQuantityRepository()
-    today_date = datetime.now(timezone.utc).date()
+    today_date = _current_analysis_date()
     today = today_date.isoformat()
     source_repo = PostgresSourceRepository()
     geo_repo = PostgresGeoUnitRepository()
@@ -1057,7 +1062,7 @@ def allocate_scenario_spatial_demand(
             detail="INSUFFICIENT_DATA: select a registered geographic unit before allocating spatial demand.",
         )
 
-    today = datetime.now(timezone.utc).date()
+    today = _current_analysis_date()
     source_repo = PostgresSourceRepository()
     quantity_repo = PostgresQuantityRepository()
     role_inputs: List[tuple[str, str, uuid.UUID, str, str, tuple[Kind, ...]]] = []
@@ -1299,7 +1304,7 @@ def calculate_scenario_accessibility(
             detail="INSUFFICIENT_DATA: select a registered geographic unit before analyzing accessibility.",
         )
 
-    today = datetime.now(timezone.utc).date()
+    today = _current_analysis_date()
     source_repo = PostgresSourceRepository()
     quantity_repo = PostgresQuantityRepository()
     graph_repo = PostgresRoadGraphRepository()
@@ -2374,7 +2379,7 @@ def simulate_scenario(
             detail=f"Invalid explicit simulation assumptions: {exc}",
         ) from exc
 
-    today = datetime.now(timezone.utc).date().isoformat()
+    today = _current_analysis_date().isoformat()
     output_quantities, output_ids, response = _build_simulation_outputs(
         result=result,
         run_id=run_id,
@@ -2496,7 +2501,7 @@ def _build_simulation_input_quantities(
     geo_id: str,
     resolution: int,
 ) -> tuple[List[Quantity], Dict[str, str], Dict[str, str], Dict[str, List[str]]]:
-    today = datetime.now(timezone.utc).date().isoformat()
+    today = _current_analysis_date().isoformat()
     quantities: List[Quantity] = []
     baseline_ids: Dict[str, str] = {}
     distribution_ids: Dict[str, str] = {}
@@ -2875,7 +2880,7 @@ def _build_financial_input_quantities(
     values = _financial_input_values(body)
     if not values:
         return [], {}
-    today = datetime.now(timezone.utc).date().isoformat()
+    today = _current_analysis_date().isoformat()
     quantities: List[Quantity] = []
     quantity_ids: Dict[str, str] = {}
     for name, (value, unit) in values.items():
@@ -2915,7 +2920,7 @@ def _build_financial_output_quantities(
 ) -> tuple[List[Quantity], Dict[str, str]]:
     if not values:
         return [], {}
-    today = datetime.now(timezone.utc).date().isoformat()
+    today = _current_analysis_date().isoformat()
     quantities: List[Quantity] = []
     output_ids: Dict[str, str] = {}
     for name, (value, unit, input_names) in values.items():

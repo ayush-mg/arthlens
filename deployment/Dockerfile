@@ -30,4 +30,4 @@ COPY backend /app/backend
 
 EXPOSE 8000
 
-CMD ["uvicorn", "backend.arthlens.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "backend.arthlens.api.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]

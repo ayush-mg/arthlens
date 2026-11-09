@@ -1,0 +1,246 @@
+[
+  {
+    "task_id": "BT-101",
+    "version": "1.0",
+    "split": "validation",
+    "loop": "A",
+    "category": "answerable",
+    "difficulty": "easy",
+    "question": {
+      "text": "What is the modal wholesale price of paddy in Varanasi district today?",
+      "context": {
+        "district": "Varanasi",
+        "state": "Uttar Pradesh",
+        "business_template": "Small Food-Processing / Tiffin Unit"
+      }
+    },
+    "expected_outcome": {
+      "type": "factual_answer",
+      "gold_answer": null,
+      "gold_evidence_floor": 4,
+      "gold_resolution": 2,
+      "notes": "Validation task for second pilot-adjacent district. The agent should fetch the current mandi price from DS-01 and report it as OBSERVED with DISTRICT resolution."
+    },
+    "evaluation": {
+      "metrics": [
+        "unsupported_numeric_claim_rate",
+        "class_mislabel_rate",
+        "numerical_correctness"
+      ]
+    },
+    "metadata": {
+      "author": "Validation split author",
+      "created_date": "2026-11-09",
+      "handbook_reference": "Section 12.2, Loop A",
+      "tags": ["validation", "mandi_price", "loop_a", "varanasi"]
+    }
+  },
+  {
+    "task_id": "BT-102",
+    "version": "1.0",
+    "split": "validation",
+    "loop": "A",
+    "category": "insufficient_evidence",
+    "difficulty": "medium",
+    "question": {
+      "text": "What is the average monthly household expenditure on healthcare in Sukma district, Chhattisgarh?",
+      "context": {
+        "district": "Sukma",
+        "state": "Chhattisgarh"
+      }
+    },
+    "expected_outcome": {
+      "type": "data_gap_reported",
+      "gold_answer": null,
+      "gold_evidence_floor": null,
+      "gold_resolution": null,
+      "expected_data_gaps": [
+        "NSS/HCES district-level healthcare expenditure data not available for Sukma",
+        "No registered downscaling method validated for this geography"
+      ],
+      "notes": "Validation task for missing survey evidence. The agent must report the data gap rather than invent an expenditure figure."
+    },
+    "evaluation": {
+      "metrics": [
+        "correct_insufficient_evidence_rate",
+        "resolution_overclaim_rate"
+      ]
+    },
+    "metadata": {
+      "author": "Validation split author",
+      "created_date": "2026-11-09",
+      "handbook_reference": "Section 12.2, unanswerable tasks",
+      "tags": ["validation", "data_gap", "nss", "consumption", "loop_a"]
+    }
+  },
+  {
+    "task_id": "BT-103",
+    "version": "1.0",
+    "split": "validation",
+    "loop": "A",
+    "category": "conflicting_sources",
+    "difficulty": "hard",
+    "question": {
+      "text": "What is the total working population of Varanasi district?",
+      "context": {
+        "district": "Varanasi",
+        "state": "Uttar Pradesh"
+      }
+    },
+    "expected_outcome": {
+      "type": "contradiction_surfaced",
+      "gold_answer": null,
+      "gold_evidence_floor": 4,
+      "gold_resolution": 2,
+      "expected_contradictions": [
+        {
+          "definition_key": "population.working",
+          "source_a": "Census 2011 PCA (DS-05)",
+          "source_b": "Periodic Labour Force Survey (PLFS)"
+        }
+      ],
+      "notes": "Validation task for cross-source contradiction. The agent must surface both sources, report staleness, and flag contradiction per V5."
+    },
+    "evaluation": {
+      "metrics": [
+        "unsupported_numeric_claim_rate",
+        "class_mislabel_rate"
+      ]
+    },
+    "metadata": {
+      "author": "Validation split author",
+      "created_date": "2026-11-09",
+      "handbook_reference": "Section 12.2, contradictory-source tasks; Section 4.5, V5",
+      "tags": ["validation", "contradiction", "census", "plfs", "loop_a"]
+    }
+  },
+  {
+    "task_id": "BT-104",
+    "version": "1.0",
+    "split": "validation",
+    "loop": "B",
+    "category": "geographic_resolution_trap",
+    "difficulty": "hard",
+    "question": {
+      "text": "Estimate the number of potential customers within a 1 km walking catchment of a proposed store at 25.3176 N, 82.9739 E in Varanasi.",
+      "context": {
+        "district": "Varanasi",
+        "state": "Uttar Pradesh",
+        "business_template": "Neighbourhood Retail Grocery",
+        "user_inputs": {
+          "site_latitude": 25.3176,
+          "site_longitude": 82.9739,
+          "catchment_radius_km": 1
+        }
+      }
+    },
+    "expected_outcome": {
+      "type": "resolution_overclaim_avoided",
+      "gold_answer": null,
+      "gold_evidence_floor": 2,
+      "gold_resolution": 2,
+      "notes": "The question asks for a point-level customer count in Varanasi. The agent must not claim POINT resolution without registered downscaling."
+    },
+    "evaluation": {
+      "metrics": [
+        "resolution_overclaim_rate",
+        "class_mislabel_rate",
+        "unsupported_numeric_claim_rate"
+      ]
+    },
+    "metadata": {
+      "author": "Validation split author",
+      "created_date": "2026-11-09",
+      "handbook_reference": "Section 12.2, resolution traps",
+      "tags": ["validation", "resolution_trap", "catchment", "loop_b"]
+    }
+  },
+  {
+    "task_id": "BT-105",
+    "version": "1.0",
+    "split": "validation",
+    "loop": "C",
+    "category": "scheme_edge_case",
+    "difficulty": "hard",
+    "question": {
+      "text": "Is an applicant seeking a 15 lakh INR loan for enterprise expansion in Varanasi eligible under PM-MUDRA Tarun Plus?",
+      "context": {
+        "district": "Varanasi",
+        "state": "Uttar Pradesh",
+        "business_template": "Small Food-Processing / Tiffin Unit",
+        "schemes": ["PM-MUDRA"],
+        "user_inputs": {
+          "loan_amount_inr": 1500000,
+          "prior_tarun_repaid": true
+        }
+      }
+    },
+    "expected_outcome": {
+      "type": "eligibility_determination",
+      "gold_answer": null,
+      "gold_evidence_floor": 4,
+      "expected_eligibility": {
+        "scheme": "PM-MUDRA",
+        "eligible": null,
+        "unknown_facts": [
+          "Gate 2 official parameter sign-off pending for Tarun Plus notification",
+          "Verification of satisfactory prior Tarun repayment record"
+        ]
+      },
+      "notes": "Validation task for MUDRA Tarun Plus limit expansion (up to 20L). Requires prior Tarun loan repayment history. Fails closed per Kleene logic when facts unverified."
+    },
+    "evaluation": {
+      "metrics": [
+        "eligibility_accuracy",
+        "class_mislabel_rate"
+      ]
+    },
+    "metadata": {
+      "author": "Validation split author",
+      "created_date": "2026-11-09",
+      "handbook_reference": "Section 12.2, scheme edge cases",
+      "tags": ["validation", "mudra", "tarun_plus", "kleene", "loop_c"]
+    }
+  },
+  {
+    "task_id": "BT-106",
+    "version": "1.0",
+    "split": "validation",
+    "loop": "B",
+    "category": "injected_tool_failure",
+    "difficulty": "medium",
+    "question": {
+      "text": "What is the break-even volume for a retail grocery in Varanasi with fixed costs of 15,000 INR, unit price of 120 INR, and variable cost of 60 INR?",
+      "context": {
+        "district": "Varanasi",
+        "state": "Uttar Pradesh",
+        "business_template": "Neighbourhood Retail Grocery",
+        "user_inputs": {
+          "fixed_costs": 15000,
+          "price": 120,
+          "variable_cost": 60
+        }
+      }
+    },
+    "expected_outcome": {
+      "type": "financial_calculation",
+      "gold_answer": 250.0,
+      "gold_evidence_floor": 2,
+      "gold_resolution": 2,
+      "notes": "Exact deterministic break-even calculation: 15000 / (120 - 60) = 250 units."
+    },
+    "evaluation": {
+      "metrics": [
+        "completion_and_recovery",
+        "numerical_correctness",
+        "unsupported_numeric_claim_rate"
+      ]
+    },
+    "metadata": {
+      "author": "Validation split author",
+      "created_date": "2026-11-09",
+      "handbook_reference": "Section 12.2, numerical correctness",
+      "tags": ["validation", "break_even", "loop_b", "varanasi"]
+    }
+  }
+]
