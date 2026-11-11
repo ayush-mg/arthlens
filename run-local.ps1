@@ -29,8 +29,12 @@ Write-Host "==========================================================" -Foregro
 Write-Host "           ARTHLENS LOCAL RUNTIME ORCHESTRATOR            " -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor DarkCyan
 
-# 0. Load .env file into current process environment if present
+# 0. Load .env file into current process environment (auto-initialize if absent)
 $EnvFile = "$RepoRoot\.env"
+if (-not (Test-Path $EnvFile) -and (Test-Path "$RepoRoot\.env.example")) {
+    Copy-Item "$RepoRoot\.env.example" $EnvFile
+    Write-Host "      Created .env from .env.example" -ForegroundColor Yellow
+}
 if (Test-Path $EnvFile) {
     Get-Content $EnvFile | ForEach-Object {
         $line = $_.Trim()
@@ -43,6 +47,20 @@ if (Test-Path $EnvFile) {
             }
         }
     }
+}
+
+$PythonExe = if (Test-Path "$RepoRoot\.venv\Scripts\python.exe") {
+    "$RepoRoot\.venv\Scripts\python.exe"
+} else {
+    $pyCmd = Get-Command python.exe -ErrorAction SilentlyContinue
+    if ($pyCmd) { $pyCmd.Source } else { "python.exe" }
+}
+
+$AlembicExe = if (Test-Path "$RepoRoot\.venv\Scripts\alembic.exe") {
+    "$RepoRoot\.venv\Scripts\alembic.exe"
+} else {
+    $alCmd = Get-Command alembic.exe -ErrorAction SilentlyContinue
+    if ($alCmd) { $alCmd.Source } else { "alembic.exe" }
 }
 
 $PostgresPort = if ($env:POSTGRES_PORT) { [int]$env:POSTGRES_PORT } else { 5432 }
@@ -83,7 +101,7 @@ $DbReady = $false
 $MaxAttempts = 30
 for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
     try {
-        $testOutput = & "$RepoRoot\.venv\Scripts\python.exe" -c @"
+        $testOutput = & $PythonExe -c @"
 import os, psycopg
 try:
     conn = psycopg.connect('postgresql://${PostgresUser}:${PostgresPassword}@127.0.0.1:${PostgresPort}/${PostgresDb}', connect_timeout=1)
@@ -109,7 +127,7 @@ Write-Host "      PostGIS database verified active and ready on port $PostgresPo
 # 2. Database Migrations (Fatal on failure)
 if (-not $SkipMigrations) {
     Write-Host "[2/6] Running database migrations (alembic upgrade head)..." -ForegroundColor Yellow
-    & "$RepoRoot\.venv\Scripts\alembic.exe" -c "$RepoRoot\backend\alembic.ini" upgrade head
+    & $AlembicExe -c "$RepoRoot\backend\alembic.ini" upgrade head
     if ($LASTEXITCODE -ne 0) {
         throw "Database migration failed with exit code $LASTEXITCODE. Local startup halted."
     }
@@ -118,7 +136,7 @@ if (-not $SkipMigrations) {
 
 # 3. Seed Demo Accounts (Fatal on failure)
 Write-Host "[3/6] Verifying demo and governance accounts..." -ForegroundColor Yellow
-& "$RepoRoot\.venv\Scripts\python.exe" "$RepoRoot\scripts\seed_demo_accounts.py"
+& $PythonExe "$RepoRoot\scripts\seed_demo_accounts.py"
 if ($LASTEXITCODE -ne 0) {
     throw "Demo account seeding failed with exit code $LASTEXITCODE. Local startup halted."
 }
@@ -137,7 +155,7 @@ if ($port8000Proc) {
 }
 
 $BackendProcess = Start-Process `
-    -FilePath "$RepoRoot\.venv\Scripts\python.exe" `
+    -FilePath $PythonExe `
     -ArgumentList "-m uvicorn backend.arthlens.api.app:create_app --factory --host 127.0.0.1 --port 8000" `
     -WorkingDirectory $RepoRoot `
     -WindowStyle Hidden `
@@ -181,7 +199,7 @@ try {
 } catch {}
 
 $WorkerProcess = Start-Process `
-    -FilePath "$RepoRoot\.venv\Scripts\python.exe" `
+    -FilePath $PythonExe `
     -ArgumentList "$RepoRoot\scripts\run_agent_worker.py --poll-interval 1.0" `
     -WorkingDirectory $RepoRoot `
     -WindowStyle Hidden `

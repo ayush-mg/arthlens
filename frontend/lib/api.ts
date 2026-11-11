@@ -13,11 +13,23 @@ import {
   EvidenceGraphData,
 } from './types';
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  (typeof window !== 'undefined' && window.location.hostname === 'localhost'
-    ? 'http://localhost:8000'
-    : 'http://127.0.0.1:8000');
+const getApiBaseUrl = (): string => {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL.replace(/\/+$/, '');
+  }
+  if (typeof window !== 'undefined') {
+    return '';
+  }
+  return (process.env.BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
+};
+
+const API_BASE_URL = getApiBaseUrl();
+
+function buildUrl(path: string): URL {
+  const base = API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:8000');
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return new URL(`${base}${normalizedPath}`);
+}
 
 export interface UserProfile {
   id: string;
@@ -306,7 +318,7 @@ export async function fetchPilotBoundaries(): Promise<any> {
  * Strictly throws ApiError on 401/403/404/500 errors.
  */
 export async function fetchUnitBoundary(geoId: string, indicator?: string): Promise<any> {
-  const url = new URL(`${API_BASE_URL}/geo/${encodeURIComponent(geoId)}/boundary`);
+  const url = buildUrl(`/geo/${encodeURIComponent(geoId)}/boundary`);
   if (indicator) {
     url.searchParams.set('indicator', indicator);
   }
@@ -336,7 +348,7 @@ export async function fetchGeoUnits(params?: {
   parent_id?: string;
   search?: string;
 }): Promise<GeoUnitSummary[]> {
-  const url = new URL(`${API_BASE_URL}/geo/units`);
+  const url = buildUrl('/geo/units');
   if (params?.level !== undefined) url.searchParams.set('level', String(params.level));
   if (params?.parent_id) url.searchParams.set('parent_id', params.parent_id);
   if (params?.search) url.searchParams.set('search', params.search);

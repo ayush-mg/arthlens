@@ -28,7 +28,47 @@ The core design principle of ArthLens is **evidence gating**: the system refuses
 
 ---
 
-## 2. The Problem It Addresses
+## 2. Quick Start & Local Execution
+
+ArthLens provides one-command startup via Docker Compose, Makefile, or native shell scripts.
+
+### Option A: One-Command Docker Compose (Recommended)
+```bash
+# Start all services (PostGIS DB, migrations, seeds, FastAPI backend, worker, Next.js frontend)
+make up
+# Or directly via docker compose:
+docker compose up -d --build
+```
+
+### Option B: Local PowerShell (Windows)
+```powershell
+.\run-local.ps1
+# To cleanly shut down all local servers:
+.\stop-local.ps1
+```
+
+### Option C: Local Bash (Linux / macOS)
+```bash
+./start.sh
+# To cleanly shut down:
+./stop.sh
+```
+
+### Default Services & Ports
+| Service | URL | Notes |
+|---|---|---|
+| **Frontend Web UI** | `http://localhost:3000` | Next.js 14 liquid-glass interface |
+| **Backend API** | `http://localhost:8000` | FastAPI documentation at `/docs` |
+| **PostGIS Database** | `localhost:5432` | PostGIS 16 (or port specified via `POSTGRES_PORT`) |
+
+### Development Demo Credentials
+- **Entrepreneur**: `demo.entrepreneur@arthlens.local` (Password: `Entrepreneur123!`) or `entrepreneur@arthlens.org` (Password: `Password123!`)
+- **Steward**: `demo.steward@arthlens.local` (Password: `Steward123!`) or `steward@arthlens.org` (Password: `Password123!`)
+- **Administrator**: `demo.admin@arthlens.local` (Password: `Administrator123!`) or `admin@arthlens.org` (Password: `Password123!`)
+
+---
+
+## 3. The Problem It Addresses
 
 Small-scale entrepreneurs planning micro-enterprises (such as a neighbourhood retail grocery or a small food-processing/tiffin unit with small capital, e.g., an illustrative [ILLUSTRATIVE] ₹2–5 lakh):
 - **Face fragmented public data**: Official census figures, district economic indicators, and banking statistics are dispersed across separate portals, frequently in disparate and legacy formats.
@@ -40,7 +80,7 @@ ArthLens addresses this by uniting verified public datasets, deterministic finan
 
 ---
 
-## 3. The Three Core User Workflows (Loops)
+## 4. The Three Core User Workflows (Loops)
 
 ArthLens structures user interactions into three distinct investigation loops:
 

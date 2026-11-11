@@ -83,7 +83,7 @@ def extract_uncertainty_interval(
     if isinstance(unc, (tuple, list)) and len(unc) == 3 and unc[0] == "INTERVAL":
         try:
             return (float(unc[1]), float(unc[2]))
-        except ValueError, TypeError:
+        except (ValueError, TypeError):
             pass
 
     # 2. Metric-specific tolerance policy
