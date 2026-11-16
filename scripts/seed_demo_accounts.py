@@ -10,6 +10,7 @@ Roles:
 
 import os
 import sys
+import argparse
 from pathlib import Path
 
 # Ensure repository root is on sys.path
@@ -66,7 +67,14 @@ DEMO_ACCOUNTS = [
 ]
 
 
-def seed_demo_accounts() -> int:
+def seed_demo_accounts(force_demo_seed: bool = False) -> int:
+    environments = {
+        os.environ.get("APP_ENV", "").strip().lower(),
+        os.environ.get("ENVIRONMENT", "").strip().lower(),
+    }
+    if "production" in environments and not force_demo_seed:
+        raise SystemExit("Refusing to seed demo accounts in production. Pass --force-demo-seed to override explicitly.")
+
     repo = PostgresUserRepository()
     audit = get_audit_service()
     seeded = 0
@@ -107,5 +115,8 @@ def seed_demo_accounts() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(seed_demo_accounts())
+    parser = argparse.ArgumentParser(description="Seed local ArthLens demo accounts.")
+    parser.add_argument("--force-demo-seed", action="store_true", help="Explicitly allow demo account seeding in production.")
+    args = parser.parse_args()
+    raise SystemExit(seed_demo_accounts(force_demo_seed=args.force_demo_seed))
 

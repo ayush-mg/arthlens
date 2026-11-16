@@ -1,5 +1,5 @@
 # ArthLens Backend Dockerfile
-FROM python:3.12-slim-bookworm AS base
+FROM python:3.14-slim-bookworm AS base
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -27,6 +27,10 @@ RUN pip install --upgrade pip && \
 WORKDIR /app
 COPY backend /app/backend
 COPY scripts /app/scripts
+
+RUN groupadd --system arthlens && useradd --system --gid arthlens --home-dir /app --shell /usr/sbin/nologin arthlens \
+    && chown -R arthlens:arthlens /app
+USER arthlens
 
 EXPOSE 8000
 

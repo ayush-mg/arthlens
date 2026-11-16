@@ -1,185 +1,389 @@
 'use client';
-
-import React, { useState } from 'react';
+import {MotionButton} from '@/components/ui/motion-button';
+import {FormEvent,useEffect,useState} from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Compass, Eye, EyeOff, Lock, Mail, User, ArrowRight, CheckCircle2 } from 'lucide-react';
-import { registerUser } from '../../lib/api';
+import {useRouter} from 'next/navigation';
+import {AnimatePresence,motion,useMotionValue,useSpring,useTransform} from 'framer-motion';
+import {ArrowLeft,ArrowRight,ArrowUpRight,LockKeyhole,Mail,ShieldCheck,UserRound} from 'lucide-react';
+import {GoogleSignIn} from '../../components/auth/GoogleSignIn';
+import {OtpInput} from '../../components/auth/OtpInput';
+import {ScrambleText} from '../../components/motion/ScrambleText';
+import {ArthLensBrandMark} from '../../components/motion/ArthLensBrandMark';
+import {authenticateWithGoogle,initiateEmailRegistration,OtpChallenge,resendEmailOtp,verifyEmailRegistrationOtp} from '../../lib/api';
 
-export default function RegisterPage() {
-  const router = useRouter();
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+type Step='account'|'verification';
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
+export default function RegisterPage(){
+	const router=useRouter();
+	const [step,setStep]=useState<Step>('account');
+	const [fullName,setFullName]=useState('');
+	const [email,setEmail]=useState('');
+	const [password,setPassword]=useState('');
+	const [confirmPassword,setConfirmPassword]=useState('');
+	const [otp,setOtp]=useState('');
+	const [challenge,setChallenge]=useState<OtpChallenge|null>(null);
+	const [secondsLeft,setSecondsLeft]=useState(600);
+	const [resendWait,setResendWait]=useState(0);
+	const [error,setError]=useState('');
+	const [busy,setBusy]=useState(false);
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters long.');
-      return;
-    }
+	const mouseX=useMotionValue(0);
+	const mouseY=useMotionValue(0);
+	const springConfig={stiffness:260,damping:28};
+	const rotateX=useSpring(useTransform(mouseY,[-300,300],[6,-6]),springConfig);
+	const rotateY=useSpring(useTransform(mouseX,[-300,300],[-6,6]),springConfig);
+	const badgeX=useSpring(useTransform(mouseX,[-300,300],[-14,14]),springConfig);
+	const badgeY=useSpring(useTransform(mouseY,[-300,300],[-14,14]),springConfig);
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
+	const handleStageMouseMove=(event:React.MouseEvent<HTMLDivElement>)=>{
+		const rect=event.currentTarget.getBoundingClientRect();
+		mouseX.set(event.clientX-(rect.left+rect.width/2));
+		mouseY.set(event.clientY-(rect.top+rect.height/2));
+	};
 
-    setLoading(true);
-    try {
-      await registerUser(fullName.trim(), email.trim(), password);
-      router.push('/app');
-    } catch (err: any) {
-      setError(err.message || 'Registration failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+	const enterWorkspaceGalaxy=async()=>{
+		await new Promise((resolve)=>window.setTimeout(resolve,150));
+		router.replace('/workspaces');
+	};
 
-  return (
-    <div className="min-h-screen bg-editorial-ivory flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <Link href="/" className="flex items-center justify-center space-x-2.5 mb-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded border border-editorial-forest bg-editorial-forest/10 text-editorial-forest shadow-editorial-sm">
-            <Compass className="h-5 w-5" />
-          </div>
-          <span className="font-serif font-black tracking-widest text-editorial-forest text-2xl uppercase">
-            ArthLens
-          </span>
-        </Link>
-        <p className="text-center font-mono text-xs text-editorial-charcoal-light uppercase tracking-wider">
-          Epistemic Economic Intelligence
-        </p>
-        <h2 className="mt-4 text-center text-xl font-serif font-bold text-editorial-charcoal">
-          Create Entrepreneur Account
-        </h2>
-        <p className="mt-1 text-center font-mono text-xs text-editorial-charcoal-light">
-          Public registration automatically grants Entrepreneur privileges.
-        </p>
-      </div>
+	useEffect(()=>{
+		const timer=window.setInterval(()=>{
+			setSecondsLeft((seconds)=>Math.max(0,seconds-1));
+			setResendWait((seconds)=>Math.max(0,seconds-1));
+		},1000);
+		return()=>window.clearInterval(timer);
+	},[]);
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
-        <div className="rounded border border-editorial-brass/40 bg-editorial-paper px-6 py-8 shadow-editorial-md sm:px-10">
-          <form className="space-y-4" onSubmit={handleRegister}>
-            <div>
-              <label className="block text-xs font-mono font-semibold text-editorial-charcoal mb-1">
-                Full Name
-              </label>
-              <div className="relative rounded">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-editorial-charcoal-light">
-                  <User className="h-4 w-4" />
-                </div>
-                <input
-                  type="text"
-                  required
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Aarav Sharma"
-                  className="w-full rounded border border-editorial-brass/40 bg-editorial-ivory pl-10 pr-3 py-2 font-mono text-xs text-editorial-charcoal placeholder-editorial-charcoal-light/60 focus:border-editorial-copper focus:outline-none"
-                />
-              </div>
-            </div>
+	const startRegistration=async(event:FormEvent)=>{
+		event.preventDefault();
+		setError('');
+		if(password!==confirmPassword){
+			setError('The passwords do not match.');
+			return;
+		}
+		setBusy(true);
+		try{
+			const result=await initiateEmailRegistration(fullName.trim(),email.trim(),password);
+			setChallenge(result);
+			setOtp('');
+			setSecondsLeft(result.expires_in_seconds||600);
+			setResendWait(30);
+			setStep('verification');
+		}catch(cause){
+			setError(cause instanceof Error?cause.message:'Registration could not be started.');
+		}finally{
+			setBusy(false);
+		}
+	};
 
-            <div>
-              <label className="block text-xs font-mono font-semibold text-editorial-charcoal mb-1">
-                Email Address
-              </label>
-              <div className="relative rounded">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-editorial-charcoal-light">
-                  <Mail className="h-4 w-4" />
-                </div>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@business.in"
-                  className="w-full rounded border border-editorial-brass/40 bg-editorial-ivory pl-10 pr-3 py-2 font-mono text-xs text-editorial-charcoal placeholder-editorial-charcoal-light/60 focus:border-editorial-copper focus:outline-none"
-                />
-              </div>
-            </div>
+	const completeGoogleRegistration=async(input:{idToken?:string;email?:string;fullName?:string})=>{
+		setBusy(true);
+		setError('');
+		try{
+			await authenticateWithGoogle({mode:'register',...input});
+			await enterWorkspaceGalaxy();
+		}catch(cause){
+			setError(cause instanceof Error?cause.message:'Google registration could not be completed.');
+		}finally{
+			setBusy(false);
+		}
+	};
 
-            <div>
-              <label className="block text-xs font-mono font-semibold text-editorial-charcoal mb-1">
-                Password (minimum 8 characters)
-              </label>
-              <div className="relative rounded">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-editorial-charcoal-light">
-                  <Lock className="h-4 w-4" />
-                </div>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  minLength={8}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  className="w-full rounded border border-editorial-brass/40 bg-editorial-ivory pl-10 pr-10 py-2 font-mono text-xs text-editorial-charcoal placeholder-editorial-charcoal-light/60 focus:border-editorial-copper focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-editorial-charcoal-light hover:text-editorial-charcoal cursor-pointer"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
+	const verify=async(event:FormEvent)=>{
+		event.preventDefault();
+		if(!challenge||otp.length!==6){
+			setError('Enter the six digit code sent to your email.');
+			return;
+		}
+		setBusy(true);
+		setError('');
+		try{
+			await verifyEmailRegistrationOtp(challenge.challenge_id,challenge.email,otp);
+			await enterWorkspaceGalaxy();
+		}catch(cause){
+			setError(cause instanceof Error?cause.message:'The verification code could not be accepted.');
+			setOtp('');
+		}finally{
+			setBusy(false);
+		}
+	};
 
-            <div>
-              <label className="block text-xs font-mono font-semibold text-editorial-charcoal mb-1">
-                Confirm Password
-              </label>
-              <div className="relative rounded">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-editorial-charcoal-light">
-                  <Lock className="h-4 w-4" />
-                </div>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  minLength={8}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  className="w-full rounded border border-editorial-brass/40 bg-editorial-ivory pl-10 pr-3 py-2 font-mono text-xs text-editorial-charcoal placeholder-editorial-charcoal-light/60 focus:border-editorial-copper focus:outline-none"
-                />
-              </div>
-            </div>
+	const resend=async()=>{
+		if(!challenge||resendWait>0)return;
+		setBusy(true);
+		setError('');
+		try{
+			const nextChallenge=await resendEmailOtp(challenge.challenge_id,challenge.email);
+			setChallenge(nextChallenge);
+			setOtp('');
+			setSecondsLeft(nextChallenge.expires_in_seconds||600);
+			setResendWait(30);
+		}catch(cause){
+			setError(cause instanceof Error?cause.message:'A new code could not be sent.');
+		}finally{
+			setBusy(false);
+		}
+	};
 
-            {error && (
-              <div className="rounded border border-editorial-copper/40 bg-editorial-copper/10 p-3 text-xs font-mono text-editorial-copper">
-                {error}
-              </div>
-            )}
+	return(
+		<div className="relative min-h-screen w-full bg-transparent text-[#231412] select-none">
+			<header className="fixed top-0 inset-x-0 z-50 h-20 bg-white/95 border-b-2 border-[#231412] px-6 lg:px-14 flex items-center justify-between shadow-sm">
+				<Link href="/" className="flex items-center gap-3 group" title="Return to ArthLens landing page">
+					<ArthLensBrandMark />
+				</Link>
+				<div className="flex items-center gap-3">
+					<div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[#FAF7F2] border-2 border-[#231412] text-[10px] font-mono font-bold text-[#231412] shadow-[2px_2px_0px_#231412]">
+						<span className="w-2 h-2 bg-[#C8281E] animate-pulse" />
+						<span>IDENTITY FORGE // 02</span>
+					</div>
+					<Link href="/" className="inline-flex items-center gap-2 px-3.5 py-2 bg-[#FAF7F2] border-2 border-[#231412] text-xs font-mono font-bold text-[#231412] hover:bg-[#C8281E] hover:text-white transition-colors shadow-[2px_2px_0px_#231412]" title="Return to landing page">
+						<ArrowLeft size={14} /> Back to Landing
+					</Link>
+				</div>
+			</header>
+			<main className="relative min-h-screen flex items-center justify-center p-4 md:p-8 pt-24 md:pt-28 bg-transparent text-[#231412] select-none" onMouseMove={handleStageMouseMove}>
+			<div className="max-w-7xl mx-auto min-h-screen grid grid-cols-1 lg:grid-cols-12 gap-10 items-center px-6 py-12 relative z-10 w-full" style={{perspective:1400}}>
+				<motion.aside
+					className="lg:col-span-7 bg-white/90 backdrop-blur-xl border border-[#C8281E]/20 rounded-3xl p-8 md:p-10 shadow-[0_24px_70px_rgba(200,40,30,0.08)] flex flex-col justify-between gap-8"
+					style={{rotateX,rotateY,transformStyle:'preserve-3d'}}
+				>
+					<div>
+						<div className="flex items-center justify-between flex-wrap gap-4 mb-6">
+							<Link href="/" className="inline-block"><ArthLensBrandMark /></Link>
+							<motion.span
+								className="px-3.5 py-1.5 rounded-full bg-[#C8281E]/10 border border-[#C8281E]/20 text-[11px] font-mono font-bold tracking-widest text-[#C8281E]"
+								style={{x:badgeX,y:badgeY}}
+							>
+								FINANCIAL CLARITY · ACCESS 02
+							</motion.span>
+						</div>
+						<h1 className="text-4xl md:text-5xl font-black text-[#231412] leading-tight mb-4">
+							Build your next<br />
+							<span className="text-[#C8281E]">with better facts.</span>
+						</h1>
+						<p className="text-base text-[#5C403B] leading-relaxed max-w-lg">
+							Bring purchases, sales, inventory, double-entry Khata, deterministic cash flow, and private governance into one accountable workspace.
+						</p>
+					</div>
 
-            <div className="pt-2">
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full flex items-center justify-center space-x-2 rounded border border-editorial-forest bg-editorial-forest py-2.5 font-mono text-xs font-bold text-editorial-ivory hover:bg-editorial-forest-dark transition-colors cursor-pointer disabled:opacity-60"
-              >
-                <span>{loading ? 'Creating Account...' : 'Register & Start Workspace'}</span>
-                {!loading && <ArrowRight className="h-3.5 w-3.5" />}
-              </button>
-            </div>
-          </form>
+					<div className="bg-[#FAF7F2] border border-[#C8281E]/20 rounded-2xl p-6 space-y-4 shadow-inner">
+						<div className="flex items-center justify-between">
+							<div className="flex items-center gap-2">
+								<span className="w-2.5 h-2.5 rounded-full bg-[#C8281E] animate-pulse" />
+								<span className="text-xs font-extrabold tracking-widest uppercase text-[#5C403B] font-mono">OPERATING PULSE</span>
+							</div>
+							<span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold font-mono">↑ 12.8%</span>
+						</div>
+						<div className="relative w-full h-36">
+							<svg viewBox="0 0 500 130" className="w-full h-36 overflow-visible" role="img" aria-label="Upward financial trend">
+								<defs>
+									<linearGradient id="registerSparkGradient" x1="0" y1="0" x2="0" y2="1">
+										<stop offset="0%" stopColor="#C8281E" stopOpacity="0.25" />
+										<stop offset="100%" stopColor="#C8281E" stopOpacity="0.0" />
+									</linearGradient>
+								</defs>
+								<line x1="0" y1="35" x2="500" y2="35" stroke="rgba(200,40,30,0.14)" strokeDasharray="4 4" strokeWidth="1" />
+								<line x1="0" y1="80" x2="500" y2="80" stroke="rgba(200,40,30,0.14)" strokeDasharray="4 4" strokeWidth="1" />
+								<path
+									d="M0 110 C50 100 65 78 120 86 S185 100 230 58 S300 70 340 45 S400 52 440 28 S480 38 500 14 L500 130 L0 130 Z"
+									fill="url(#registerSparkGradient)"
+								/>
+								<motion.path
+									d="M0 110 C50 100 65 78 120 86 S185 100 230 58 S300 70 340 45 S400 52 440 28 S480 38 500 14"
+									fill="none"
+									stroke="#C8281E"
+									strokeWidth="3.2"
+									strokeLinecap="round"
+									initial={{pathLength:0}}
+									animate={{pathLength:1}}
+									transition={{duration:1.2,ease:'easeOut'}}
+								/>
+								<circle cx="230" cy="58" r="4" fill="#C8281E" className="animate-ping" opacity="0.6" />
+								<circle cx="230" cy="58" r="3.5" fill="#C8281E" />
+								<circle cx="500" cy="14" r="4.5" fill="#C8281E" />
+							</svg>
+						</div>
+						<div className="flex items-center justify-between pt-3 border-t border-[#C8281E]/15 text-xs font-bold tracking-[0.2em] text-[#8C6D68] font-mono">
+							<span>01 JUN</span>
+							<span>15 JUN</span>
+							<span>30 JUN</span>
+						</div>
+					</div>
 
-          <div className="mt-6 text-center border-t border-editorial-brass/20 pt-4">
-            <p className="text-xs font-mono text-editorial-charcoal-light">
-              Already have an account?{' '}
-              <Link href="/login" className="font-bold text-editorial-forest hover:underline">
-                Sign in here
-              </Link>
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+					<div className="flex items-center gap-4 flex-wrap">
+						<span className="bg-[#FAF7F2] border border-[#C8281E]/15 px-4 py-2 rounded-xl text-xs font-bold text-[#231412] flex items-center gap-2">
+							<ShieldCheck className="w-4 h-4 text-[#C8281E] shrink-0" /> WORKSPACE PRIVATE
+						</span>
+						<span className="bg-[#FAF7F2] border border-[#C8281E]/15 px-4 py-2 rounded-xl text-xs font-bold text-[#231412] flex items-center gap-2">
+							<ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" /> AUTH / 2FA READY
+						</span>
+					</div>
+				</motion.aside>
+
+				<motion.div
+					initial={{opacity:0,y:22,scale:0.98}}
+					animate={{opacity:1,y:0,scale:1}}
+					transition={{duration:0.55,ease:[0.22,1,0.36,1]}}
+					className="lg:col-span-5 w-full max-w-md mx-auto"
+				>
+					<section className="bg-white/95 border border-[#C8281E]/20 rounded-3xl p-8 sm:p-10 shadow-2xl">
+						<header className="mb-7">
+							<div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-[#C8281E]">
+								<ShieldCheck className="w-4 h-4 shrink-0" /> VERIFIED BY DESIGN
+							</div>
+							<h2 className="text-2xl font-black tracking-tight text-[#231412]">
+								<ScrambleText text={step==='account'?'Create your account':'Verify your email'} />
+							</h2>
+							<p className="mt-1.5 text-xs text-[#6E524D] leading-relaxed">
+								{step==='account'?'Start with a secure account. Your workspace is ready after email verification.':'We sent a 6-digit verification code to your email address.'}
+							</p>
+						</header>
+
+						<AnimatePresence mode="wait" initial={false}>
+							{step==='account'?(
+								<motion.div
+									key="account"
+									initial={{opacity:0,x:-12}}
+									animate={{opacity:1,x:0}}
+									exit={{opacity:0,x:12}}
+									transition={{type:'spring',stiffness:360,damping:32}}
+								>
+									<form className="space-y-4" onSubmit={startRegistration}>
+										<label className="block text-xs font-bold text-[#7A5A54] uppercase tracking-wider">
+											Full name
+											<span className="relative mt-1.5 block">
+												<UserRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#7A5A54]" />
+												<input
+													type="text"
+													autoComplete="name"
+													minLength={2}
+													required
+													value={fullName}
+													onChange={(event)=>setFullName(event.target.value)}
+													placeholder="Aarav Sharma"
+													className="w-full h-11 pl-10 pr-3.5 rounded-xl bg-[#FAF7F2] border border-[#C8281E]/20 text-sm text-[#231412] placeholder-[#7A5A54]/60 focus:outline-none focus:border-[#C8281E] focus:ring-1 focus:ring-[#C8281E] transition-all"
+												/>
+											</span>
+										</label>
+
+										<label className="block text-xs font-bold text-[#7A5A54] uppercase tracking-wider">
+											Email address
+											<span className="relative mt-1.5 block">
+												<Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#7A5A54]" />
+												<input
+													type="email"
+													autoComplete="email"
+													required
+													value={email}
+													onChange={(event)=>setEmail(event.target.value)}
+													placeholder="you@business.com"
+													className="w-full h-11 pl-10 pr-3.5 rounded-xl bg-[#FAF7F2] border border-[#C8281E]/20 text-sm text-[#231412] placeholder-[#7A5A54]/60 focus:outline-none focus:border-[#C8281E] focus:ring-1 focus:ring-[#C8281E] transition-all"
+												/>
+											</span>
+										</label>
+
+										<label className="block text-xs font-bold text-[#7A5A54] uppercase tracking-wider">
+											Password
+											<span className="relative mt-1.5 block">
+												<LockKeyhole className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#7A5A54]" />
+												<input
+													type="password"
+													autoComplete="new-password"
+													minLength={8}
+													required
+													value={password}
+													onChange={(event)=>setPassword(event.target.value)}
+													placeholder="Create a strong password"
+													className="w-full h-11 pl-10 pr-3.5 rounded-xl bg-[#FAF7F2] border border-[#C8281E]/20 text-sm text-[#231412] placeholder-[#7A5A54]/60 focus:outline-none focus:border-[#C8281E] focus:ring-1 focus:ring-[#C8281E] transition-all"
+												/>
+											</span>
+										</label>
+
+										<label className="block text-xs font-bold text-[#7A5A54] uppercase tracking-wider">
+											Confirm password
+											<span className="relative mt-1.5 block">
+												<LockKeyhole className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#7A5A54]" />
+												<input
+													type="password"
+													autoComplete="new-password"
+													minLength={8}
+													required
+													value={confirmPassword}
+													onChange={(event)=>setConfirmPassword(event.target.value)}
+													placeholder="Repeat your password"
+													className="w-full h-11 pl-10 pr-3.5 rounded-xl bg-[#FAF7F2] border border-[#C8281E]/20 text-sm text-[#231412] placeholder-[#7A5A54]/60 focus:outline-none focus:border-[#C8281E] focus:ring-1 focus:ring-[#C8281E] transition-all"
+												/>
+											</span>
+										</label>
+
+										{error&&(
+											<p role="alert" className="p-3 rounded-xl border border-rose-300 bg-rose-50 text-xs text-rose-700 font-medium">{error}</p>
+										)}
+
+										<MotionButton disabled={busy} className="w-full h-12 rounded-xl bg-[#C8281E] text-white font-bold text-xs tracking-wider uppercase hover:bg-[#A81E15] transition-colors shadow-sm flex items-center justify-center gap-2">
+											<span>{busy?'Preparing verification…':'Register with Email (Send OTP)'}</span>
+											{!busy&&<ArrowRight className="w-4 h-4 shrink-0" />}
+										</MotionButton>
+									</form>
+
+									<div className="my-5 flex items-center gap-3 text-[10px] uppercase tracking-wider text-[#7A5A54] font-semibold">
+										<span className="h-px flex-1 bg-[#C8281E]/15" />or register with<span className="h-px flex-1 bg-[#C8281E]/15" />
+									</div>
+
+									<GoogleSignIn
+										mode="register"
+										onCredential={(idToken)=>void completeGoogleRegistration({idToken})}
+										onLocalAccount={(localEmail,name)=>void completeGoogleRegistration({email:localEmail,fullName:name})}
+									/>
+								</motion.div>
+							):(
+								<motion.form
+									key="verification"
+									className="space-y-5"
+									onSubmit={verify}
+									initial={{opacity:0,x:12}}
+									animate={{opacity:1,x:0}}
+									exit={{opacity:0,x:-12}}
+									transition={{type:'spring',stiffness:360,damping:32}}
+								>
+									<OtpInput value={otp} onChange={setOtp} />
+
+									{challenge?.dev_otp_preview&&(
+										<span className="sr-only" data-testid="dev-otp-preview">
+											Local development code: {challenge.dev_otp_preview}
+										</span>
+									)}
+
+									<div className="flex items-center justify-between text-xs text-[#7A5A54]">
+										<span>Code expires in <strong className="font-mono tabular-nums text-[#231412] font-bold">{Math.floor(secondsLeft/60)}:{String(secondsLeft%60).padStart(2,'0')}</strong></span>
+										<MotionButton type="button" disabled={busy||resendWait>0} onClick={()=>void resend()} className="font-bold text-[#C8281E] hover:underline disabled:text-[#7A5A54]/50">
+											{resendWait?'Resend in '+resendWait+'s':'Resend code'}
+										</MotionButton>
+									</div>
+
+									{error&&(
+										<p role="alert" className="p-3 rounded-xl border border-rose-300 bg-rose-50 text-xs text-rose-700 font-medium">{error}</p>
+									)}
+
+									<MotionButton disabled={busy||otp.length!==6} className="w-full h-12 rounded-xl bg-[#C8281E] text-white font-bold text-xs tracking-wider uppercase hover:bg-[#A81E15] transition-colors shadow-sm flex items-center justify-center gap-2">
+										<span>{busy?'Verifying…':'Verify OTP & Complete Registration'}</span>
+										<ArrowRight className="w-4 h-4 shrink-0" />
+									</MotionButton>
+
+									<MotionButton type="button" onClick={()=>{setError('');setStep('account');}} className="mx-auto flex items-center gap-1.5 py-1 text-xs font-semibold text-[#7A5A54] hover:text-[#C8281E]">
+										<ArrowUpRight className="w-3.5 h-3.5 shrink-0" /> Edit account details
+									</MotionButton>
+								</motion.form>
+							)}
+						</AnimatePresence>
+					</section>
+
+					<p className="mt-6 text-center text-xs text-[#6E524D]">
+						Already have an account? <Link href="/login" className="font-bold text-[#C8281E] hover:underline">Sign in</Link>
+					</p>
+				</motion.div>
+			</div>
+		</main>
+		</div>
+	);
 }
-

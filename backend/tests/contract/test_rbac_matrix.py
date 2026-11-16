@@ -1,20 +1,10 @@
 """
 Contract Tests for Roles, Permissions, and RBAC Matrix.
 
-Authoritative Reference: ArthLens Build Handbook v1.0 (Part 10.1, Part 11, Part 13.1 P1-6).
-Phase: P1-6 (Authentication, Roles, RBAC, Audit Events and Rate Limiting).
-
-Verifies the complete Handbook Part 10.1 Permission Matrix across all three MVP roles:
-- ENTREPRENEUR
-- STEWARD
-- ADMIN
-and unauthenticated callers.
-
-Ensures:
-- Proper allow/deny behavior per route and HTTP method.
-- Deny-by-default behavior on routes.
-- Backend enforcement independent of client headers or client-claimed roles.
+Authoritative Specification: ArthLens — Business Operating System & Decision Intelligence Platform.
 """
+
+import uuid
 
 import pytest
 from backend.arthlens.api.app import create_app
@@ -50,22 +40,16 @@ def _auth_cookie_for(user_id: str, email: str, role: Role) -> dict:
 
 @pytest.mark.contract
 class TestRBACMatrix:
-    """Tests the Handbook Part 10.1 Role-Based Access Control matrix."""
+    """Tests the Role-Based Access Control matrix for ArthLens Business OS."""
 
     # 1. Unauthenticated calls to protected endpoints are rejected
     @pytest.mark.parametrize("method,path,payload", [
-        ("POST", "/runs", {"objective": "start sweet shop"}),
-        ("GET", "/runs/11111111-1111-1111-1111-111111111111", None),
-        ("GET", "/runs/11111111-1111-1111-1111-111111111111/events", None),
-        ("POST", "/scenarios", {"name": "Base Scenario"}),
-        ("GET", "/scenarios", None),
-        ("GET", "/geo/IND.MH.PU/indicators", None),
-        ("GET", "/policy/rules", None),
-        ("POST", "/policy/rules", {"scheme_id": "pmfme", "version": "1.0", "rule_ast": {}}),
+        ("POST", "/businesses", {"name": "Test Business", "industry": "Retail"}),
+        ("GET", "/businesses", None),
+        ("GET", "/businesses/11111111-1111-1111-1111-111111111111", None),
         ("GET", "/admin/users", None),
         ("GET", "/admin/audit", None),
         ("GET", "/admin/audit-events", None),
-        ("GET", "/admin/sources", None),
     ])
     def test_unauthenticated_requests_receive_401(self, api_client, method, path, payload):
         """Unauthenticated requests to protected endpoints return 401 Unauthorized."""
@@ -77,10 +61,9 @@ class TestRBACMatrix:
 
     # 2. Admin endpoint protection (/admin/users, /admin/audit)
     def test_admin_endpoints_accessible_only_by_admin(self, api_client):
-        """Admin endpoints allow ADMIN, but return 403 Forbidden to ENTREPRENEUR and STEWARD."""
+        """Admin endpoints allow ADMIN, but return 403 Forbidden to non-admins."""
         admin_cookie = _auth_cookie_for("00000000-0000-0000-0000-000000000001", "admin@arthlens.org", Role.ADMIN)
         entrepreneur_cookie = _auth_cookie_for("00000000-0000-0000-0000-000000000002", "e@arthlens.org", Role.ENTREPRENEUR)
-        steward_cookie = _auth_cookie_for("00000000-0000-0000-0000-000000000003", "s@arthlens.org", Role.STEWARD)
 
         # Admin succeeds
         res_users = api_client.get("/admin/users", cookies=admin_cookie)
@@ -89,79 +72,36 @@ class TestRBACMatrix:
         assert res_audit.status_code == 200
         res_audit_events = api_client.get("/admin/audit-events", cookies=admin_cookie)
         assert res_audit_events.status_code == 200
-        res_sources = api_client.get("/admin/sources", cookies=admin_cookie)
-        assert res_sources.status_code == 200
 
-        # Entrepreneur forbidden
+        # Entrepreneur forbidden from admin user management and audit
         res = api_client.get("/admin/users", cookies=entrepreneur_cookie)
         assert res.status_code == 403
         res = api_client.get("/admin/audit", cookies=entrepreneur_cookie)
         assert res.status_code == 403
-        res = api_client.get("/admin/sources", cookies=entrepreneur_cookie)
-        assert res.status_code == 403
 
-        # Steward forbidden from user management and audit, permitted for sources
-        res = api_client.get("/admin/users", cookies=steward_cookie)
-        assert res.status_code == 403
-        res = api_client.get("/admin/audit", cookies=steward_cookie)
-        assert res.status_code == 403
-        res = api_client.get("/admin/sources", cookies=steward_cookie)
-        assert res.status_code == 200
-
-    # 3. Policy rule creation (POST /policy/rules) requires STEWARD
-    def test_post_policy_rules_requires_steward(self, api_client):
-        """POST /policy/rules is permitted for STEWARD, but 403 for ENTREPRENEUR and ADMIN."""
-        steward_cookie = _auth_cookie_for("00000000-0000-0000-0000-000000000003", "steward@arthlens.org", Role.STEWARD)
+    # 3. Entrepreneur operations on /businesses
+    def test_entrepreneur_operations(self, api_client):
+        """Entrepreneurs can create and list their own businesses with tenant isolation."""
         entrepreneur_cookie = _auth_cookie_for("00000000-0000-0000-0000-000000000002", "e@arthlens.org", Role.ENTREPRENEUR)
 
-        rule_payload = {"scheme_id": "pmfme", "version": "v1.0", "rule_ast": {"conditions": []}}
+        # POST /businesses
+        res_biz = api_client.post("/businesses", json={"name": "Katra Bakery", "industry": "Food & Beverage"}, cookies=entrepreneur_cookie)
+        assert res_biz.status_code in [200, 201]
 
-        # A rule cannot be persisted until the source document, fact requirements,
-        # and effective period are supplied.
-        res_steward = api_client.post("/policy/rules", json=rule_payload, cookies=steward_cookie)
-        assert res_steward.status_code == 422
-
-        # Entrepreneur cannot post rule
-        res_ent = api_client.post("/policy/rules", json=rule_payload, cookies=entrepreneur_cookie)
-        assert res_ent.status_code == 403
-
-    # 4. Entrepreneur operations (POST /runs, POST /scenarios) require ENTREPRENEUR
-    def test_entrepreneur_operations_require_entrepreneur_role(self, api_client):
-        """POST /runs and POST /scenarios are permitted for ENTREPRENEUR, but 403 for STEWARD."""
-        entrepreneur_cookie = _auth_cookie_for("00000000-0000-0000-0000-000000000002", "e@arthlens.org", Role.ENTREPRENEUR)
-        steward_cookie = _auth_cookie_for("00000000-0000-0000-0000-000000000003", "s@arthlens.org", Role.STEWARD)
-
-        # POST /scenarios
-        res_scen = api_client.post("/scenarios", json={"name": "Katra Bakery"}, cookies=entrepreneur_cookie)
-        assert res_scen.status_code in [200, 201]
-
-        res_scen_list = api_client.get("/scenarios", cookies=entrepreneur_cookie)
-        assert res_scen_list.status_code == 200
-        assert any(item["id"] == res_scen.json()["id"] for item in res_scen_list.json())
+        res_biz_list = api_client.get("/businesses", cookies=entrepreneur_cookie)
+        assert res_biz_list.status_code == 200
+        assert any(item["id"] == res_biz.json()["id"] for item in res_biz_list.json())
 
         other_entrepreneur_cookie = _auth_cookie_for(
             "00000000-0000-0000-0000-000000000004",
             "other-e@arthlens.org",
             Role.ENTREPRENEUR,
         )
-        res_other_scenarios = api_client.get("/scenarios", cookies=other_entrepreneur_cookie)
-        assert res_other_scenarios.status_code == 200
-        assert all(item["id"] != res_scen.json()["id"] for item in res_other_scenarios.json())
+        res_other_biz = api_client.get("/businesses", cookies=other_entrepreneur_cookie)
+        assert res_other_biz.status_code == 200
+        assert all(item["id"] != res_biz.json()["id"] for item in res_other_biz.json())
 
-        res_scen_list_steward = api_client.get("/scenarios", cookies=steward_cookie)
-        assert res_scen_list_steward.status_code == 403
-
-        res_scen_steward = api_client.post("/scenarios", json={"name": "Steward Scenario"}, cookies=steward_cookie)
-        assert res_scen_steward.status_code == 403
-
-        # POST /runs
-        res_run = api_client.post("/runs", json={"objective": {"type": "retail"}}, cookies=entrepreneur_cookie)
-        assert res_run.status_code in [200, 201]
-
-        res_run_steward = api_client.post("/runs", json={"objective": {"type": "retail"}}, cookies=steward_cookie)
-        assert res_run_steward.status_code == 403
-
-    # 5. Deny-by-default behavior for undeclared routes
+    # 4. Deny-by-default behavior for undeclared routes
     def test_undeclared_or_unmapped_endpoints_deny_by_default(self, api_client):
         """Any route not explicitly configured in the authorization registry is denied by default."""
         entrepreneur_cookie = _auth_cookie_for("00000000-0000-0000-0000-000000000002", "e@arthlens.org", Role.ENTREPRENEUR)
@@ -169,3 +109,95 @@ class TestRBACMatrix:
         # An undeclared internal or experimental endpoint
         res = api_client.get("/internal/unregistered_endpoint", cookies=entrepreneur_cookie)
         assert res.status_code in [403, 404]
+
+    def test_workspace_role_matrix_and_owner_archival(self, api_client):
+        """Owners manage membership and archive; managers can operate; viewers remain read-only."""
+        owner_id = str(uuid.uuid4())
+        manager_id = str(uuid.uuid4())
+        viewer_id = str(uuid.uuid4())
+        owner_cookie = _auth_cookie_for(owner_id, f"owner-{owner_id[:8]}@arthlens.org", Role.ENTREPRENEUR)
+        manager_cookie = _auth_cookie_for(manager_id, f"manager-{manager_id[:8]}@arthlens.org", Role.ENTREPRENEUR)
+        viewer_cookie = _auth_cookie_for(viewer_id, f"viewer-{viewer_id[:8]}@arthlens.org", Role.ENTREPRENEUR)
+
+        business_response = api_client.post(
+            "/businesses",
+            json={"name": "RBAC Workspace", "industry": "Services"},
+            cookies=owner_cookie,
+        )
+        assert business_response.status_code == 201, business_response.text
+        business_id = business_response.json()["id"]
+
+        manager_membership = api_client.post(
+            f"/businesses/{business_id}/members",
+            json={"user_id": manager_id, "role": "MANAGER"},
+            cookies=owner_cookie,
+        )
+        assert manager_membership.status_code == 201, manager_membership.text
+        viewer_membership = api_client.post(
+            f"/businesses/{business_id}/members",
+            json={"user_id": viewer_id, "role": "VIEWER"},
+            cookies=owner_cookie,
+        )
+        assert viewer_membership.status_code == 201, viewer_membership.text
+
+        manager_read = api_client.get(f"/businesses/{business_id}", cookies=manager_cookie)
+        viewer_read = api_client.get(f"/businesses/{business_id}", cookies=viewer_cookie)
+        assert manager_read.status_code == 200, manager_read.text
+        assert viewer_read.status_code == 200, viewer_read.text
+
+        manager_write = api_client.post(
+            f"/businesses/{business_id}/customers",
+            json={"name": "Manager-created customer"},
+            cookies=manager_cookie,
+        )
+        assert manager_write.status_code == 201, manager_write.text
+        viewer_write = api_client.post(
+            f"/businesses/{business_id}/customers",
+            json={"name": "Viewer write must be denied"},
+            cookies=viewer_cookie,
+        )
+        assert viewer_write.status_code == 403
+
+        manager_archive = api_client.post(
+            f"/businesses/{business_id}/archive",
+            json={"is_archived": True},
+            cookies=manager_cookie,
+        )
+        assert manager_archive.status_code == 403
+
+        manager_role_change = api_client.patch(
+            f"/businesses/{business_id}/members/{viewer_id}",
+            json={"role": "ACCOUNTANT"},
+            cookies=manager_cookie,
+        )
+        assert manager_role_change.status_code == 403
+        owner_role_change = api_client.patch(
+            f"/businesses/{business_id}/members/{viewer_id}",
+            json={"role": "ACCOUNTANT"},
+            cookies=owner_cookie,
+        )
+        assert owner_role_change.status_code == 200, owner_role_change.text
+        assert owner_role_change.json()["role"] == "ACCOUNTANT"
+
+        owner_archive = api_client.post(
+            f"/businesses/{business_id}/archive",
+            json={"is_archived": True},
+            cookies=owner_cookie,
+        )
+        assert owner_archive.status_code == 200, owner_archive.text
+        assert owner_archive.json() == {
+            "status": "ok",
+            "business_id": business_id,
+            "is_archived": True,
+        }
+        archived = api_client.get(f"/businesses/{business_id}", cookies=owner_cookie)
+        assert archived.status_code == 200, archived.text
+        assert archived.json()["is_archived"] is True
+
+        owner_unarchive = api_client.post(
+            f"/businesses/{business_id}/archive",
+            json={"is_archived": False},
+            cookies=owner_cookie,
+        )
+        assert owner_unarchive.status_code == 200, owner_unarchive.text
+        assert owner_unarchive.json()["is_archived"] is False

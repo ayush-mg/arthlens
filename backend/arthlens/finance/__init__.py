@@ -23,6 +23,7 @@ from backend.arthlens.finance.projection import (
     calculate_break_even_quantity,
     project_monthly_cash_flow,
 )
+from backend.arthlens.finance.scenarios import run_monte_carlo, run_scenario, validate_assumptions
 
 __all__ = [
     "RepaymentCapacity",
@@ -42,4 +43,7 @@ __all__ = [
     "calculate_working_capital_requirement",
     "equal_monthly_installment",
     "project_monthly_cash_flow",
+    "run_monte_carlo",
+    "run_scenario",
+    "validate_assumptions",
 ]

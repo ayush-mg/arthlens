@@ -5,19 +5,21 @@ Authoritative Reference: ArthLens Build Handbook v1.0 (Part 9.1, 9.2, Part 12.1)
 Phase: P1-5 (Database Persistence, Repositories and Integration Tests).
 
 Verifies:
-- Alembic upgrade from base to head creates all 20 Part 9 tables.
+- Alembic upgrade from base to head creates the domain, system, and auth tables.
 - PostGIS 3.4 extension is available and geographic columns are functional.
 - PostgreSQL check constraints and GIN indexes are properly applied.
 - Clean rollback via downgrade base and idempotent re-upgrade.
 """
 
 import uuid
+from io import StringIO
 from pathlib import Path
 
 import pytest
 from alembic import command
 from alembic.config import Config
-from backend.arthlens.infra.database import get_engine
+from alembic.script import ScriptDirectory
+from backend.arthlens.infra.database import assert_safe_test_database, get_engine
 from sqlalchemy import inspect, text
 
 
@@ -59,7 +61,121 @@ class TestAlembicMigrations:
         "revoked_tokens",
         "rate_limits",
         "source_records",
+        "inventory_cost_reconciliations",
+        "inventory_cost_reconciliation_events",
+        "business_scenarios",
+        "business_scenario_versions",
+        "business_simulation_runs",
+        "goal_milestones",
+        "goal_action_plans",
+        "goal_action_tasks",
+        "goal_progress_snapshots",
+        "agent_proposed_actions",
+        "auth_otp_challenges",
     }
+
+    MIGRATION_SCHEMA = (
+        (
+            "020_inventory_cost_reconciliation",
+            {
+                "purchases": {"return_credit_amount"},
+                "inventory_movements": {
+                    "cost_reconciliation_status", "source_purchase_item_id", "reconciled_at",
+                    "reconciled_by_user_id", "reconciliation_note",
+                },
+                "inventory_cost_reconciliations": {
+                    "id", "business_id", "mode", "status", "created_by", "summary", "created_at",
+                },
+                "inventory_cost_reconciliation_events": {
+                    "id", "reconciliation_id", "movement_id", "product_id", "classification",
+                    "prior_cost_basis", "resolved_cost_basis", "source_evidence", "resolution_note",
+                    "created_at",
+                },
+            },
+        ),
+        (
+            "021_business_scenario_versions",
+            {
+                "business_scenarios": {
+                    "id", "business_id", "created_by_user_id", "name", "description",
+                    "current_version", "created_at", "updated_at",
+                },
+                "business_scenario_versions": {
+                    "id", "scenario_id", "version_number", "assumptions", "baseline_snapshot_hash",
+                    "created_by_user_id", "created_at",
+                },
+                "business_simulation_runs": {
+                    "id", "business_id", "scenario_version_id", "random_seed", "iterations",
+                    "distribution_config", "baseline_snapshot_hash", "model_version", "result",
+                    "created_by_user_id", "created_at",
+                },
+            },
+        ),
+        (
+            "022_goal_planning_records",
+            {
+                "goal_milestones": {
+                    "id", "business_id", "goal_id", "title", "target_date", "target_value",
+                    "created_by_user_id", "created_at",
+                },
+                "goal_action_plans": {
+                    "id", "business_id", "goal_id", "title", "description", "status",
+                    "created_by_user_id", "created_at",
+                },
+                "goal_action_tasks": {
+                    "id", "business_id", "goal_id", "plan_id", "title", "description",
+                    "assigned_member_id", "priority", "status", "due_date", "expected_financial_impact",
+                    "created_by_user_id", "created_at", "updated_at",
+                },
+                "goal_progress_snapshots": {
+                    "id", "business_id", "goal_id", "as_of_date", "planned_value", "actual_value",
+                    "deviation_value", "status", "explanation", "evidence_items", "created_by_user_id",
+                    "created_at",
+                },
+            },
+        ),
+        (
+            "023_decision_version_graphs",
+            {
+                "decision_evaluations": {
+                    "version_number", "parent_decision_id", "causal_graph", "evidence_items",
+                },
+            },
+        ),
+        (
+            "024_agent_action_confirmation",
+            {
+                "agent_proposed_actions": {
+                    "id", "business_id", "session_id", "action_type", "payload", "status",
+                    "created_by_user_id", "confirmed_by_user_id", "result", "created_at", "updated_at",
+                },
+            },
+        ),
+        (
+            "025_workspace_role_matrix",
+            {"business_memberships": {"role"}},
+        ),
+        (
+            "026_auth_otp_and_google_oauth",
+            {
+                "users": {
+                    "email_verified", "google_sub", "auth_provider", "two_factor_enabled",
+                },
+                "auth_otp_challenges": {
+                    "id", "user_id", "email", "purpose", "code_hash", "attempts",
+                    "max_attempts", "expires_at", "consumed_at", "created_at",
+                },
+            },
+        ),
+    )
+
+    @staticmethod
+    def _assert_schema_columns(inspector, expected_columns):
+        for table_name, expected in expected_columns.items():
+            assert inspector.has_table(table_name), f"Migration did not create expected table: {table_name}"
+            actual = {column["name"] for column in inspector.get_columns(table_name)}
+            missing = set(expected) - actual
+            assert not missing, f"{table_name} is missing expected columns: {sorted(missing)}"
 
     def test_upgrade_head_creates_all_tables(self, alembic_cfg):
         """Applying migrations to head creates every Part 9 domain and system table."""
@@ -73,6 +189,142 @@ class TestAlembicMigrations:
 
         missing_tables = self.EXPECTED_TABLES - existing_tables
         assert not missing_tables, f"Migration failed to create tables: {missing_tables}"
+
+    def test_migrations_020_through_026_upgrade_schema_incrementally(self, alembic_cfg):
+        """Each 020–026 revision creates its declared tables/columns and advances Alembic in order."""
+        engine = get_engine()
+        assert_safe_test_database(engine)
+        restore_head = False
+        try:
+            command.upgrade(alembic_cfg, "head")
+            restore_head = True
+            command.downgrade(alembic_cfg, "019_purchase_returns")
+            engine.dispose()
+            inspector = inspect(engine)
+            assert not inspector.has_table("inventory_cost_reconciliations")
+            assert not inspector.has_table("business_scenarios")
+            assert not inspector.has_table("goal_milestones")
+            assert not inspector.has_table("auth_otp_challenges")
+            baseline_inventory_columns = {column["name"] for column in inspector.get_columns("inventory_movements")}
+            assert "cost_reconciliation_status" not in baseline_inventory_columns
+            baseline_user_columns = {column["name"] for column in inspector.get_columns("users")}
+            assert not {"email_verified", "google_sub", "auth_provider", "two_factor_enabled"}.intersection(
+                baseline_user_columns
+            )
+
+            for revision, expected_columns in self.MIGRATION_SCHEMA:
+                command.upgrade(alembic_cfg, revision)
+                engine.dispose()
+                inspector = inspect(engine)
+                self._assert_schema_columns(inspector, expected_columns)
+                with engine.connect() as connection:
+                    current_revision = connection.execute(
+                        text("SELECT version_num FROM alembic_version")
+                    ).scalar_one()
+                assert current_revision == revision, (
+                    f"Expected Alembic revision {revision}, found {current_revision}"
+                )
+
+                if revision == "020_inventory_cost_reconciliation":
+                    constraints = {
+                        item["name"] for item in inspector.get_check_constraints("inventory_movements")
+                    }
+                    assert "check_inventory_cost_reconciliation_status" in constraints
+                    purchase_constraints = {
+                        item["name"] for item in inspector.get_check_constraints("purchases")
+                    }
+                    assert "check_purchase_return_credit_nonnegative" in purchase_constraints
+                elif revision == "023_decision_version_graphs":
+                    constraints = {
+                        item["name"] for item in inspector.get_check_constraints("decision_evaluations")
+                    }
+                    assert "check_decision_version_number_positive" in constraints
+                elif revision == "024_agent_action_confirmation":
+                    constraints = {
+                        item["name"] for item in inspector.get_check_constraints("agent_proposed_actions")
+                    }
+                    assert {
+                        "check_agent_proposed_action_status", "check_agent_proposed_action_type",
+                    }.issubset(constraints)
+                elif revision == "025_workspace_role_matrix":
+                    role_constraint = next(
+                        item["sqltext"]
+                        for item in inspector.get_check_constraints("business_memberships")
+                        if item["name"] == "check_membership_role"
+                    )
+                    normalized_constraint = role_constraint.upper().replace(" ", "")
+                    assert "'ADMIN'" in normalized_constraint
+                    assert "'ANALYST'" in normalized_constraint
+                    assert "'OWNER'" in normalized_constraint
+                    assert "'MANAGER'" in normalized_constraint
+                    assert "'ACCOUNTANT'" in normalized_constraint
+                    assert "'VIEWER'" in normalized_constraint
+                elif revision == "026_auth_otp_and_google_oauth":
+                    constraints = {
+                        item["name"] for item in inspector.get_check_constraints("auth_otp_challenges")
+                    }
+                    assert {
+                        "check_auth_otp_purpose", "check_auth_otp_attempts",
+                    }.issubset(constraints)
+                    indexes = {
+                        item["name"]: item for item in inspector.get_indexes("users")
+                    }
+                    assert indexes["ix_users_google_sub"]["unique"] is True
+                    otp_indexes = {
+                        item["name"] for item in inspector.get_indexes("auth_otp_challenges")
+                    }
+                    assert {
+                        "ix_auth_otp_challenges_email",
+                        "ix_auth_otp_challenges_active_email_purpose",
+                    }.issubset(otp_indexes)
+        finally:
+            if restore_head:
+                command.upgrade(alembic_cfg, "head")
+            engine.dispose()
+
+    def test_migrations_020_through_026_have_ordered_offline_ddl(self, alembic_cfg):
+        """The 020–026 revisions form one ordered chain and emit their declared schema DDL."""
+        expected_chain = (
+            ("020_inventory_cost_reconciliation", "019_purchase_returns"),
+            ("021_business_scenario_versions", "020_inventory_cost_reconciliation"),
+            ("022_goal_planning_records", "021_business_scenario_versions"),
+            ("023_decision_version_graphs", "022_goal_planning_records"),
+            ("024_agent_action_confirmation", "023_decision_version_graphs"),
+            ("025_workspace_role_matrix", "024_agent_action_confirmation"),
+            ("026_auth_otp_and_google_oauth", "025_workspace_role_matrix"),
+        )
+        script = ScriptDirectory.from_config(alembic_cfg)
+        assert script.get_heads() == ["026_auth_otp_and_google_oauth"]
+        for revision, expected_parent in expected_chain:
+            assert script.get_revision(revision).down_revision == expected_parent
+
+        output = StringIO()
+        alembic_cfg.output_buffer = output
+        command.upgrade(alembic_cfg, "head", sql=True)
+        generated_sql = " ".join(output.getvalue().lower().split())
+        expected_ddl = (
+            "cost_reconciliation_status",
+            "create table inventory_cost_reconciliations",
+            "create table business_scenarios",
+            "create table business_simulation_runs",
+            "create table goal_milestones",
+            "create table goal_action_tasks",
+            "alter table decision_evaluations add column version_number",
+            "create table agent_proposed_actions",
+            "alter table business_memberships add constraint check_membership_role check (role in ('owner', 'admin', 'manager', 'accountant', 'analyst', 'viewer'))",
+            "alter table users add column email_verified",
+            "alter table users add column google_sub",
+            "alter table users add column auth_provider",
+            "alter table users add column two_factor_enabled",
+            "create unique index ix_users_google_sub on users (google_sub)",
+            "create table auth_otp_challenges",
+            "create index ix_auth_otp_challenges_email on auth_otp_challenges (email)",
+            "create index ix_auth_otp_challenges_active_email_purpose on auth_otp_challenges (email, purpose, created_at)",
+        )
+        missing = [fragment for fragment in expected_ddl if fragment not in generated_sql]
+        assert not missing, f"Offline migration plan omitted expected schema DDL: {missing}"
+        ddl_positions = [generated_sql.index(fragment) for fragment in expected_ddl]
+        assert ddl_positions == sorted(ddl_positions), "Migration DDL was emitted out of revision order."
 
     def test_policy_lifecycle_migration_downgrades_unverified_legacy_records(self, alembic_cfg):
         """Legacy ACTIVE documents and APPROVED rules cannot survive as verified state."""

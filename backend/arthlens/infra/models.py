@@ -21,6 +21,7 @@ from sqlalchemy import (
     Integer,
     Numeric,
     SmallInteger,
+    String,
     Text,
     UniqueConstraint,
     func,
@@ -39,12 +40,43 @@ class UserModel(Base):
     __tablename__ = "users"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email = Column(Text, nullable=False, unique=True, index=True)
+    email = Column(Text, nullable=False)
     password_hash = Column(Text, nullable=False)
+    email_verified = Column(Boolean, nullable=False, server_default="false")
+    google_sub = Column(String(255), nullable=True, unique=True, index=True)
+    auth_provider = Column(String(32), nullable=False, server_default="local")
+    two_factor_enabled = Column(Boolean, nullable=False, server_default="true")
     quota_counters = Column(JSONB, nullable=False, server_default="{}")
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
+    __table_args__ = (
+        UniqueConstraint("email", name="users_email_key"),
+        Index("ix_users_email", "email", unique=True),
+    )
+
     roles = relationship("RoleModel", secondary="user_roles", back_populates="users")
+
+
+class AuthOtpChallengeModel(Base):
+    """Short-lived, single-use email OTP challenge; only a keyed hash is stored."""
+    __tablename__ = "auth_otp_challenges"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    email = Column(String(320), nullable=False, index=True)
+    purpose = Column(String(32), nullable=False)
+    code_hash = Column(String(255), nullable=False)
+    attempts = Column(Integer, nullable=False, server_default="0")
+    max_attempts = Column(Integer, nullable=False, server_default="5")
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    consumed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint("purpose IN ('REGISTER_VERIFY','LOGIN_2FA')", name="check_auth_otp_purpose"),
+        CheckConstraint("attempts >= 0 AND max_attempts BETWEEN 1 AND 10", name="check_auth_otp_attempts"),
+        Index("ix_auth_otp_challenges_active_email_purpose", "email", "purpose", "created_at"),
+    )
 
 
 class RoleModel(Base):
@@ -66,496 +98,36 @@ class UserRoleModel(Base):
 
 
 # ==============================================================================
-# 2. Data Sources and Versions (Handbook 9.1)
+# Historical Compatibility Layer (Re-exported from historical_models)
 # ==============================================================================
-
-class SourceModel(Base):
-    """Registered external and local data sources."""
-    __tablename__ = "sources"
-
-    id = Column(Text, primary_key=True)  # e.g., 'src_osm', 'src_rbi'
-    name = Column(Text, nullable=False)
-    description = Column(Text, nullable=True)
-    licence_text = Column(Text, nullable=True)
-    max_age_days = Column(Integer, nullable=True)
-    status = Column(Text, nullable=False, server_default="ACTIVE")
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
-    versions = relationship("SourceVersionModel", back_populates="source", cascade="all, delete-orphan")
-
-
-class SourceVersionModel(Base):
-    """Specific snapshot versions of a registered data source."""
-    __tablename__ = "source_versions"
-
-    id = Column(Text, primary_key=True)
-    source_id = Column(Text, ForeignKey("sources.id", ondelete="CASCADE"), nullable=False, index=True)
-    version = Column(Text, nullable=False)
-    retrieval_date = Column(Date, nullable=False)
-    content_hash = Column(Text, nullable=False)
-    source_url = Column(Text, nullable=True)
-    status = Column(Text, nullable=False, server_default="ACTIVE")
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
-    source = relationship("SourceModel", back_populates="versions")
-    records = relationship("SourceRecordModel", back_populates="version", cascade="all, delete-orphan")
-
-
-class SourceRecordModel(Base):
-    """Normalized source records preserving raw, normalized, and provenance attributes."""
-    __tablename__ = "source_records"
-
-    id = Column(Text, primary_key=True)
-    source_id = Column(Text, ForeignKey("sources.id", ondelete="CASCADE"), nullable=False, index=True)
-    source_version_id = Column(Text, ForeignKey("source_versions.id", ondelete="CASCADE"), nullable=False, index=True)
-    record_id = Column(Text, nullable=False, index=True)
-    original_fields = Column(JSONB, nullable=False)
-    normalized_fields = Column(JSONB, nullable=False)
-    canonical_units = Column(JSONB, nullable=False)
-    geo_resolved = Column(Boolean, nullable=False, server_default="false")
-    geo_unit_id = Column(Text, nullable=True, index=True)
-    unresolved_raw_id = Column(Text, nullable=True)
-    resolution_tier = Column(SmallInteger, nullable=True)
-    as_of = Column(Date, nullable=True)
-    temporal_support = Column(JSONB, nullable=True)
-    license_name = Column(Text, nullable=True)
-    attribution = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
-    version = relationship("SourceVersionModel", back_populates="records")
-
-    __table_args__ = (
-        UniqueConstraint("source_version_id", "record_id", name="uq_source_records_version_record"),
-    )
+from backend.arthlens.infra.historical_models import (
+    SourceModel,
+    SourceVersionModel,
+    SourceRecordModel,
+    GeoUnitModel,
+    FacilityModel,
+    RoadNodeModel,
+    RoadEdgeModel,
+    QuantityModel,
+    PolicyDocumentModel,
+    PolicyRuleModel,
+    PolicyEvaluationModel,
+    BusinessProfileModel,
+    ScenarioModel,
+    SimulationRunModel,
+    ScenarioComparisonModel,
+    AgentRunModel,
+    AgentRunStepModel,
+    RunEventModel,
+    JobModel,
+    ApprovalModel,
+    TaskModel,
+)
 
 
 # ==============================================================================
-# 3. Geographic Hierarchy and Facilities (Handbook 9.1)
+# 2. System Audit, Session Revocation, and Distributed Rate Limiting
 # ==============================================================================
-
-class GeoUnitModel(Base):
-    """Geographic admin boundaries and entities with PostGIS geometries."""
-    __tablename__ = "geo_units"
-
-    id = Column(Text, primary_key=True)  # e.g., 'in', 'in:state:09', 'in:district:175'
-    parent_id = Column(Text, ForeignKey("geo_units.id"), nullable=True, index=True)
-    level = Column(SmallInteger, nullable=False)  # 0=NATION, 1=STATE, 2=DISTRICT, 3=SUBDISTRICT, etc.
-    name = Column(Text, nullable=False)
-    lgd_code = Column(Text, nullable=True, index=True)
-    geometry = Column(Geometry(geometry_type="GEOMETRY", srid=4326), nullable=True)
-    coverage_status = Column(Text, nullable=False, server_default="NAVIGABLE")
-    geometry_status = Column(Text, nullable=False, server_default="GEOMETRY_MISSING")
-    analytical_status = Column(Text, nullable=False, server_default="ANALYSIS_UNAVAILABLE")
-    census_code = Column(Text, nullable=True)
-    geometry_source_record_id = Column(Text, ForeignKey("source_records.id", ondelete="SET NULL"), nullable=True, index=True)
-
-    __table_args__ = (
-        CheckConstraint("level BETWEEN 0 AND 5", name="check_geo_unit_level"),
-        CheckConstraint(
-            "coverage_status IN ('NAVIGABLE', 'HIERARCHY_UNRESOLVED')",
-            name="check_geo_unit_coverage_status",
-        ),
-        CheckConstraint(
-            "geometry_status IN ('GEOMETRY_VERIFIED', 'GEOMETRY_SIMPLIFIED', 'GEOMETRY_HISTORICAL', 'GEOMETRY_UNVALIDATED', 'GEOMETRY_MISSING')",
-            name="check_geo_unit_geometry_status",
-        ),
-        CheckConstraint(
-            "analytical_status IN ('ANALYSABLE', 'ANALYSIS_UNAVAILABLE')",
-            name="check_geo_unit_analytical_status",
-        ),
-    )
-
-
-class FacilityModel(Base):
-    """OSM-derived points of interest and competitor facilities."""
-    __tablename__ = "facilities"
-
-    id = Column(Text, primary_key=True)
-    name = Column(Text, nullable=True)
-    geometry = Column(Geometry(geometry_type="POINT", srid=4326), nullable=True)
-    category = Column(Text, nullable=False)
-    attractiveness_proxy = Column(Double, nullable=True)
-    completeness_flag = Column(Boolean, nullable=False, server_default="true")
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
-
-class RoadNodeModel(Base):
-    """OSM road node with exact source-record provenance."""
-    __tablename__ = "road_nodes"
-
-    id = Column(Text, primary_key=True)
-    source_version_id = Column(
-        Text,
-        ForeignKey("source_versions.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    osm_node_id = Column(Text, nullable=False)
-    geometry = Column(Geometry(geometry_type="POINT", srid=4326, spatial_index=False), nullable=False)
-    source_record_id = Column(
-        Text,
-        ForeignKey("source_records.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-
-    __table_args__ = (
-        UniqueConstraint("source_version_id", "osm_node_id", name="uq_road_nodes_version_osm_node"),
-        Index("ix_road_nodes_geometry_gist", "geometry", postgresql_using="gist"),
-    )
-
-
-class RoadEdgeModel(Base):
-    """Directed OSM road segment indexed for site-local PostGIS extraction."""
-    __tablename__ = "road_edges"
-
-    id = Column(Text, primary_key=True)
-    source_version_id = Column(
-        Text,
-        ForeignKey("source_versions.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    osm_way_id = Column(Text, nullable=False)
-    segment_index = Column(Integer, nullable=False)
-    direction = Column(Text, nullable=False)
-    from_node_id = Column(Text, ForeignKey("road_nodes.id", ondelete="CASCADE"), nullable=False)
-    to_node_id = Column(Text, ForeignKey("road_nodes.id", ondelete="CASCADE"), nullable=False)
-    length_m = Column(Double, nullable=False)
-    road_class = Column(Text, nullable=False)
-    geometry = Column(Geometry(geometry_type="LINESTRING", srid=4326, spatial_index=False), nullable=False)
-    source_record_id = Column(
-        Text,
-        ForeignKey("source_records.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-
-    __table_args__ = (
-        UniqueConstraint(
-            "source_version_id",
-            "osm_way_id",
-            "segment_index",
-            "direction",
-            name="uq_road_edges_version_way_segment_direction",
-        ),
-        CheckConstraint("length_m > 0", name="check_road_edges_positive_length"),
-        CheckConstraint("direction IN ('forward', 'reverse')", name="check_road_edges_direction"),
-        Index("ix_road_edges_source_nodes", "source_version_id", "from_node_id"),
-        Index("ix_road_edges_geometry_gist", "geometry", postgresql_using="gist"),
-    )
-
-
-# ==============================================================================
-# 4. Epistemic Ledger (Quantities Table, Handbook 9.1, 9.2)
-# ==============================================================================
-
-class QuantityModel(Base):
-    """
-    Epistemic ledger quantity record with immutable lineage semantics.
-    Handbook 9.2 SQL reference definition.
-    """
-    __tablename__ = "quantities"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    definition_key = Column(Text, nullable=False, index=True)
-    value = Column(Double, nullable=True)
-    unit = Column(Text, nullable=False)
-    kind = Column(Text, nullable=False)
-    evidence_floor = Column(SmallInteger, nullable=False)
-    geo_unit_id = Column(Text, nullable=False, index=True)
-    resolution = Column(SmallInteger, nullable=False)
-    as_of = Column(Date, nullable=True)
-    period_start = Column(Date, nullable=True)
-    period_end = Column(Date, nullable=True)
-    uncertainty = Column(JSONB, nullable=False)
-    source_refs = Column(JSONB, nullable=False, server_default="[]")
-    method_id = Column(Text, nullable=False)
-    model_version = Column(Text, nullable=False)
-    parent_ids = Column(ARRAY(UUID(as_uuid=True)), nullable=False, server_default="{}")
-    quality_flags = Column(ARRAY(Text), nullable=False, server_default="{}")
-    license_meta = Column(Text, nullable=True)
-    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    simulation_meta = Column(JSONB, nullable=True)  # Dedicated field for P1-4 SimulationMetadata
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
-    __table_args__ = (
-        CheckConstraint(
-            "kind IN ('OBSERVED','POLICY_RULE','USER_ASSUMED','ESTIMATED','SCENARIO','CALCULATED','SIMULATED','COMMUNITY_REPORTED')",
-            name="check_quantity_kind",
-        ),
-        CheckConstraint("evidence_floor BETWEEN 1 AND 4", name="check_evidence_floor"),
-        CheckConstraint("resolution BETWEEN 0 AND 5", name="check_resolution"),
-        Index("quantities_parents_gin", "parent_ids", postgresql_using="gin"),
-    )
-
-
-# ==============================================================================
-# 5. Policies and Rules (Handbook 9.1)
-# ==============================================================================
-
-class PolicyDocumentModel(Base):
-    """Exact registered source snapshots reviewed for policy-rule use."""
-    __tablename__ = "policy_documents"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    scheme_id = Column(Text, nullable=False, index=True)
-    document_url = Column(Text, nullable=False)
-    sha256 = Column(Text, nullable=False)
-    source_version_id = Column(
-        Text,
-        ForeignKey("source_versions.id", ondelete="RESTRICT"),
-        nullable=True,
-        index=True,
-    )
-    retrieved_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    status = Column(Text, nullable=False, server_default="PENDING_REVIEW")
-    verified_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    verified_at = Column(DateTime(timezone=True), nullable=True)
-    review_note = Column(Text, nullable=True)
-
-    __table_args__ = (
-        CheckConstraint(
-            "status IN ('PENDING_REVIEW','VERIFIED','REJECTED')",
-            name="check_policy_document_status",
-        ),
-    )
-
-
-class PolicyRuleModel(Base):
-    """Structured AST rules extracted from policy guidelines."""
-    __tablename__ = "policy_rules"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    document_id = Column(UUID(as_uuid=True), ForeignKey("policy_documents.id"), nullable=True)
-    scheme_id = Column(Text, nullable=False, index=True)
-    rule_key = Column(Text, nullable=False)
-    version = Column(Text, nullable=False)
-    rule_ast = Column(JSONB, nullable=False)
-    evidence_requirements = Column(JSONB, nullable=False, server_default="{}")
-    source_references = Column(JSONB, nullable=False, server_default="[]")
-    effective_from = Column(Date, nullable=True)
-    effective_to = Column(Date, nullable=True)
-    status = Column(Text, nullable=False, server_default="DRAFT")
-    approved_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    approved_at = Column(DateTime(timezone=True), nullable=True)
-    approval_note = Column(Text, nullable=True)
-    retired_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    retired_at = Column(DateTime(timezone=True), nullable=True)
-    retirement_reason = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
-    __table_args__ = (
-        CheckConstraint("status IN ('DRAFT','APPROVED','RETIRED')", name="check_policy_rule_status"),
-        UniqueConstraint("scheme_id", "rule_key", "version", name="uq_policy_scheme_rule_version"),
-        CheckConstraint(
-            "effective_to IS NULL OR effective_from IS NULL OR effective_to >= effective_from",
-            name="check_policy_effective_period",
-        ),
-    )
-
-
-class PolicyEvaluationModel(Base):
-    """Append-only source-versioned result and evidence trace for a policy assessment."""
-
-    __tablename__ = "policy_evaluations"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    scheme_id = Column(Text, nullable=False, index=True)
-    rule_id = Column(UUID(as_uuid=True), ForeignKey("policy_rules.id", ondelete="SET NULL"), nullable=True)
-    rule_key = Column(Text, nullable=False)
-    rule_version = Column(Text, nullable=True)
-    as_of = Column(Date, nullable=False)
-    outcome = Column(Text, nullable=False)
-    status = Column(Text, nullable=False)
-    fact_quantity_ids = Column(JSONB, nullable=False, server_default="{}")
-    trace = Column(JSONB, nullable=False)
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
-    __table_args__ = (
-        CheckConstraint("outcome IN ('TRUE','FALSE','UNKNOWN')", name="check_policy_evaluation_outcome"),
-        CheckConstraint(
-            "status IN ('RULE_UNAVAILABLE','INSUFFICIENT_DATA','SCENARIO_ONLY','ASSESSED')",
-            name="check_policy_evaluation_status",
-        ),
-    )
-
-
-# ==============================================================================
-# 6. Business Profiles, Scenarios, and Simulations (Handbook 9.1)
-# ==============================================================================
-
-class BusinessProfileModel(Base):
-    """User-owned enterprise profile and facts."""
-    __tablename__ = "business_profiles"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    sector_template = Column(Text, nullable=False)
-    user_facts = Column(JSONB, nullable=False, server_default="{}")
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
-
-
-class ScenarioModel(Base):
-    """User-owned scenario specifications."""
-    __tablename__ = "scenarios"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    name = Column(Text, nullable=False)
-    scenario = Column(JSONB, nullable=False)
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
-
-class SimulationRunModel(Base):
-    """Bit-identical reproducible simulation run results."""
-    __tablename__ = "simulation_runs"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    scenario_id = Column(UUID(as_uuid=True), ForeignKey("scenarios.id", ondelete="CASCADE"), nullable=False, index=True)
-    seed = Column(Numeric(asdecimal=True), nullable=False)
-    model_version = Column(Text, nullable=False)
-    git_hash = Column(Text, nullable=True)
-    data_version_ids = Column(ARRAY(Text), nullable=False, server_default="{}")
-    outputs_references = Column(JSONB, nullable=False, server_default="{}")
-    status = Column(Text, nullable=False, server_default="PENDING")
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
-    __table_args__ = (
-        CheckConstraint(
-            "seed = TRUNC(seed) AND seed >= 0 AND seed <= 18446744073709551615",
-            name="check_simulation_run_seed_range",
-        ),
-    )
-
-
-class ScenarioComparisonModel(Base):
-    """Immutable owner-scoped comparison between two saved scenario result snapshots."""
-    __tablename__ = "scenario_comparisons"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    left_scenario_id = Column(UUID(as_uuid=True), ForeignKey("scenarios.id", ondelete="CASCADE"), nullable=False, index=True)
-    right_scenario_id = Column(UUID(as_uuid=True), ForeignKey("scenarios.id", ondelete="CASCADE"), nullable=False, index=True)
-    status = Column(Text, nullable=False)
-    metric_results = Column(JSONB, nullable=False)
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
-    __table_args__ = (
-        CheckConstraint("left_scenario_id <> right_scenario_id", name="check_scenario_comparison_distinct_scenarios"),
-        CheckConstraint("status IN ('COMPLETED','PARTIAL','INSUFFICIENT_DATA')", name="check_scenario_comparison_status"),
-    )
-
-
-# ==============================================================================
-# 7. Agent Runs, Steps, and Events (Handbook 9.2)
-# ==============================================================================
-
-class AgentRunModel(Base):
-    """Orchestrated agent run execution record."""
-    __tablename__ = "agent_runs"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
-    objective = Column(JSONB, nullable=False)
-    state = Column(Text, nullable=False)
-    steps_used = Column(Integer, nullable=False, server_default="0")
-    replans_used = Column(Integer, nullable=False, server_default="0")
-    model_calls_used = Column(Integer, nullable=False, server_default="0")
-    cost_usd = Column(Numeric(10, 4), nullable=False, server_default="0")
-    claimed_by = Column(Text, nullable=True)
-    lease_expires_at = Column(DateTime(timezone=True), nullable=True)
-    recovery_attempts = Column(Integer, nullable=False, server_default="0")
-    max_recovery_attempts = Column(Integer, nullable=False, server_default="3")
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
-
-    steps = relationship("AgentRunStepModel", back_populates="run", cascade="all, delete-orphan")
-    events = relationship("RunEventModel", back_populates="run", cascade="all, delete-orphan")
-
-
-class AgentRunStepModel(Base):
-    """Individual execution step with memento checkpoint for resume."""
-    __tablename__ = "agent_run_steps"
-
-    run_id = Column(UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="CASCADE"), primary_key=True)
-    seq = Column(Integer, primary_key=True)
-    tool = Column(Text, nullable=True)
-    input = Column(JSONB, nullable=True)
-    output = Column(JSONB, nullable=True)
-    memento = Column(JSONB, nullable=False)
-    status = Column(Text, nullable=False)
-    started_at = Column(DateTime(timezone=True), nullable=True)
-    ended_at = Column(DateTime(timezone=True), nullable=True)
-
-    run = relationship("AgentRunModel", back_populates="steps")
-
-
-class RunEventModel(Base):
-    """Sequential events powering UI SSE stream and audit replay."""
-    __tablename__ = "run_events"
-
-    run_id = Column(UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="CASCADE"), primary_key=True)
-    seq = Column(BigInteger, primary_key=True)
-    type = Column(Text, nullable=False)
-    payload = Column(JSONB, nullable=False)
-    at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
-    run = relationship("AgentRunModel", back_populates="events")
-
-
-# ==============================================================================
-# 8. Jobs, Approvals, Follow-up Tasks, and Audit (Handbook 9.1, 9.2)
-# ==============================================================================
-
-class JobModel(Base):
-    """Async job queue for worker execution."""
-    __tablename__ = "jobs"
-
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    kind = Column(Text, nullable=False)
-    payload = Column(JSONB, nullable=False)
-    status = Column(Text, nullable=False, server_default="queued", index=True)
-    attempts = Column(Integer, nullable=False, server_default="0")
-    locked_by = Column(Text, nullable=True)
-    run_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)
-
-
-class ApprovalModel(Base):
-    """Human-in-the-loop approvals for sensitive agent actions."""
-    __tablename__ = "approvals"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    run_id = Column(UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False, index=True)
-    action = Column(Text, nullable=False)
-    requested_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    decided_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    decision = Column(Text, nullable=False, server_default="PENDING")
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    decided_at = Column(DateTime(timezone=True), nullable=True)
-
-
-class TaskModel(Base):
-    """Follow-up tasks identified by verifier gaps."""
-    __tablename__ = "tasks"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    run_id = Column(UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False, index=True)
-    text = Column(Text, nullable=False)
-    linked_gap_quantity_id = Column(UUID(as_uuid=True), ForeignKey("quantities.id"), nullable=True)
-    status = Column(Text, nullable=False, server_default="OPEN")
-    priority = Column(Text, nullable=False, server_default="MEDIUM")
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
-    __table_args__ = (
-        CheckConstraint(
-            "status IN ('OPEN', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED')",
-            name="check_task_status",
-        ),
-        CheckConstraint(
-            "priority IN ('HIGH', 'MEDIUM', 'LOW')",
-            name="check_task_priority",
-        ),
-    )
-
 
 class AuditEventModel(Base):
     """Append-only audit trail for sensitive administrative operations."""
@@ -586,3 +158,630 @@ class RateLimitModel(Base):
     key = Column(Text, primary_key=True)
     count = Column(Integer, nullable=False, server_default="1")
     reset_at = Column(DateTime(timezone=True), nullable=False, index=True)
+
+
+# ==============================================================================
+# 7. Business Operating System & Decision Intelligence Models (Handbook v2.0)
+# ==============================================================================
+
+class BusinessModel(Base):
+    """Business Operating System workspace source-of-truth."""
+    __tablename__ = "businesses"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(Text, nullable=False)
+    industry = Column(Text, nullable=False)
+    address = Column(Text, nullable=False, server_default="")
+    financial_year_start = Column(Text, nullable=False, server_default="04-01")
+    currency = Column(Text, nullable=False, server_default="INR")
+    preferences = Column(JSONB, nullable=False, server_default="{}")
+    is_archived = Column(Boolean, nullable=False, server_default="false")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class BusinessMembershipModel(Base):
+    """RBAC membership linking users to business workspaces with role."""
+    __tablename__ = "business_memberships"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(Text, nullable=False)
+    is_active = Column(Boolean, nullable=False, server_default="true")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("business_id", "user_id", name="uq_business_user_membership"),
+        CheckConstraint("role IN ('OWNER', 'ADMIN', 'MANAGER', 'ACCOUNTANT', 'ANALYST', 'VIEWER')", name="check_membership_role"),
+    )
+
+
+class CustomerModel(Base):
+    """Customer entity with credit limit and balance tracking."""
+    __tablename__ = "customers"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(Text, nullable=False)
+    phone = Column(Text, nullable=False, server_default="")
+    email = Column(Text, nullable=False, server_default="")
+    address = Column(Text, nullable=False, server_default="")
+    credit_limit = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    opening_balance = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    current_balance = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    is_archived = Column(Boolean, nullable=False, server_default="false")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class SupplierModel(Base):
+    """Vendor/supplier entity with payables tracking."""
+    __tablename__ = "suppliers"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(Text, nullable=False)
+    contact_person = Column(Text, nullable=False, server_default="")
+    phone = Column(Text, nullable=False, server_default="")
+    email = Column(Text, nullable=False, server_default="")
+    address = Column(Text, nullable=False, server_default="")
+    opening_balance = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    current_balance = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    is_archived = Column(Boolean, nullable=False, server_default="false")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class ProductModel(Base):
+    """Goods or services sold by the business."""
+    __tablename__ = "products"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    sku = Column(Text, nullable=False)
+    name = Column(Text, nullable=False)
+    category = Column(Text, nullable=False)
+    unit = Column(Text, nullable=False, server_default="pcs")
+    purchase_price = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    selling_price = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    min_stock_alert = Column(Numeric(14, 4), nullable=False, server_default="0.00")
+    is_active = Column(Boolean, nullable=False, server_default="true")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("business_id", "sku", name="uq_business_product_sku"),
+    )
+
+
+class InventoryBalanceModel(Base):
+    """Current stock on hand and valuation per product."""
+    __tablename__ = "inventory_balances"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    product_id = Column(UUID(as_uuid=True), ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True)
+    quantity_on_hand = Column(Numeric(14, 4), nullable=False, server_default="0.00")
+    unit_cost = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    total_valuation = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    last_movement_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("business_id", "product_id", name="uq_business_inventory_product"),
+    )
+
+
+class InventoryMovementModel(Base):
+    """Immutable audit trail for physical inventory changes."""
+    __tablename__ = "inventory_movements"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    product_id = Column(UUID(as_uuid=True), ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True)
+    movement_type = Column(Text, nullable=False)
+    quantity = Column(Numeric(14, 4), nullable=False)
+    unit_price = Column(Numeric(14, 2), nullable=False)
+    cost_basis = Column(Numeric(14, 2), nullable=True)
+    source_purchase_item_id = Column(UUID(as_uuid=True), ForeignKey("purchase_items.id", ondelete="SET NULL"), nullable=True)
+    cost_reconciliation_status = Column(Text, nullable=False, server_default="VERIFIED")
+    reconciled_at = Column(DateTime(timezone=True), nullable=True)
+    reconciled_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    reconciliation_note = Column(Text, nullable=True)
+    reference_id = Column(Text, nullable=False, server_default="")
+    reason = Column(Text, nullable=False, server_default="")
+    balance_after = Column(Numeric(14, 4), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint(
+            "cost_reconciliation_status IN ('VERIFIED', 'UNRECONCILED', 'ESTIMATED', 'CONFLICTING')",
+            name="check_inventory_cost_reconciliation_status",
+        ),
+    )
+
+
+class InventoryCostReconciliationModel(Base):
+    """Immutable inventory-cost reconciliation run header."""
+    __tablename__ = "inventory_cost_reconciliations"
+    __table_args__ = (
+        Index("ix_inventory_cost_reconciliations_business_created", "business_id", "created_at"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="RESTRICT"), nullable=False)
+    mode = Column(Text, nullable=False)
+    status = Column(Text, nullable=False)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    summary = Column(JSONB, nullable=False, server_default="{}")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class InventoryCostReconciliationEventModel(Base):
+    """Append-only evidence for a confirmed inventory movement cost resolution."""
+    __tablename__ = "inventory_cost_reconciliation_events"
+    __table_args__ = (
+        Index("ix_inventory_cost_reconciliation_events_run_product", "reconciliation_id", "product_id"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    reconciliation_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("inventory_cost_reconciliations.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    movement_id = Column(UUID(as_uuid=True), ForeignKey("inventory_movements.id", ondelete="RESTRICT"), nullable=False)
+    product_id = Column(UUID(as_uuid=True), ForeignKey("products.id", ondelete="RESTRICT"), nullable=False)
+    classification = Column(Text, nullable=False)
+    prior_cost_basis = Column(Numeric(14, 2), nullable=True)
+    resolved_cost_basis = Column(Numeric(14, 2), nullable=True)
+    source_evidence = Column(JSONB, nullable=False, server_default="{}")
+    resolution_note = Column(Text, nullable=False, server_default="")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class SalesInvoiceModel(Base):
+    """Customer sales invoice header."""
+    __tablename__ = "sales_invoices"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    customer_id = Column(UUID(as_uuid=True), ForeignKey("customers.id", ondelete="SET NULL"), nullable=True, index=True)
+    invoice_number = Column(Text, nullable=False)
+    invoice_date = Column(Date, nullable=False)
+    due_date = Column(Date, nullable=False)
+    subtotal = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    tax_amount = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    discount_amount = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    total_amount = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    paid_amount = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    status = Column(Text, nullable=False, server_default="DRAFT")
+    notes = Column(Text, nullable=False, server_default="")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("business_id", "invoice_number", name="uq_business_invoice_number"),
+    )
+
+
+class SalesInvoiceItemModel(Base):
+    """Line item on customer sales invoice."""
+    __tablename__ = "sales_invoice_items"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    invoice_id = Column(UUID(as_uuid=True), ForeignKey("sales_invoices.id", ondelete="CASCADE"), nullable=False, index=True)
+    product_id = Column(UUID(as_uuid=True), ForeignKey("products.id", ondelete="SET NULL"), nullable=True)
+    description = Column(Text, nullable=False)
+    quantity = Column(Numeric(14, 4), nullable=False)
+    unit = Column(Text, nullable=False, server_default="pcs")
+    unit_price = Column(Numeric(14, 2), nullable=False)
+    discount_percent = Column(Numeric(6, 2), nullable=False, server_default="0.00")
+    total_price = Column(Numeric(14, 2), nullable=False)
+
+
+class PurchaseModel(Base):
+    """Supplier purchase/bill header."""
+    __tablename__ = "purchases"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    supplier_id = Column(UUID(as_uuid=True), ForeignKey("suppliers.id", ondelete="SET NULL"), nullable=True, index=True)
+    bill_number = Column(Text, nullable=False)
+    purchase_date = Column(Date, nullable=False)
+    due_date = Column(Date, nullable=False)
+    subtotal = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    tax_amount = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    total_amount = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    paid_amount = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    return_credit_amount = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    status = Column(Text, nullable=False, server_default="PENDING")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("business_id", "bill_number", name="uq_business_purchase_bill_number"),
+        CheckConstraint("return_credit_amount >= 0", name="check_purchase_return_credit_nonnegative"),
+    )
+
+
+class PurchaseItemModel(Base):
+    """Line item on supplier purchase bill."""
+    __tablename__ = "purchase_items"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    purchase_id = Column(UUID(as_uuid=True), ForeignKey("purchases.id", ondelete="CASCADE"), nullable=False, index=True)
+    product_id = Column(UUID(as_uuid=True), ForeignKey("products.id", ondelete="SET NULL"), nullable=True)
+    description = Column(Text, nullable=False)
+    quantity = Column(Numeric(14, 4), nullable=False)
+    unit = Column(Text, nullable=False, server_default="pcs")
+    unit_price = Column(Numeric(14, 2), nullable=False)
+    total_price = Column(Numeric(14, 2), nullable=False)
+
+
+class PurchaseReturnModel(Base):
+    """Durable posted supplier return linked to its source purchase."""
+    __tablename__ = "purchase_returns"
+    __table_args__ = (
+        UniqueConstraint("business_id", "idempotency_key", name="uq_purchase_returns_business_idempotency"),
+        Index("ix_purchase_returns_business_purchase", "business_id", "purchase_id"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="RESTRICT"), nullable=False)
+    purchase_id = Column(UUID(as_uuid=True), ForeignKey("purchases.id", ondelete="RESTRICT"), nullable=False)
+    supplier_id = Column(UUID(as_uuid=True), ForeignKey("suppliers.id", ondelete="RESTRICT"), nullable=False)
+    return_date = Column(Date, nullable=False)
+    reason = Column(Text, nullable=False)
+    refund_method = Column(Text, nullable=True)
+    subtotal = Column(Numeric(14, 2), nullable=False)
+    tax_amount = Column(Numeric(14, 2), nullable=False)
+    total_amount = Column(Numeric(14, 2), nullable=False)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    idempotency_key = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class PurchaseReturnItemModel(Base):
+    """Immutable allocation from one purchase line to one supplier return."""
+    __tablename__ = "purchase_return_items"
+    __table_args__ = (
+        UniqueConstraint("purchase_return_id", "purchase_item_id", name="uq_purchase_return_item_line"),
+        CheckConstraint("quantity > 0", name="check_purchase_return_item_positive_quantity"),
+        CheckConstraint("original_unit_price >= 0", name="check_purchase_return_item_nonnegative_price"),
+        CheckConstraint("pretax_amount >= 0", name="check_purchase_return_item_nonnegative_pretax"),
+        CheckConstraint("tax_amount >= 0", name="check_purchase_return_item_nonnegative_tax"),
+        CheckConstraint("inventory_cost_removed >= 0", name="check_purchase_return_item_nonnegative_cost"),
+        Index("ix_purchase_return_items_purchase_item", "purchase_item_id"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    purchase_return_id = Column(UUID(as_uuid=True), ForeignKey("purchase_returns.id", ondelete="RESTRICT"), nullable=False)
+    purchase_item_id = Column(UUID(as_uuid=True), ForeignKey("purchase_items.id", ondelete="RESTRICT"), nullable=False)
+    product_id = Column(UUID(as_uuid=True), ForeignKey("products.id", ondelete="RESTRICT"), nullable=False)
+    quantity = Column(Numeric(14, 4), nullable=False)
+    original_unit_price = Column(Numeric(14, 2), nullable=False)
+    pretax_amount = Column(Numeric(14, 2), nullable=False)
+    tax_amount = Column(Numeric(14, 2), nullable=False)
+    inventory_cost_removed = Column(Numeric(14, 2), nullable=False)
+
+
+class PaymentModel(Base):
+    """Financial payment inflow or outflow."""
+    __tablename__ = "payments"
+    __table_args__ = (
+        UniqueConstraint("business_id", "idempotency_key", name="uq_payments_business_idempotency"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    party_type = Column(Text, nullable=False)  # CUSTOMER, SUPPLIER, OTHER
+    party_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    reference_type = Column(Text, nullable=False)  # INVOICE, PURCHASE, ON_ACCOUNT, EXPENSE, INCOME
+    reference_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    payment_type = Column(Text, nullable=False)  # RECEIVED, PAID
+    payment_method = Column(Text, nullable=False)  # CASH, UPI, BANK_TRANSFER, CHEQUE, CREDIT
+    amount = Column(Numeric(14, 2), nullable=False)
+    payment_date = Column(Date, nullable=False)
+    idempotency_key = Column(Text, nullable=True, index=True)
+    notes = Column(Text, nullable=False, server_default="")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class IncomeRecordModel(Base):
+    """Direct or miscellaneous revenue entry."""
+    __tablename__ = "income_records"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    category = Column(Text, nullable=False)
+    amount = Column(Numeric(14, 2), nullable=False)
+    date = Column(Date, nullable=False)
+    description = Column(Text, nullable=False, server_default="")
+    payment_method = Column(Text, nullable=False, server_default="CASH")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class ExpenseRecordModel(Base):
+    """Business operating expenditure."""
+    __tablename__ = "expense_records"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    category = Column(Text, nullable=False)
+    amount = Column(Numeric(14, 2), nullable=False)
+    date = Column(Date, nullable=False)
+    description = Column(Text, nullable=False, server_default="")
+    payment_method = Column(Text, nullable=False, server_default="BANK_TRANSFER")
+    is_recurring = Column(Boolean, nullable=False, server_default="false")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class GoalModel(Base):
+    """Targeted business objective and tracker."""
+    __tablename__ = "goals"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    goal_type = Column(Text, nullable=False)
+    title = Column(Text, nullable=False)
+    target_value = Column(Numeric(14, 2), nullable=False)
+    current_value = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    start_date = Column(Date, nullable=False)
+    target_date = Column(Date, nullable=False)
+    status = Column(Text, nullable=False, server_default="ACTIVE")
+    plan_details = Column(JSONB, nullable=False, server_default="{}")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class GoalMilestoneModel(Base):
+    """Dated intermediate target for a business goal."""
+    __tablename__ = "goal_milestones"
+    __table_args__ = (UniqueConstraint("goal_id", "target_date", name="uq_goal_milestone_date"),)
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    goal_id = Column(UUID(as_uuid=True), ForeignKey("goals.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(Text, nullable=False)
+    target_date = Column(Date, nullable=False)
+    target_value = Column(Numeric(14, 2), nullable=False)
+    created_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class ActionPlanModel(Base):
+    """Tenant scoped action plan connected to a goal."""
+    __tablename__ = "goal_action_plans"
+    __table_args__ = (CheckConstraint("status IN ('ACTIVE','COMPLETED','CANCELLED')", name="check_goal_action_plan_status"),)
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    goal_id = Column(UUID(as_uuid=True), ForeignKey("goals.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(Text, nullable=False)
+    description = Column(Text, nullable=False, server_default="")
+    status = Column(Text, nullable=False, server_default="ACTIVE")
+    created_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class ActionTaskModel(Base):
+    """Assigned work item with expected financial impact and lifecycle state."""
+    __tablename__ = "goal_action_tasks"
+    __table_args__ = (
+        CheckConstraint("status IN ('TODO','IN_PROGRESS','COMPLETED','BLOCKED')", name="check_goal_action_task_status"),
+        CheckConstraint("priority BETWEEN 1 AND 5", name="check_goal_action_task_priority"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    goal_id = Column(UUID(as_uuid=True), ForeignKey("goals.id", ondelete="CASCADE"), nullable=False, index=True)
+    plan_id = Column(UUID(as_uuid=True), ForeignKey("goal_action_plans.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(Text, nullable=False)
+    description = Column(Text, nullable=False, server_default="")
+    assigned_member_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    priority = Column(SmallInteger, nullable=False, server_default="3")
+    status = Column(Text, nullable=False, server_default="TODO")
+    due_date = Column(Date, nullable=True)
+    expected_financial_impact = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    created_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+
+class GoalProgressSnapshotModel(Base):
+    """Immutable daily goal result with evidence and explanation payload."""
+    __tablename__ = "goal_progress_snapshots"
+    __table_args__ = (
+        CheckConstraint("status IN ('ON_TRACK','AT_RISK','BEHIND','ACHIEVED')", name="check_goal_progress_snapshot_status"),
+        Index("ix_goal_progress_snapshot_goal_date", "goal_id", "as_of_date"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    goal_id = Column(UUID(as_uuid=True), ForeignKey("goals.id", ondelete="CASCADE"), nullable=False, index=True)
+    as_of_date = Column(Date, nullable=False)
+    planned_value = Column(Numeric(14, 2), nullable=False)
+    actual_value = Column(Numeric(14, 2), nullable=False)
+    deviation_value = Column(Numeric(14, 2), nullable=False)
+    status = Column(Text, nullable=False)
+    explanation = Column(JSONB, nullable=False, server_default="{}")
+    evidence_items = Column(JSONB, nullable=False, server_default="[]")
+    created_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class DecisionEvaluationModel(Base):
+    """Persisted decision graph evaluation run."""
+    __tablename__ = "decision_evaluations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    version_number = Column(Integer, nullable=False, server_default="1")
+    parent_decision_id = Column(UUID(as_uuid=True), ForeignKey("decision_evaluations.id", ondelete="SET NULL"), nullable=True, index=True)
+    model_id = Column(Text, nullable=False, index=True)
+    model_version = Column(Text, nullable=False)
+    objective = Column(Text, nullable=False)
+    inputs_snapshot = Column(JSONB, nullable=False, server_default="{}")
+    constraints_evaluated = Column(JSONB, nullable=False, server_default="[]")
+    calculations_performed = Column(JSONB, nullable=False, server_default="{}")
+    alternatives_evaluated = Column(JSONB, nullable=False, server_default="[]")
+    outcome = Column(Text, nullable=False)
+    explanation = Column(Text, nullable=False, server_default="")
+    causal_graph = Column(JSONB, nullable=False, server_default="{}")
+    evidence_items = Column(JSONB, nullable=False, server_default="[]")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class BusinessScenarioModel(Base):
+    """Tenant scoped scenario workspace with an immutable version history."""
+    __tablename__ = "business_scenarios"
+    __table_args__ = (UniqueConstraint("business_id", "name", name="uq_business_scenarios_name"),)
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    name = Column(Text, nullable=False)
+    description = Column(Text, nullable=False, server_default="")
+    current_version = Column(Integer, nullable=False, server_default="1")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+
+class BusinessScenarioVersionModel(Base):
+    """Immutable assumptions and derived case outputs for one scenario revision."""
+    __tablename__ = "business_scenario_versions"
+    __table_args__ = (UniqueConstraint("scenario_id", "version_number", name="uq_business_scenario_version"),)
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    scenario_id = Column(UUID(as_uuid=True), ForeignKey("business_scenarios.id", ondelete="CASCADE"), nullable=False, index=True)
+    version_number = Column(Integer, nullable=False)
+    assumptions = Column(JSONB, nullable=False)
+    baseline_snapshot_hash = Column(Text, nullable=False)
+    created_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class BusinessSimulationRunModel(Base):
+    """Reproducible Monte Carlo run linked to an immutable scenario version."""
+    __tablename__ = "business_simulation_runs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    scenario_version_id = Column(UUID(as_uuid=True), ForeignKey("business_scenario_versions.id", ondelete="CASCADE"), nullable=False, index=True)
+    random_seed = Column(Numeric(20, 0), nullable=False)
+    iterations = Column(Integer, nullable=False)
+    distribution_config = Column(JSONB, nullable=False)
+    baseline_snapshot_hash = Column(Text, nullable=False)
+    model_version = Column(Text, nullable=False)
+    result = Column(JSONB, nullable=False)
+    created_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint("random_seed = TRUNC(random_seed) AND random_seed >= 0 AND random_seed <= 18446744073709551615", name="check_business_simulation_seed_range"),
+        CheckConstraint("iterations >= 1 AND iterations <= 100000", name="check_business_simulation_iterations"),
+    )
+
+
+class AgentSessionModel(Base):
+    """Durable multi-turn agent conversation session for a business workspace."""
+    __tablename__ = "agent_sessions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    status = Column(Text, nullable=False, server_default="ACTIVE")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class AgentTurnModel(Base):
+    """Individual interaction turn within a persistent agent session."""
+    __tablename__ = "agent_session_turns"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("agent_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    turn_number = Column(Integer, nullable=False)
+    user_query = Column(Text, nullable=False)
+    intent = Column(Text, nullable=False)
+    extracted_parameters = Column(JSONB, nullable=False, server_default="{}")
+    data_gaps = Column(JSONB, nullable=False, server_default="[]")
+    follow_up_questions = Column(JSONB, nullable=False, server_default="[]")
+    plan_steps = Column(JSONB, nullable=False, server_default="[]")
+    decision_outcome = Column(Text, nullable=True)
+    synthesis = Column(Text, nullable=False)
+    planning_attribution = Column(JSONB, nullable=False, server_default="{}")
+    synthesis_attribution = Column(JSONB, nullable=False, server_default="{}")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class AgentProposedActionModel(Base):
+    """Agent action preview persisted until an authorized user confirms or rejects it."""
+    __tablename__ = "agent_proposed_actions"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('PENDING_CONFIRMATION','CONFIRMED','REJECTED')",
+            name="check_agent_proposed_action_status",
+        ),
+        CheckConstraint(
+            "action_type IN ('CREATE_GOAL','CREATE_TASK','GENERATE_REPORT')",
+            name="check_agent_proposed_action_type",
+        ),
+        Index("ix_agent_proposed_actions_session_status", "session_id", "status"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("agent_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    action_type = Column(Text, nullable=False)
+    payload = Column(JSONB, nullable=False)
+    status = Column(Text, nullable=False, server_default="PENDING_CONFIRMATION")
+    created_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    confirmed_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    result = Column(JSONB, nullable=False, server_default="{}")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+class FinancialPeriodModel(Base):
+    """Financial accounting period with soft/hard closing controls."""
+    __tablename__ = "financial_periods"
+    __table_args__ = (
+        UniqueConstraint("business_id", "period_name", name="uq_business_period_name"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    period_name = Column(Text, nullable=False)
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=False)
+    status = Column(Text, nullable=False, server_default="OPEN")  # OPEN, SOFT_CLOSED, HARD_CLOSED
+    closed_at = Column(DateTime(timezone=True), nullable=True)
+    closed_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class JournalEntryModel(Base):
+    """Authoritative double-entry general ledger journal header."""
+    __tablename__ = "journal_entries"
+    __table_args__ = (
+        UniqueConstraint("business_id", "entry_number", name="uq_journal_entry_number"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    entry_number = Column(Text, nullable=False)
+    entry_date = Column(Date, nullable=False)
+    reference_type = Column(Text, nullable=False)
+    reference_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    description = Column(Text, nullable=False)
+    is_posted = Column(Boolean, nullable=False, server_default="true")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class JournalEntryLineModel(Base):
+    """Individual debit or credit posting in a balanced journal entry."""
+    __tablename__ = "journal_entry_lines"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    journal_entry_id = Column(UUID(as_uuid=True), ForeignKey("journal_entries.id", ondelete="CASCADE"), nullable=False, index=True)
+    account_code = Column(Text, nullable=False, index=True)
+    account_name = Column(Text, nullable=False)
+    debit = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    credit = Column(Numeric(14, 2), nullable=False, server_default="0.00")
+    notes = Column(Text, nullable=False, server_default="")

@@ -14,6 +14,11 @@ from backend.arthlens.security.tokens import create_access_token
 from starlette.testclient import TestClient
 
 
+def _csrf_headers(client):
+    token = client.cookies.get("arthlens_csrf")
+    return {"X-CSRF-Token": token} if token else {}
+
+
 @pytest.fixture
 def client():
     app = create_app()
@@ -49,7 +54,7 @@ def test_public_registration_and_session(client):
     assert cookie_name in res.cookies
 
     # 2. Duplicate registration rejected with 409
-    res_dup = client.post("/auth/register", json=reg_payload)
+    res_dup = client.post("/auth/register", json=reg_payload, headers=_csrf_headers(client))
     assert res_dup.status_code == 409
     assert "already exists" in res_dup.json()["detail"].lower()
 
@@ -58,7 +63,7 @@ def test_public_registration_and_session(client):
         "full_name": "Weak Pwd",
         "email": f"weak_{uuid.uuid4().hex[:6]}@example.com",
         "password": "short",
-    })
+    }, headers=_csrf_headers(client))
     assert res_weak.status_code in (400, 422)
 
     # 4. Invalid email rejected
@@ -66,8 +71,64 @@ def test_public_registration_and_session(client):
         "full_name": "Bad Email",
         "email": "not-an-email",
         "password": "ValidPassword123!",
-    })
+    }, headers=_csrf_headers(client))
     assert res_bad_email.status_code in (400, 422)
+
+
+@pytest.mark.integration
+def test_registration_requires_email_otp_before_session(client):
+    email = f"otp_{uuid.uuid4().hex[:10]}@example.com"
+    initiated = client.post("/auth/register/initiate", json={
+        "full_name": "OTP Entrepreneur",
+        "email": email,
+        "password": "StrongPassword123!",
+    })
+    assert initiated.status_code == 202
+    challenge = initiated.json()
+    assert challenge["otp_required"] is True
+    assert challenge["purpose"] == "REGISTER_VERIFY"
+    assert "access_token" not in challenge
+    pending = PostgresUserRepository().get_by_email(email)
+    assert pending is not None
+    assert pending["email_verified"] is False
+
+    verified = client.post("/auth/register/verify-otp", json={
+        "challenge_id": challenge["challenge_id"],
+        "email": email,
+        "otp_code": challenge["dev_otp_preview"],
+    })
+    assert verified.status_code == 200
+    assert verified.json()["email"] == email
+    assert get_auth_cookie_name() in verified.cookies
+    assert PostgresUserRepository().get_by_email(email)["email_verified"] is True
+
+    replay = client.post("/auth/register/verify-otp", json={
+        "challenge_id": challenge["challenge_id"],
+        "email": email,
+        "otp_code": challenge["dev_otp_preview"],
+    }, headers=_csrf_headers(client))
+    assert replay.status_code == 400
+
+
+@pytest.mark.integration
+def test_google_development_account_chooser_creates_and_reuses_identity(client, monkeypatch):
+    monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
+    monkeypatch.setenv("APP_ENV", "development")
+    email = f"google_{uuid.uuid4().hex[:10]}@example.com"
+    payload = {"mode": "register", "email": email, "full_name": "Google Local User"}
+
+    created = client.post("/auth/google", json=payload)
+    assert created.status_code == 200
+    assert created.json()["email"] == email
+    assert get_auth_cookie_name() in created.cookies
+    user = PostgresUserRepository().get_by_email(email)
+    assert user["email_verified"] is True
+    assert user["auth_provider"] == "google-dev"
+    assert user["google_sub"]
+
+    signed_in = client.post("/auth/google", json={**payload, "mode": "login"}, headers=_csrf_headers(client))
+    assert signed_in.status_code == 200
+    assert signed_in.json()["id"] == created.json()["id"]
 
 
 @pytest.mark.integration
@@ -100,7 +161,7 @@ def test_deactivated_user_cannot_login_or_use_session(client):
     login_res = client.post("/auth/login", json={
         "email": unique_email,
         "password": "Password123!",
-    })
+    }, headers=_csrf_headers(client))
     assert login_res.status_code == 403
     assert "deactivated" in login_res.json()["detail"].lower()
 
@@ -118,7 +179,7 @@ def test_logout_revokes_token(client):
     login_res = client.post("/auth/login", json={
         "email": unique_email,
         "password": "Password123!",
-    })
+    }, headers=_csrf_headers(client))
     assert login_res.status_code == 200
     token = login_res.json()["access_token"]
     cookie = {get_auth_cookie_name(): token}
@@ -128,7 +189,7 @@ def test_logout_revokes_token(client):
     assert me_res.status_code == 200
 
     # Log out
-    logout_res = client.post("/auth/logout", cookies=cookie)
+    logout_res = client.post("/auth/logout", cookies=cookie, headers=_csrf_headers(client))
     assert logout_res.status_code == 200
 
     # Subsequent request using the revoked token must fail with 401
@@ -149,7 +210,7 @@ def test_password_recovery_flow(client):
     initial_login = client.post("/auth/login", json={
         "email": unique_email,
         "password": "OldPassword123!",
-    })
+    }, headers=_csrf_headers(client))
     assert initial_login.status_code == 200
     old_token = initial_login.json()["access_token"]
     old_cookie = {get_auth_cookie_name(): old_token}
@@ -158,7 +219,11 @@ def test_password_recovery_flow(client):
     assert client.get("/auth/me", cookies=old_cookie).status_code == 200
 
     # Request password reset
-    req_res = client.post("/auth/password-reset/request", json={"email": unique_email})
+    req_res = client.post(
+        "/auth/password-reset/request",
+        json={"email": unique_email},
+        headers=_csrf_headers(client),
+    )
     assert req_res.status_code == 200
     # In dev mode, verify clearly labeled dev recovery details are surfaced
     assert "dev_recovery_token" in req_res.json()
@@ -169,7 +234,7 @@ def test_password_recovery_flow(client):
     confirm_res = client.post("/auth/password-reset/confirm", json={
         "token": reset_token,
         "new_password": "BrandNewPassword123!",
-    })
+    }, headers=_csrf_headers(client))
     assert confirm_res.status_code == 200
 
     # 1. Existing session issued prior to password reset must now be revoked
@@ -181,21 +246,21 @@ def test_password_recovery_flow(client):
     repeat_res = client.post("/auth/password-reset/confirm", json={
         "token": reset_token,
         "new_password": "AnotherPassword123!",
-    })
+    }, headers=_csrf_headers(client))
     assert repeat_res.status_code == 400
 
     # 3. Log in with old password fails
     fail_res = client.post("/auth/login", json={
         "email": unique_email,
         "password": "OldPassword123!",
-    })
+    }, headers=_csrf_headers(client))
     assert fail_res.status_code == 401
 
     # 4. Log in with new password succeeds
     ok_res = client.post("/auth/login", json={
         "email": unique_email,
         "password": "BrandNewPassword123!",
-    })
+    }, headers=_csrf_headers(client))
     assert ok_res.status_code == 200
 
 
@@ -264,7 +329,7 @@ def test_admin_role_management_and_cannot_demote_last_admin(client):
 
 
 @pytest.mark.integration
-def test_scenario_crud_and_idor_protection(client):
+def test_business_crud_and_idor_protection(client):
     # Register User A
     email_a = f"usera_{uuid.uuid4().hex[:8]}@example.com"
     res_a = client.post("/auth/register", json={
@@ -281,67 +346,39 @@ def test_scenario_crud_and_idor_protection(client):
         "full_name": "User B",
         "email": email_b,
         "password": "Password123!",
-    })
+    }, headers=_csrf_headers(client))
     assert res_b.status_code == 201
     cookie_b = {get_auth_cookie_name(): res_b.json()["access_token"]}
 
-    # 1. User A creates a scenario
+    # 1. User A creates a business
     client.cookies.clear()
-    create_res = client.post("/scenarios", json={
-        "name": "User A Bakery Scenario",
-        "scenario": {"capital": 500000, "location": "in:district:120"},
+    create_res = client.post("/businesses", json={
+        "name": "User A Bakery",
+        "industry": "Bakery",
     }, cookies=cookie_a)
     assert create_res.status_code == 201
-    scenario_id = create_res.json()["id"]
+    business_id = create_res.json()["id"]
 
-    # 2. User A gets the scenario
+    # 2. User A gets the business
     client.cookies.clear()
-    get_res = client.get(f"/scenarios/{scenario_id}", cookies=cookie_a)
+    get_res = client.get(f"/businesses/{business_id}", cookies=cookie_a)
     assert get_res.status_code == 200
-    assert get_res.json()["name"] == "User A Bakery Scenario"
+    assert get_res.json()["name"] == "User A Bakery"
 
-    # 3. User B attempts to read User A's scenario -> 404 (IDOR defense)
+    # 3. User B attempts to read User A's business -> 403 (IDOR defense)
     client.cookies.clear()
-    get_b = client.get(f"/scenarios/{scenario_id}", cookies=cookie_b)
-    assert get_b.status_code == 404
+    get_b = client.get(f"/businesses/{business_id}", cookies=cookie_b)
+    assert get_b.status_code == 403
 
-    # 4. User B attempts to update User A's scenario -> 404
+    # 4. User B attempts to update User A's business -> 403
     client.cookies.clear()
-    put_b = client.put(f"/scenarios/{scenario_id}", json={"name": "Hacked"}, cookies=cookie_b)
-    assert put_b.status_code == 404
+    put_b = client.put(f"/businesses/{business_id}", json={"name": "Hacked"}, cookies=cookie_b)
+    assert put_b.status_code == 403
 
-    # 5. User B attempts to delete User A's scenario -> 404
+    # 5. User A updates their own business
     client.cookies.clear()
-    del_b = client.delete(f"/scenarios/{scenario_id}", cookies=cookie_b)
-    assert del_b.status_code == 404
-
-    # 6. User A updates their own scenario
-    client.cookies.clear()
-    put_a = client.put(f"/scenarios/{scenario_id}", json={
+    put_a = client.put(f"/businesses/{business_id}", json={
         "name": "Updated Bakery",
-        "scenario": {"capital": 750000, "location": "in:district:120"},
     }, cookies=cookie_a)
     assert put_a.status_code == 200
     assert put_a.json()["name"] == "Updated Bakery"
-
-    client.cookies.clear()
-    branch_res = client.post(
-        f"/scenarios/{scenario_id}/branch",
-        json={"name": "Updated Bakery Branch"},
-        cookies=cookie_a,
-    )
-    assert branch_res.status_code == 201
-    branch = branch_res.json()
-    assert branch["parent_id"] == scenario_id
-    assert branch["scenario"]["branch_lineage"]["parent_scenario_id"] == scenario_id
-    client.cookies.clear()
-    assert client.delete(f"/scenarios/{branch['id']}", cookies=cookie_a).status_code == 200
-
-    # 7. User A deletes their scenario
-    client.cookies.clear()
-    del_a = client.delete(f"/scenarios/{scenario_id}", cookies=cookie_a)
-    assert del_a.status_code == 200
-
-    # Scenario now 404 for User A
-    client.cookies.clear()
-    assert client.get(f"/scenarios/{scenario_id}", cookies=cookie_a).status_code == 404

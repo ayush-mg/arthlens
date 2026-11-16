@@ -26,6 +26,7 @@ class FinancialScenario:
     days_inventory: float
     days_receivable: float
     days_payable: float
+    opening_cash: float = 0.0
 
     def __post_init__(self) -> None:
         initial_quantity = _nonnegative(self.initial_quantity, "initial_quantity")
@@ -66,7 +67,7 @@ class FinancialScenario:
                 raise ValueError(f"{name} values must be non-negative.")
             object.__setattr__(self, name, values)
 
-        for name in ("equity", "disbursed_loan", "capex"):
+        for name in ("equity", "disbursed_loan", "capex", "opening_cash"):
             object.__setattr__(self, name, _nonnegative(getattr(self, name), name))
         object.__setattr__(
             self,
@@ -119,7 +120,7 @@ def project_monthly_cash_flow(scenario: FinancialScenario) -> FinancialProjectio
         raise TypeError("scenario must be a FinancialScenario instance.")
 
     initial_cash = _finite(
-        scenario.equity + scenario.disbursed_loan - scenario.capex,
+        scenario.opening_cash + scenario.equity + scenario.disbursed_loan - scenario.capex,
         "initial_cash",
     )
     cash_conversion_cycle = _finite(

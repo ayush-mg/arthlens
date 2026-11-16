@@ -40,6 +40,7 @@ services:
     restart: "no"
 
   seed:
+    profiles: ["demo"]
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -70,40 +71,16 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-arthlens_dev}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-arthlens_dev_password}
       DATABASE_URL: postgresql://${POSTGRES_USER:-arthlens_dev}:${POSTGRES_PASSWORD:-arthlens_dev_password}@db:5432/${POSTGRES_DB:-arthlens}
-      SECRET_KEY: ${SECRET_KEY:-local-insecure-dev-secret-key-32-chars-min!}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-${SECRET_KEY:-local-insecure-dev-secret-key-32-chars-min!}}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8000/auth/ping || exit 1"]
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8000/health/ready >/dev/null"]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 5s
-    depends_on:
-      db:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-      seed:
-        condition: service_completed_successfully
-    restart: unless-stopped
-
-  worker:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    container_name: arthlens-worker
-    command: python /app/scripts/run_agent_worker.py --poll-interval 1.0
-    environment:
-      POSTGRES_HOST: db
-      POSTGRES_PORT: "5432"
-      POSTGRES_DB: ${POSTGRES_DB:-arthlens}
-      POSTGRES_USER: ${POSTGRES_USER:-arthlens_dev}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-arthlens_dev_password}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-arthlens_dev}:${POSTGRES_PASSWORD:-arthlens_dev_password}@db:5432/${POSTGRES_DB:-arthlens}
-      SECRET_KEY: ${SECRET_KEY:-local-insecure-dev-secret-key-32-chars-min!}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy

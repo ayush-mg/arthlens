@@ -1,17 +1,11 @@
-"""ArthLens Decision Dossier and Multi-Format Reporting Subsystem."""
-from backend.arthlens.reporting.dossier_generator import (
-    generate_dossier_csv,
-    generate_dossier_json,
-    generate_dossier_pdf,
-    generate_dossier_xlsx,
-    sanitize_for_spreadsheet,
-)
+"""
+ArthLens Reporting Module.
+
+Authoritative Specification: ArthLens — Business Operating System & Decision Intelligence Platform.
+"""
+
+from backend.arthlens.reporting.business_reports import BusinessReportGenerator
 
 __all__ = [
-    "sanitize_for_spreadsheet",
-    "generate_dossier_json",
-    "generate_dossier_csv",
-    "generate_dossier_xlsx",
-    "generate_dossier_pdf",
+    "BusinessReportGenerator",
 ]
-

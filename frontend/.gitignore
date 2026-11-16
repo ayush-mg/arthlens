@@ -14,6 +14,14 @@ yarn-error.log*
 
 # Testing & Coverage
 coverage/
+test-results/
+playwright-report/
+.hypothesis/
+.pytest_cache/
+.ruff_cache/
+.vite/
+.arthlens-pids.json
+.postgres_local/
 
 # TypeScript cache
 *.tsbuildinfo

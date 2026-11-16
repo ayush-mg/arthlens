@@ -12,7 +12,9 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from fastapi import HTTPException, Request
 from backend.arthlens.llm.provider import CredentialFirewall
+from backend.arthlens.security.rbac import get_current_user
 
 BINARY_EXTENSIONS = {
     ".png",
@@ -165,3 +167,25 @@ def test_credential_firewall_redacts_bearer_tokens():
 
     assert "ya29.a0AfH6SMD_very_secret_oauth_token_here" not in sanitized
     assert "[REDACTED_TOKEN]" in sanitized
+
+
+@pytest.mark.contract
+def test_query_string_token_is_not_an_authentication_credential():
+    """A token supplied in a URL must never authenticate an API request."""
+    request = Request({
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.3"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "https",
+        "path": "/auth/me",
+        "raw_path": b"/auth/me",
+        "query_string": b"token=not-a-session-token",
+        "root_path": "",
+        "headers": [],
+        "client": ("127.0.0.1", 12345),
+        "server": ("localhost", 443),
+    })
+    with pytest.raises(HTTPException) as error:
+        get_current_user(request)
+    assert error.value.status_code == 401

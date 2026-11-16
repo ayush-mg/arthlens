@@ -1,7 +1,6 @@
 from unittest.mock import MagicMock
 
 import pytest
-from backend.arthlens.agent.planning import GoalIntent, GoalInterpreter
 from backend.arthlens.llm.provider import (
     CredentialFirewall,
     DeterministicStructuredLLMClient,
@@ -10,6 +9,11 @@ from backend.arthlens.llm.provider import (
     get_llm_client,
 )
 from pydantic import BaseModel
+
+
+class GoalIntent(BaseModel):
+    intent: str
+    required_slots: list[str] = []
 
 
 class DummyOutput(BaseModel):
@@ -170,19 +174,18 @@ def test_credential_firewall_redacts_gemini_keys_and_tokens():
 
 
 @pytest.mark.unit
-def test_gemini_client_integration_with_goal_interpreter():
+def test_gemini_client_structured_generation():
     mock_genai_client = MagicMock()
     mock_genai_client.models.generate_content.return_value = MockGenAIResponse(
-        '{"objective": "evaluate bakery viability", "intent": "calculate break-even", "required_slots": ["price", "variable_cost", "fixed_costs"]}'
+        '{"intent": "calculate break-even", "required_slots": ["price", "variable_cost", "fixed_costs"]}'
     )
 
     client = GeminiLLMClient(api_key="test-key", client=mock_genai_client)
-    interpreter = GoalInterpreter(llm_client=client)
-
-    interpretation = interpreter.interpret(
-        objective="evaluate bakery viability",
-        supplied_slots={"price": 12.0, "variable_cost": 4.5, "fixed_costs": 5000.0},
+    interpretation = client.generate_structured(
+        "evaluate bakery viability",
+        GoalIntent,
+        "goal_interpretation",
     )
 
     assert interpretation.intent == "calculate break-even"
-    assert interpretation.missing_slots == ()
+    assert "price" in interpretation.required_slots

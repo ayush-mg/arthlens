@@ -6,8 +6,9 @@ Phase: P1-5 (Database Persistence, Repositories and Integration Tests).
 """
 
 import os
+from functools import lru_cache
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 
 def _load_env_file() -> None:
@@ -125,13 +126,50 @@ def get_environment() -> str:
     return os.environ.get("ENVIRONMENT", "development")
 
 
+def is_production_environment() -> bool:
+    """Fail closed if either supported environment variable marks production."""
+    return any(
+        os.environ.get(name, "").strip().lower() in {"production", "prod"}
+        for name in ("APP_ENV", "ENVIRONMENT")
+    )
+
+
+def get_google_client_id() -> str:
+    """Return the configured Google OAuth web client ID, if any."""
+    return os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+
+
+def get_google_client_ids() -> tuple[str, ...]:
+    """Return all configured Google web client IDs accepted as token audiences."""
+    client_ids = (
+        os.environ.get("GOOGLE_CLIENT_ID", "").strip(),
+        os.environ.get("NEXT_PUBLIC_GOOGLE_CLIENT_ID", "").strip(),
+    )
+    return tuple(dict.fromkeys(client_id for client_id in client_ids if client_id))
+
+
+@lru_cache(maxsize=1)
+def get_google_jwks_client() -> Any:
+    """Create a process-cached Google JWKS client with bounded network timeouts."""
+    from jwt import PyJWKClient
+
+    return PyJWKClient(
+        "https://www.googleapis.com/oauth2/v3/certs",
+        cache_jwk_set=True,
+        lifespan=3600,
+        timeout=5,
+    )
+
+
 def get_jwt_secret_key() -> str:
     """
     Retrieve JWT secret key from environment.
     Enforces that production environments provide an explicit, non-default secret key.
     """
-    secret = os.environ.get("JWT_SECRET_KEY")
+    secret = os.environ.get("JWT_SECRET_KEY") or os.environ.get("SECRET_KEY")
     if secret:
+        if get_environment() == "production" and len(secret) < 32:
+            raise RuntimeError("Production JWT secret must contain at least 32 characters.")
         return secret
     if get_environment() == "production":
         raise RuntimeError("JWT_SECRET_KEY environment variable must be set in production.")

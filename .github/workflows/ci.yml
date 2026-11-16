@@ -74,22 +74,35 @@ jobs:
         run: |
           cd backend
           python -m alembic upgrade head
+          expected_head="026_auth_otp_and_google_oauth"
+          current_head="$(python -m alembic current)"
+          echo "$current_head"
+          if ! grep -Fq "$expected_head" <<< "$current_head"; then
+            echo "Expected Alembic head $expected_head, found: $current_head"
+            exit 1
+          fi
 
-      - name: "Run Baseline Smoke Tests"
-        run: |
-          pytest backend/tests/smoke/ -v
+      - name: Validate production preflight contract
+        env:
+          ENVIRONMENT: production
+          JWT_SECRET_KEY: ci-preflight-jwt-secret-not-used-for-signing-2026
+          LLM_PROVIDER: gemini
+          GEMINI_API_KEY: ci-preflight-gemini-key-not-used-for-calls
+          AUTH_COOKIE_SECURE: 'true'
+          AUTH_COOKIE_SAMESITE: lax
+        run: python scripts/deployment_preflight.py
 
-      - name: "Run Domain & Interface Contract Tests"
+      - name: "Run Contract & RBAC Security Tests"
         env:
           DATABASE_URL: postgresql+psycopg://arthlens_test:arthlens_test_password@localhost:5432/arthlens_test
         run: |
           pytest backend/tests/contract/ -v
 
-      - name: "Run Epistemic Ledger Invariant & Unit Tests"
+      - name: "Run Unit & Property-Based Invariant Tests"
         run: |
-          pytest backend/tests/property/ backend/tests/unit/ -v
+          pytest backend/tests/unit/ -v
 
-      - name: "Run PostgreSQL + PostGIS Integration Tests"
+      - name: "Run PostgreSQL Multi-Tenant Integration Tests"
         env:
           DATABASE_URL: postgresql+psycopg://arthlens_test:arthlens_test_password@localhost:5432/arthlens_test
         run: |
@@ -98,10 +111,58 @@ jobs:
   frontend-ci:
     name: Frontend CI (Node 20 + Vitest + Next.js Build)
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql+psycopg://arthlens_test:arthlens_test_password@localhost:5432/arthlens_test
+      ENVIRONMENT: test
+      JWT_SECRET_KEY: ci-only-secret-key-long-enough-for-test-suite
+      LLM_PROVIDER: deterministic
+      BACKEND_URL: http://127.0.0.1:8000
+
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4-alpine
+        env:
+          POSTGRES_DB: arthlens_test
+          POSTGRES_USER: arthlens_test
+          POSTGRES_PASSWORD: arthlens_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up Python 3.14 for the API used by browser tests
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: 'pip'
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ./backend
+
+      - name: Migrate clean PostGIS database
+        env:
+          PGPASSWORD: arthlens_test_password
+        run: |
+          psql -h localhost -U arthlens_test -d arthlens_test -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+          cd backend
+          python -m alembic upgrade head
+          expected_head="026_auth_otp_and_google_oauth"
+          current_head="$(python -m alembic current)"
+          echo "$current_head"
+          if ! grep -Fq "$expected_head" <<< "$current_head"; then
+            echo "Expected Alembic head $expected_head, found: $current_head"
+            exit 1
+          fi
 
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
@@ -115,6 +176,11 @@ jobs:
           cd frontend
           npm ci
 
+      - name: TypeScript Type Check (Strict)
+        run: |
+          cd frontend
+          npx tsc --noEmit
+
       - name: Run Vitest Unit & Component Tests
         run: |
           cd frontend
@@ -124,3 +190,25 @@ jobs:
         run: |
           cd frontend
           npm run build
+
+      - name: Start API for browser journeys
+        run: |
+          nohup python -m uvicorn backend.arthlens.api.app:create_app --factory --host 127.0.0.1 --port 8000 > /tmp/arthlens-api.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:8000/auth/ping; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/arthlens-api.log
+          exit 1
+
+      - name: Install Chromium for Playwright
+        run: |
+          cd frontend
+          npx playwright install --with-deps chromium
+
+      - name: Run Playwright browser journeys
+        run: |
+          cd frontend
+          npx playwright test

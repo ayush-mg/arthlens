@@ -12,7 +12,7 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any, Callable, Type, TypeVar
+from typing import Any, Callable, Optional, Tuple, Type, TypeVar
 
 from pydantic import BaseModel
 
@@ -59,6 +59,16 @@ class CredentialFirewall:
         return sanitized
 
 
+class ProviderAttribution(BaseModel):
+    """Explicit attribution and fallback telemetry for AI generation tasks."""
+    configured_provider: str
+    actual_provider: str
+    model: str
+    fallback_occurred: bool
+    fallback_reason: Optional[str] = None
+    task_type: str
+
+
 class DeterministicStructuredLLMClient(ILLMClient):
     """Offline planner that proposes only tools and values explicitly supplied by callers."""
 
@@ -67,7 +77,182 @@ class DeterministicStructuredLLMClient(ILLMClient):
             return self._handle_goal_interpretation(prompt, schema)
         elif task_type == "planning":
             return self._handle_planning(prompt, schema)
+        elif task_type == "business_copilot_planning":
+            return self._handle_business_copilot_planning(prompt, schema)
+        elif task_type == "business_copilot_synthesis":
+            return self._handle_business_copilot_synthesis(prompt, schema)
         raise ValueError(f"Unsupported deterministic LLM task type: {task_type}.")
+
+    def generate_structured_with_attribution(
+        self, prompt: str, schema: Type[_T], task_type: str
+    ) -> Tuple[_T, ProviderAttribution]:
+        result = self.generate_structured(prompt, schema, task_type)
+        attribution = ProviderAttribution(
+            configured_provider="DETERMINISTIC_FALLBACK",
+            actual_provider="DETERMINISTIC_FALLBACK",
+            model="deterministic-rules-v1",
+            fallback_occurred=False,
+            fallback_reason=None,
+            task_type=task_type,
+        )
+        return result, attribution
+
+    @staticmethod
+    def _extract_prompt_facts(prompt: str) -> Tuple[str, dict[str, Any]]:
+        query = ""
+        context: dict[str, Any] = {}
+        if "OBJECTIVE_QUERY:\n" in prompt:
+            parts = prompt.split("OBJECTIVE_QUERY:\n", 1)[1]
+            query = parts.split("\nBUSINESS_ID:\n")[0].strip()
+        if "CONTEXT_JSON:\n" in prompt:
+            c_parts = prompt.split("CONTEXT_JSON:\n", 1)[1]
+            c_line = c_parts.split("\nPRIOR_TURNS_JSON:\n")[0].strip()
+            try:
+                context = json.loads(c_line)
+            except Exception:
+                context = {}
+        return query, context
+
+    def _handle_business_copilot_planning(self, prompt: str, schema: Type[_T]) -> _T:
+        query, context = self._extract_prompt_facts(prompt)
+        lowered = query.casefold()
+        merged = dict(context)
+
+        # Honest extraction: check if user query explicitly provides amounts
+        lakh_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:lakh|lac|lacs|lakhs)", query.lower())
+        if lakh_match and "machine_cost" not in merged and "cost_amount" not in merged:
+            merged["cost_amount"] = float(lakh_match.group(1)) * 100000.0
+
+        rupee_match = re.search(r"[₹\s](\d{4,8})", query.lower())
+        if rupee_match and "machine_cost" not in merged and "cost_amount" not in merged:
+            merged["cost_amount"] = float(rupee_match.group(1))
+
+        if any(w in lowered for w in ("oven", "machine", "machinery", "equipment", "purchase")):
+            intent = "EQUIPMENT_PURCHASE_EVALUATION"
+            cost = merged.get("machine_cost") or merged.get("cost_amount")
+
+            missing_critical = []
+            follow_ups = []
+            extracted_params: dict[str, Any] = {}
+
+            parameter_labels = {
+                "machine_cost": "total equipment purchase price or quotation",
+                "down_payment": "cash down payment you plan to make",
+                "loan_amount": "loan principal you plan to borrow",
+                "loan_interest_rate_pct": "quoted annual loan interest rate (percent)",
+                "loan_tenure_months": "loan repayment term in months",
+                "monthly_maintenance": "expected monthly maintenance cost",
+                "unit_price": "expected selling price per unit",
+                "unit_variable_cost": "variable cost per unit",
+                "current_monthly_volume": "current monthly sales volume",
+                "capacity_monthly_volume": "expected monthly production capacity",
+            }
+            supplied_cost = merged.get("machine_cost", merged.get("cost_amount"))
+            if supplied_cost is not None:
+                extracted_params["machine_cost"] = float(supplied_cost)
+            for p_key in parameter_labels:
+                if p_key == "machine_cost":
+                    continue
+                if merged.get(p_key) is not None:
+                    extracted_params[p_key] = int(merged[p_key]) if p_key == "loan_tenure_months" else float(merged[p_key])
+                else:
+                    missing_critical.append(p_key)
+                    follow_ups.append(f"What is your {parameter_labels[p_key]}?")
+            if supplied_cost is None:
+                missing_critical.insert(0, "machine_cost")
+                follow_ups.insert(0, "What is the total purchase price or quotation for this equipment?")
+
+            # A loan amount can be derived exactly from two explicitly supplied amounts.
+            if "loan_amount" not in extracted_params and "machine_cost" in extracted_params and "down_payment" in extracted_params:
+                extracted_params["loan_amount"] = extracted_params["machine_cost"] - extracted_params["down_payment"]
+                missing_critical.remove("loan_amount")
+                follow_ups.pop(next(i for i, q in enumerate(follow_ups) if parameter_labels["loan_amount"] in q))
+
+            plan = [
+                {"step_number": 1, "title": "Inspect Live Cash Position & Liquidity", "tool_name": "get_cash_position", "arguments": {}},
+                {"step_number": 2, "title": "Inspect Working Capital & Solvency", "tool_name": "get_working_capital", "arguments": {}},
+                {"step_number": 3, "title": "Audit Data Gaps for Machinery Purchase", "tool_name": "identify_data_gaps", "arguments": {"decision_model": "MACHINE_OR_EQUIPMENT_PURCHASE", "supplied_inputs": extracted_params}},
+            ]
+
+            # Only run speculative evaluation if critical parameters are actually available
+            if not missing_critical:
+                plan.append({
+                    "step_number": 4,
+                    "title": "Evaluate Machinery Procurement Decision Model",
+                    "tool_name": "evaluate_decision_model",
+                    "arguments": {"model_id": "MACHINE_OR_EQUIPMENT_PURCHASE", "inputs": extracted_params},
+                })
+                plan.append({
+                    "step_number": 5,
+                    "title": "Execute Monte Carlo Risk Simulation",
+                    "tool_name": "run_risk_simulation",
+                    "arguments": {"model_id": "MACHINE_OR_EQUIPMENT_PURCHASE", "inputs": extracted_params},
+                })
+
+            data = {
+                "intent": intent,
+                "extracted_parameters": extracted_params,
+                "plan": plan,
+                "missing_critical_inputs": missing_critical,
+                "follow_up_questions": follow_ups,
+            }
+        elif any(w in lowered for w in ("expand", "expansion", "branch", "facility", "open", "factory", "operations")):
+            intent = "BUSINESS_EXPANSION_EVALUATION"
+            data = {
+                "intent": intent,
+                "extracted_parameters": {},
+                "plan": [
+                    {"step_number": 1, "title": "Inspect Live Cash Position", "tool_name": "get_cash_position", "arguments": {}},
+                    {"step_number": 2, "title": "Inspect Working Capital & Solvency", "tool_name": "get_working_capital", "arguments": {}},
+                    {"step_number": 3, "title": "Audit Expansion Data Gaps", "tool_name": "identify_data_gaps", "arguments": {"decision_model": "BUSINESS_EXPANSION", "supplied_inputs": {}}},
+                ],
+                "missing_critical_inputs": ["expansion_budget", "projected_monthly_revenue"],
+                "follow_up_questions": [
+                    "What is the estimated capital expenditure or budget required for this expansion?",
+                    "What are your projected incremental revenues and operating expenses?",
+                ],
+            }
+        elif any(w in lowered for w in ("health", "score", "runway", "position")):
+            intent = "BUSINESS_HEALTH_INVESTIGATION"
+            data = {
+                "intent": intent,
+                "extracted_parameters": {},
+                "plan": [
+                    {"step_number": 1, "title": "Inspect Live Cash Position", "tool_name": "get_cash_position", "arguments": {}},
+                    {"step_number": 2, "title": "Evaluate 5-Pillar Health Score", "tool_name": "get_business_health", "arguments": {}},
+                ],
+                "missing_critical_inputs": [],
+                "follow_up_questions": [],
+            }
+        else:
+            intent = "GENERAL_FINANCIAL_INQUIRY"
+            data = {
+                "intent": intent,
+                "extracted_parameters": {},
+                "plan": [
+                    {"step_number": 1, "title": "Inspect Live Cash Position", "tool_name": "get_cash_position", "arguments": {}},
+                    {"step_number": 2, "title": "Calculate Profit & Loss Statement", "tool_name": "get_profit_and_loss", "arguments": {}},
+                ],
+                "missing_critical_inputs": [],
+                "follow_up_questions": [],
+            }
+        return schema.model_validate(data)
+
+    def _handle_business_copilot_synthesis(self, prompt: str, schema: Type[_T]) -> _T:
+        if "INSUFFICIENT_INFORMATION" in prompt or "FOLLOW_UP_QUESTIONS:\n[\"" in prompt:
+            outcome = "INSUFFICIENT_INFORMATION"
+            synthesis = (
+                "Critical operational and financial figures are missing to evaluate this decision. "
+                "ArthLens cannot fabricate assumptions. Please provide the requested figures to run an authoritative analysis."
+            )
+        else:
+            outcome = "FEASIBLE" if "FEASIBLE" in prompt else None
+            synthesis = "Investigation completed. All financial figures are deterministic and verified by ArthLens engines."
+        data = {
+            "synthesis": synthesis,
+            "decision_outcome": outcome,
+        }
+        return schema.model_validate(data)
 
     def _handle_goal_interpretation(self, prompt: str, schema: Type[_T]) -> _T:
         objective = _json_section(prompt, "OBJECTIVE_JSON")
@@ -273,7 +458,9 @@ class GeminiLLMClient(ILLMClient):
         """Check if any fallback activation has occurred."""
         return bool(self._fallback_history)
 
-    def generate_structured(self, prompt: str, schema: Type[_T], task_type: str) -> _T:
+    def generate_structured_with_attribution(
+        self, prompt: str, schema: Type[_T], task_type: str
+    ) -> Tuple[_T, ProviderAttribution]:
         if self._client is None or not _GENAI_AVAILABLE:
             reason = "Gemini client not initialized" if not self._client else "google-genai SDK not available"
             logger.warning(
@@ -291,22 +478,39 @@ class GeminiLLMClient(ILLMClient):
                     listener(event_data)
                 except Exception:
                     logger.exception("Error in fallback listener.")
-            return self._fallback.generate_structured(prompt, schema, task_type)
+            fallback_res = self._fallback.generate_structured(prompt, schema, task_type)
+            attribution = ProviderAttribution(
+                configured_provider="GEMINI",
+                actual_provider="DETERMINISTIC_FALLBACK",
+                model=self._model,
+                fallback_occurred=True,
+                fallback_reason=reason,
+                task_type=task_type,
+            )
+            return fallback_res, attribution
 
         raw_schema = schema.model_json_schema()
         gemini_schema = _clean_schema_for_gemini(raw_schema)
         untyped = _has_untyped_object(gemini_schema)
 
-        system_instruction = (
-            "You are the ArthLens planning engine. You interpret goals and propose ordered tool execution plans. "
-            "Never calculate results or invent facts, assumptions, sources, or policy rules. "
-            "When interpreting goals, you MUST copy the exact string from OBJECTIVE_JSON into the 'objective' field verbatim without altering a single character. "
-            "You must select tools strictly from TOOL_CONTRACTS_JSON when planning. "
-            f"Output strictly valid JSON conforming to this schema:\n{json.dumps(raw_schema, ensure_ascii=False)}\n"
-            "Every step must have a unique short step_id, the exact tool_name from TOOL_CONTRACTS_JSON, "
-            "and tool_input containing all required parameters specified in that tool's input schema, "
-            "populated with values from GOAL_JSON supplied_slots. Never return an empty tool_input when parameters are required."
-        )
+        if task_type.startswith("business_copilot"):
+            system_instruction = (
+                "You are the ArthLens Business Copilot AI. You analyze entrepreneurial inquiries, "
+                "propose structured investigation plans using approved tools, and synthesize verified observations. "
+                "Never calculate arithmetic or financial formulas directly. All financial numbers must be obtained via tool execution. "
+                f"Output strictly valid JSON conforming to this schema:\n{json.dumps(raw_schema, ensure_ascii=False)}"
+            )
+        else:
+            system_instruction = (
+                "You are the ArthLens planning engine. You interpret goals and propose ordered tool execution plans. "
+                "Never calculate results or invent facts, assumptions, sources, or policy rules. "
+                "When interpreting goals, you MUST copy the exact string from OBJECTIVE_JSON into the 'objective' field verbatim without altering a single character. "
+                "You must select tools strictly from TOOL_CONTRACTS_JSON when planning. "
+                f"Output strictly valid JSON conforming to this schema:\n{json.dumps(raw_schema, ensure_ascii=False)}\n"
+                "Every step must have a unique short step_id, the exact tool_name from TOOL_CONTRACTS_JSON, "
+                "and tool_input containing all required parameters specified in that tool's input schema, "
+                "populated with values from GOAL_JSON supplied_slots. Never return an empty tool_input when parameters are required."
+            )
 
         try:
             config_kwargs: dict[str, Any] = {
@@ -325,7 +529,16 @@ class GeminiLLMClient(ILLMClient):
             )
             raw_text = getattr(response, "text", "") or ""
             cleaned_text = _clean_json_text(raw_text)
-            return schema.model_validate_json(cleaned_text)
+            validated = schema.model_validate_json(cleaned_text)
+            attribution = ProviderAttribution(
+                configured_provider="GEMINI",
+                actual_provider="GEMINI",
+                model=self._model,
+                fallback_occurred=False,
+                fallback_reason=None,
+                task_type=task_type,
+            )
+            return validated, attribution
         except Exception as exc:
             sanitized_msg = CredentialFirewall.sanitize(str(exc), custom_key=self._api_key)
             logger.warning(
@@ -344,7 +557,20 @@ class GeminiLLMClient(ILLMClient):
                     listener(event_data)
                 except Exception:
                     logger.exception("Error in fallback listener.")
-            return self._fallback.generate_structured(prompt, schema, task_type)
+            fallback_res = self._fallback.generate_structured(prompt, schema, task_type)
+            attribution = ProviderAttribution(
+                configured_provider="GEMINI",
+                actual_provider="DETERMINISTIC_FALLBACK",
+                model=self._model,
+                fallback_occurred=True,
+                fallback_reason=sanitized_msg[:300],
+                task_type=task_type,
+            )
+            return fallback_res, attribution
+
+    def generate_structured(self, prompt: str, schema: Type[_T], task_type: str) -> _T:
+        res, _ = self.generate_structured_with_attribution(prompt, schema, task_type)
+        return res
 
 
 class OpenAILLMClient(ILLMClient):
@@ -379,7 +605,9 @@ class OpenAILLMClient(ILLMClient):
         """Check if any fallback activation has occurred."""
         return bool(self._fallback_history)
 
-    def generate_structured(self, prompt: str, schema: Type[_T], task_type: str) -> _T:
+    def generate_structured_with_attribution(
+        self, prompt: str, schema: Type[_T], task_type: str
+    ) -> Tuple[_T, ProviderAttribution]:
         url = "https://api.openai.com/v1/chat/completions"
         headers = {
             "Content-Type": "application/json",
@@ -415,7 +643,16 @@ class OpenAILLMClient(ILLMClient):
             with urllib.request.urlopen(req, timeout=30) as resp:
                 resp_data = json.loads(resp.read().decode("utf-8"))
                 content = resp_data["choices"][0]["message"]["content"]
-                return schema.model_validate_json(_clean_json_text(content))
+                validated = schema.model_validate_json(_clean_json_text(content))
+                attribution = ProviderAttribution(
+                    configured_provider="OPENAI",
+                    actual_provider="OPENAI",
+                    model=self._model,
+                    fallback_occurred=False,
+                    fallback_reason=None,
+                    task_type=task_type,
+                )
+                return validated, attribution
         except Exception as exc:
             sanitized_msg = CredentialFirewall.sanitize(str(exc), custom_key=self._api_key)
             logger.warning(
@@ -434,7 +671,20 @@ class OpenAILLMClient(ILLMClient):
                     listener(event_data)
                 except Exception:
                     logger.exception("Error in fallback listener.")
-            return self._fallback.generate_structured(prompt, schema, task_type)
+            fallback_res = self._fallback.generate_structured(prompt, schema, task_type)
+            attribution = ProviderAttribution(
+                configured_provider="OPENAI",
+                actual_provider="DETERMINISTIC_FALLBACK",
+                model=self._model,
+                fallback_occurred=True,
+                fallback_reason=sanitized_msg[:300],
+                task_type=task_type,
+            )
+            return fallback_res, attribution
+
+    def generate_structured(self, prompt: str, schema: Type[_T], task_type: str) -> _T:
+        res, _ = self.generate_structured_with_attribution(prompt, schema, task_type)
+        return res
 
 
 def get_llm_client() -> ILLMClient:

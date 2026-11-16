@@ -39,12 +39,17 @@ def test_production_jwt_secret_key_enforcement(monkeypatch):
     """In production mode, JWT_SECRET_KEY must be explicitly set or raise RuntimeError."""
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.delenv("JWT_SECRET_KEY", raising=False)
+    monkeypatch.delenv("SECRET_KEY", raising=False)
 
     with pytest.raises(RuntimeError, match="JWT_SECRET_KEY environment variable must be set in production"):
         get_jwt_secret_key()
 
     monkeypatch.setenv("JWT_SECRET_KEY", "super_secret_production_key_32_bytes_minimum!")
     assert get_jwt_secret_key() == "super_secret_production_key_32_bytes_minimum!"
+
+    monkeypatch.delenv("JWT_SECRET_KEY", raising=False)
+    monkeypatch.setenv("SECRET_KEY", "legacy_secret_fallback_with_more_than_32_chars")
+    assert get_jwt_secret_key() == "legacy_secret_fallback_with_more_than_32_chars"
 
 
 def test_production_cookie_security_flag(monkeypatch):
@@ -57,12 +62,10 @@ def test_production_cookie_security_flag(monkeypatch):
 def test_unauthenticated_protected_endpoints_return_401(api_client):
     """Protected endpoints strictly require authentication and reject unauthenticated requests."""
     protected_paths = [
-        ("GET", "/geo/units"),
-        ("GET", "/geo/120"),
-        ("GET", "/geo/pilot-boundaries"),
+        ("GET", "/businesses"),
+        ("POST", "/businesses"),
         ("GET", "/admin/users"),
         ("GET", "/admin/audit"),
-        ("GET", "/policy/rules"),
     ]
 
     for method, path in protected_paths:
@@ -74,7 +77,7 @@ def test_unauthenticated_protected_endpoints_return_401(api_client):
 
 
 def test_role_elevation_protection(api_client):
-    """A user with only ENTREPRENEUR role cannot access Admin or Policy Steward endpoints."""
+    """A user with only ENTREPRENEUR role cannot access Admin endpoints."""
     user_id = str(uuid.uuid4())
     email = f"entrepreneur_{user_id[:8]}@example.com"
 
@@ -98,14 +101,14 @@ def test_role_elevation_protection(api_client):
     r_audit = api_client.get("/admin/audit", cookies=cookies)
     assert r_audit.status_code == 403
 
-    # Entrepreneur cannot post policy rules (Steward only)
-    r_policy = api_client.post(
-        "/policy/rules",
-        json={"scheme_id": "test", "version": "1.0", "rule_ast": {}},
+    # Entrepreneur cannot change user roles
+    r_role = api_client.post(
+        f"/admin/users/{user_id}/role",
+        json={"role": "ADMIN"},
         cookies=cookies,
         headers={"Origin": "http://localhost:3000"},
     )
-    assert r_policy.status_code == 403
+    assert r_role.status_code == 403
 
 
 def test_forged_or_invalid_jwt_rejected(api_client):
@@ -113,32 +116,32 @@ def test_forged_or_invalid_jwt_rejected(api_client):
     cookie_name = get_auth_cookie_name()
     fake_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.invalid.signature"
 
-    response = api_client.get("/geo/units", cookies={cookie_name: fake_token})
+    response = api_client.get("/businesses", cookies={cookie_name: fake_token})
     assert response.status_code == 401
 
 
 def test_csrf_blocks_untrusted_origins(api_client):
     """Cookie-authenticated state-changing operations from untrusted origins are blocked."""
     user_id = str(uuid.uuid4())
-    email = f"steward_{user_id[:8]}@example.com"
+    email = f"user_{user_id[:8]}@example.com"
 
     repo = PostgresUserRepository()
     repo.save({
         "id": user_id,
         "email": email,
         "password_hash": "dummy_hash_for_security_test",
-        "roles": [Role.STEWARD.value],
+        "roles": [Role.ENTREPRENEUR.value],
         "quota_counters": {"runs_today": 0},
     })
 
-    token, _ = create_access_token(user_id=user_id, email=email, roles=[Role.STEWARD.value])
+    token, _ = create_access_token(user_id=user_id, email=email, roles=[Role.ENTREPRENEUR.value])
     cookie_name = get_auth_cookie_name()
     cookies = {cookie_name: token}
 
     # Attacker site origin
     response = api_client.post(
-        "/policy/rules",
-        json={"scheme_id": "malicious", "version": "1.0", "rule_ast": {}},
+        "/businesses",
+        json={"name": "Attacker Business", "industry": "Retail"},
         cookies=cookies,
         headers={"Origin": "https://evil-attacker.example.com"},
     )

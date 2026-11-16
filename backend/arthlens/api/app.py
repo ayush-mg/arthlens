@@ -5,30 +5,43 @@ Authoritative Reference: ArthLens Build Handbook v1.0 (Part 10, Part 11, Part 13
 Phase: P1-6 (Authentication, Roles, RBAC, Audit Events and Rate Limiting).
 """
 
+import hmac
 import re
-from typing import Callable
+from typing import Any, Callable, Tuple
 
 from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.concurrency import run_in_threadpool
+from starlette.routing import Match
 
 from backend.arthlens.api.admin import router as admin_router
-from backend.arthlens.api.agent_runs import router as agent_runs_router
 from backend.arthlens.api.auth import router as auth_router
-from backend.arthlens.api.indicators import router as indicators_router
-from backend.arthlens.api.policy import router as policy_router
-from backend.arthlens.api.runs import router as runs_router
-from backend.arthlens.api.scenarios import router as scenarios_router
+from backend.arthlens.api.business import router as business_router
 from backend.arthlens.infra.config import (
     get_allowed_origins,
     get_auth_cookie_name,
+    get_environment,
     get_rate_limit_per_minute_ip,
     get_rate_limit_per_minute_user,
     get_trusted_proxies,
 )
+from backend.arthlens.infra.database import get_session_factory
 from backend.arthlens.security.rate_limit import get_rate_limiter
-from backend.arthlens.security.rbac import get_policy_registry
+from backend.arthlens.security.tokens import (
+    decode_access_token,
+    TokenExpiredError,
+    TokenRevokedError,
+    TokenInvalidError,
+)
+from backend.arthlens.security.rbac import get_policy_registry, get_user_repository, EndpointPolicy
+from backend.arthlens.domain.business import BusinessRole
+from backend.arthlens.security.roles import Role
+from backend.arthlens.infra.business_repositories import PostgresBusinessRepository
+import uuid
+
 from backend.arthlens.security.tokens import decode_access_token
 
 
@@ -112,6 +125,13 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
 
             # Enforce CSRF validation if request relies on cookie auth without Bearer
             if has_cookie and not has_bearer:
+                csrf_cookie = request.cookies.get("arthlens_csrf")
+                csrf_header = request.headers.get("X-CSRF-Token")
+                if csrf_cookie and (not csrf_header or not hmac.compare_digest(csrf_cookie, csrf_header)):
+                    return JSONResponse(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        content={"detail": "CSRF token is missing or invalid."},
+                    )
                 fetch_site = request.headers.get("Sec-Fetch-Site")
                 if fetch_site in ("cross-site",):
                     return JSONResponse(
@@ -134,61 +154,237 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+def _match_route(routes: Any, scope: dict) -> Tuple[Match, Any]:
+    """
+    Recursively tests Starlette / FastAPI routes against the incoming request scope.
+    Returns (Match.FULL, route) if path and method match,
+    (Match.PARTIAL, route) if path matches but method does not,
+    or (Match.NONE, None) if route does not exist.
+    """
+    best_match = Match.NONE
+    matched_route = None
+    for r in routes:
+        if hasattr(r, "routes"):
+            m, route_found = _match_route(r.routes, scope)
+            if m == Match.FULL:
+                return m, route_found
+            elif m == Match.PARTIAL and best_match != Match.FULL:
+                best_match = Match.PARTIAL
+                matched_route = route_found
+        elif hasattr(r, "original_router"):
+            m, route_found = _match_route(r.original_router.routes, scope)
+            if m == Match.FULL:
+                return m, route_found
+            elif m == Match.PARTIAL and best_match != Match.FULL:
+                best_match = Match.PARTIAL
+                matched_route = route_found
+        elif hasattr(r, "matches"):
+            m, _ = r.matches(scope)
+            if m == Match.FULL:
+                return m, r
+            elif m == Match.PARTIAL and best_match != Match.FULL:
+                best_match = Match.PARTIAL
+                matched_route = r
+    return best_match, matched_route
+
+
+def _check_auth_and_ownership(token: str, policy: EndpointPolicy, path: str) -> Any:
+    """Synchronous authentication and authorization verification running in threadpool."""
+    try:
+        claims = decode_access_token(token)
+    except TokenExpiredError:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"detail": "Authentication session expired. Please log in again."},
+        )
+    except TokenRevokedError:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"detail": "Session has been revoked upon logout."},
+        )
+    except TokenInvalidError as e:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"detail": f"Invalid authentication credentials: {e}"},
+        )
+
+    if claims.get("token_type", "access") != "access":
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"detail": "Refresh credentials cannot be used as API access tokens."},
+        )
+    user_id = claims.get("sub")
+    if not user_id:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"detail": "Invalid token subject."},
+        )
+
+    # Re-verify user existence and active status in database
+    user_repo = get_user_repository()
+    user_record = user_repo.get_by_id(user_id)
+    if not user_record:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"detail": "User account no longer exists."},
+        )
+
+    quota = user_record.get("quota_counters") or {}
+    if quota.get("is_active") is False:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"detail": "User account has been deactivated."},
+        )
+
+    user_roles = set(user_record.get("roles") or [])
+    is_admin = Role.ADMIN.value in user_roles
+
+    # System Role Enforcement
+    system_roles = {r.value for r in Role}
+    req_system_roles = policy.allowed_roles & system_roles
+    if req_system_roles and not (is_admin and policy.allow_admin_bypass):
+        if not (user_roles & req_system_roles):
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={"detail": "Access forbidden: required role not held."},
+            )
+
+    # Tenant Scoping & Ownership Enforcement for /businesses/{business_id}
+    biz_match = re.search(r"/businesses/([0-9a-fA-F\-]{36})", path)
+    if biz_match:
+        try:
+            biz_uuid = uuid.UUID(biz_match.group(1))
+            user_uuid = uuid.UUID(str(user_id))
+            biz_repo = PostgresBusinessRepository()
+            biz = biz_repo.get_by_id(biz_uuid)
+            if not biz:
+                return JSONResponse(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    content={"detail": f"Business workspace {biz_uuid} not found."},
+                )
+
+            is_owner = str(biz.owner_id) == str(user_uuid)
+            membership = biz_repo.get_membership(biz_uuid, user_uuid)
+            is_member = bool(membership and membership.is_active)
+
+            admin_bypass = is_admin and policy.allow_admin_bypass
+            if not is_owner and not is_member and not admin_bypass:
+                return JSONResponse(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    content={"detail": "Access denied: you do not have permission to access this business workspace."},
+                )
+
+            if policy.require_ownership and not is_owner and not admin_bypass:
+                return JSONResponse(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    content={"detail": "Ownership required for this operation."},
+                )
+
+        except ValueError:
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={"detail": "Invalid tenant or user identity in authorization context."},
+            )
+
+    return None
+
+
 class DenyByDefaultMiddleware(BaseHTTPMiddleware):
     """
     Enforces deny-by-default behavior across all routes.
-    Any endpoint route not explicitly registered in EndpointPolicyRegistry is forbidden.
+    Blocks undeclared internal or unrouted debug paths, enforces active route registration
+    and authorization policies against the FastAPI route table, and rejects un-policied routes.
     """
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         path = request.url.path
         method = request.method.upper()
 
-        # Allow CORS preflight requests
+        # 1. Allow CORS preflight requests
         if method == "OPTIONS":
             return await call_next(request)
 
-        # Normalize parameterized path for matching
-        registry = get_policy_registry()
-
-        # Check exact path or parameterized routes
-        policy = registry.get_policy(method, path)
-        if not policy:
-            # Check pattern matching for parameterized routes: e.g. /runs/{id}, /scenarios/{id}/branch, /geo/{id}/indicators
-            normalized_path = re.sub(r"/[0-9a-fA-F\-]{36}", "/{id}", path)
-            normalized_path = re.sub(r"/scenarios/[^/]+/calculate", "/scenarios/{id}/calculate", normalized_path)
-            normalized_path = re.sub(r"/scenarios/[^/]+/simulate", "/scenarios/{id}/simulate", normalized_path)
-            normalized_path = re.sub(r"/scenarios/[^/]+/spatial-demand", "/scenarios/{id}/spatial-demand", normalized_path)
-            normalized_path = re.sub(r"/scenarios/[^/]+/accessibility", "/scenarios/{id}/accessibility", normalized_path)
-            normalized_path = re.sub(r"/scenarios/[^/]+/policy", "/scenarios/{id}/policy", normalized_path)
-            normalized_path = re.sub(r"/scenarios/[^/]+/report", "/scenarios/{id}/report", normalized_path)
-            normalized_path = re.sub(r"/scenarios/[^/]+/branch", "/scenarios/{id}/branch", normalized_path)
-            normalized_path = re.sub(r"/scenarios/comparisons/[^/]+", "/scenarios/comparisons/{id}", normalized_path)
-            normalized_path = re.sub(r"/policy/documents/[0-9a-fA-F\-]{36}/review", "/policy/documents/{id}/review", normalized_path)
-            normalized_path = re.sub(r"/policy/rules/[0-9a-fA-F\-]{36}/approve", "/policy/rules/{id}/approve", normalized_path)
-            normalized_path = re.sub(r"/policy/rules/[0-9a-fA-F\-]{36}/retire", "/policy/rules/{id}/retire", normalized_path)
-            normalized_path = re.sub(r"/policy/schemes/[^/]+/evaluate", "/policy/schemes/{scheme_id}/evaluate", normalized_path)
-            normalized_path = re.sub(r"/policy/evaluations/[0-9a-fA-F\-]{36}", "/policy/evaluations/{id}", normalized_path)
-            normalized_path = re.sub(r"/ledger/[0-9a-fA-F\-a-zA-Z0-9_\.:]+/graph", "/ledger/{quantity_id}/graph", normalized_path)
-            normalized_path = re.sub(r"/ledger/[0-9a-fA-F\-a-zA-Z0-9_\.:]+", "/ledger/{quantity_id}", normalized_path)
-            normalized_path = re.sub(r"/geo/[a-zA-Z0-9\._\-:]+/indicators", "/geo/{id}/indicators", normalized_path)
-            normalized_path = re.sub(r"/geo/[a-zA-Z0-9\._\-:]+/quality", "/geo/{id}/quality", normalized_path)
-            if normalized_path not in ("/geo/units", "/geo/pilot-boundaries", "/geo/pilot-pmtiles"):
-                normalized_path = re.sub(r"/geo/[a-zA-Z0-9\._\-:]+", "/geo/{id}", normalized_path)
-            normalized_path = re.sub(r"/replay/[0-9a-fA-F\-]+", "/replay/{id}", normalized_path)
-            policy = registry.get_policy(method, normalized_path)
-
-        # Allow swagger/openapi documentation in non-production
-        is_docs = path in ("/docs", "/openapi.json", "/redoc")
-
-        if not policy and not is_docs:
-            # Check if route even exists in the application
-            # If it starts with /internal or is undeclared:
-            if path.startswith("/internal") or path.startswith("/undeclared"):
+        # 2. Block documentation paths in production; permit in development/test
+        is_docs = path in ("/docs", "/openapi.json", "/redoc", "/docs/oauth2-redirect")
+        if is_docs:
+            if get_environment() == "production":
                 return JSONResponse(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    content={"detail": "Access forbidden: route has no registered authorization policy (deny-by-default)."},
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    content={"detail": "Not Found"},
                 )
+            return await call_next(request)
+
+        # 3. Explicitly deny private, internal, or undeclared route prefixes
+        if path.startswith(("/internal", "/undeclared", "/private", "/secret")):
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={"detail": "Access forbidden: route has no registered authorization policy (deny-by-default)."},
+            )
+
+        # 4. Check route existence against FastAPI route table
+        match_type, matched_route = _match_route(request.app.routes, request.scope)
+
+        # If trailing slash causes NONE, check if canonical path matches to allow framework redirect
+        if match_type == Match.NONE and path.endswith("/") and len(path) > 1:
+            alt_match_type, _ = _match_route(
+                request.app.routes,
+                dict(request.scope, path=path.rstrip("/")),
+            )
+            if alt_match_type in (Match.FULL, Match.PARTIAL):
+                return await call_next(request)
+
+        if match_type == Match.NONE:
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={"detail": "Not Found"},
+            )
+
+        if match_type == Match.PARTIAL:
+            return JSONResponse(
+                status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+                content={"detail": "Method Not Allowed"},
+            )
+
+        # 5. Route matches: verify registered policy in EndpointPolicyRegistry (FAIL CLOSED)
+        registry = get_policy_registry()
+        route_path = getattr(matched_route, "path", path)
+        norm_route_path = re.sub(r"\{[a-zA-Z0-9_]+\}", "{id}", route_path)
+        norm_url_path = re.sub(r"/[0-9a-fA-F\-]{36}", "/{id}", path)
+        lookup_path = norm_url_path.rstrip("/") if len(norm_url_path) > 1 else norm_url_path
+
+        policy = (
+            registry.get_policy(method, norm_route_path)
+            or registry.get_policy(method, route_path)
+            or registry.get_policy(method, lookup_path)
+            or registry.get_policy(method, norm_url_path)
+            or registry.get_policy(method, path)
+        )
+
+        if not policy:
+            # Route exists in FastAPI table but has no registered authorization policy -> Reject
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={"detail": "Access forbidden: route has no registered authorization policy (deny-by-default)."},
+            )
+
+        # 6. ENFORCE AUTHENTICATION, ROLES & TENANT OWNERSHIP PERMISSIONS IN MIDDLEWARE (Audit Item 1)
+        if "*" not in policy.allowed_roles:
+            auth_header = request.headers.get("Authorization")
+            if auth_header and auth_header.startswith("Bearer "):
+                token = auth_header[7:].strip()
+            else:
+                cookie_name = get_auth_cookie_name()
+                token = request.cookies.get(cookie_name)
+
+            if not token:
+                return JSONResponse(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    content={"detail": "Authentication required. Missing session cookie or Bearer header."},
+                )
+
+            auth_error = await run_in_threadpool(_check_auth_and_ownership, token, policy, path)
+            if auth_error is not None:
+                return auth_error
 
         return await call_next(request)
 
@@ -196,9 +392,9 @@ class DenyByDefaultMiddleware(BaseHTTPMiddleware):
 def create_app() -> FastAPI:
     """FastAPI application factory for ArthLens."""
     app = FastAPI(
-        title="ArthLens Economic Decision Engine API",
-        version="0.1.0",
-        description="Evidence-gated agentic economic intelligence for Indian micro-enterprises",
+        title="ArthLens Business Operating System & Decision Intelligence Platform API",
+        version="1.0.0",
+        description="Authoritative Business Operating System, Deterministic Financial Intelligence, Decision Intelligence Engine, and Gemini-Powered Business Copilot API.",
     )
 
     # Register middlewares
@@ -213,13 +409,9 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Include API routers
+    # Include active ArthLens Business OS & Decision Intelligence routers
     app.include_router(auth_router)
-    app.include_router(agent_runs_router)
-    app.include_router(runs_router)
-    app.include_router(scenarios_router)
-    app.include_router(policy_router)
-    app.include_router(indicators_router)
+    app.include_router(business_router)
     app.include_router(admin_router)
 
     @app.get("/health", tags=["Health"])
@@ -227,6 +419,23 @@ def create_app() -> FastAPI:
     def health_check() -> dict[str, str]:
         """Unauthenticated health check endpoint for deployment monitoring."""
         return {"status": "healthy", "service": "arthlens-backend"}
+
+    @app.get("/health/live", tags=["Health"])
+    def health_live() -> dict[str, str]:
+        """Liveness probe that does not depend on downstream services."""
+        return {"status": "live", "service": "arthlens-backend"}
+
+    @app.get("/health/ready", tags=["Health"])
+    def health_ready() -> dict[str, str]:
+        """Readiness probe that confirms the application can reach PostgreSQL."""
+        from fastapi import HTTPException
+
+        try:
+            with get_session_factory()() as session:
+                session.execute(text("SELECT 1"))
+        except Exception as exc:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database is not ready.") from exc
+        return {"status": "ready", "service": "arthlens-backend"}
 
     return app
 

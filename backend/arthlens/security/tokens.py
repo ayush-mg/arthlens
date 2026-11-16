@@ -48,6 +48,7 @@ def create_access_token(
     email: str,
     roles: List[str],
     expires_delta: Optional[timedelta] = None,
+    token_type: str = "access",
 ) -> Tuple[str, str]:
     """
     Create a signed JWT access token containing standard authentication claims.
@@ -77,6 +78,7 @@ def create_access_token(
         "sub": str(user_id),
         "email": str(email),
         "roles": list(roles),
+        "token_type": token_type,
         "jti": jti,
         "exp": expire,
         "iat": now.timestamp(),
@@ -84,6 +86,22 @@ def create_access_token(
 
     token = jwt.encode(payload, secret, algorithm=algorithm)
     return token, jti
+
+
+def create_refresh_token(
+    user_id: str,
+    email: str,
+    roles: List[str],
+    expires_delta: Optional[timedelta] = None,
+) -> Tuple[str, str]:
+    """Create a rotating refresh credential that cannot authorize API requests."""
+    return create_access_token(
+        user_id=user_id,
+        email=email,
+        roles=roles,
+        expires_delta=expires_delta or timedelta(days=30),
+        token_type="refresh",
+    )
 
 
 def decode_access_token(
@@ -132,5 +150,6 @@ __all__ = [
     "TokenInvalidError",
     "TokenRevokedError",
     "create_access_token",
+    "create_refresh_token",
     "decode_access_token",
 ]

@@ -78,8 +78,8 @@ class TestCSRFAndSecuritySafety:
             "Origin": "https://external-client-domain.org",
         }
         res = api_client.post(
-            "/scenarios",
-            json={"name": "Valid Bearer Scenario"},
+            "/businesses",
+            json={"name": "Valid Bearer Business", "industry": "Retail"},
             headers=headers,
         )
         assert res.status_code in [200, 201]
@@ -91,8 +91,8 @@ class TestCSRFAndSecuritySafety:
 
         headers = {"Origin": "http://localhost:3000"}
         res = api_client.post(
-            "/scenarios",
-            json={"name": "Valid Localhost Scenario"},
+            "/businesses",
+            json={"name": "Valid Localhost Business", "industry": "Retail"},
             cookies=cookie,
             headers=headers,
         )

@@ -5,13 +5,18 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Mapping, Sequence
 from urllib.parse import urlsplit
+
+
+EXPECTED_MIGRATION_HEAD = "026_auth_otp_and_google_oauth"
 
 
 @dataclass(frozen=True)
 class PreflightResult:
     checked_keys: tuple[str, ...]
     migration_head_count: int
+    migration_head: str
 
 
 class DeploymentPreflightError(ValueError):
@@ -50,9 +55,15 @@ def read_env_file(path: Path) -> dict[str, str]:
     return values
 
 
-def validate_production_environment(path: Path, migration_head_count: int) -> PreflightResult:
-    """Validate production-critical settings without revealing configured values."""
-    values = read_env_file(path)
+def validate_production_environment(path: Path, migration_heads: Sequence[str]) -> PreflightResult:
+    """Validate production-critical settings from a file without revealing values."""
+    return validate_production_values(read_env_file(path), migration_heads)
+
+
+def validate_production_values(
+    values: Mapping[str, str], migration_heads: Sequence[str]
+) -> PreflightResult:
+    """Validate production-critical process settings without revealing values."""
     errors: list[str] = []
     if values.get("ENVIRONMENT", "").lower() != "production":
         errors.append("ENVIRONMENT must be production.")
@@ -83,14 +94,21 @@ def validate_production_environment(path: Path, migration_head_count: int) -> Pr
     jwt_secret = values.get("JWT_SECRET_KEY", "")
     if len(jwt_secret.encode("utf-8")) < 32 or _looks_like_placeholder(jwt_secret):
         errors.append("JWT_SECRET_KEY must be an explicit secret of at least 32 bytes.")
+    llm_provider = values.get("LLM_PROVIDER", "").strip().lower()
+    if llm_provider != "gemini":
+        errors.append("LLM_PROVIDER must be gemini for this deployment contract.")
+    gemini_api_key = values.get("GEMINI_API_KEY", "").strip()
+    if not gemini_api_key or _looks_like_placeholder(gemini_api_key):
+        errors.append("GEMINI_API_KEY must be configured when LLM_PROVIDER=gemini.")
     if values.get("AUTH_COOKIE_SECURE", "").lower() not in {"true", "1", "yes"}:
         errors.append("AUTH_COOKIE_SECURE must be enabled in production.")
     if values.get("AUTH_COOKIE_SAMESITE", "lax").lower() == "none" and (
         values.get("AUTH_COOKIE_SECURE", "").lower() not in {"true", "1", "yes"}
     ):
         errors.append("SameSite=None requires AUTH_COOKIE_SECURE.")
-    if migration_head_count != 1:
-        errors.append("Alembic migration graph must have exactly one head.")
+    heads = tuple(sorted(set(migration_heads)))
+    if heads != (EXPECTED_MIGRATION_HEAD,):
+        errors.append(f"Alembic migration head must be {EXPECTED_MIGRATION_HEAD}.")
     if errors:
         raise DeploymentPreflightError(" ".join(errors))
     return PreflightResult(
@@ -98,10 +116,13 @@ def validate_production_environment(path: Path, migration_head_count: int) -> Pr
             "ENVIRONMENT",
             "DATABASE_URL",
             "JWT_SECRET_KEY",
+            "LLM_PROVIDER",
+            "GEMINI_API_KEY",
             "AUTH_COOKIE_SECURE",
             "AUTH_COOKIE_SAMESITE",
         ),
-        migration_head_count=migration_head_count,
+        migration_head_count=len(heads),
+        migration_head=EXPECTED_MIGRATION_HEAD,
     )
 
 

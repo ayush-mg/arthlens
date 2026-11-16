@@ -72,8 +72,8 @@ class TestJWTRoleFreshness:
         assert "forbidden" in res_admin_demoted.json()["detail"].lower()
 
         # 6. But entrepreneur endpoints still work for this user
-        res_scen = api_client.post("/scenarios", json={"name": "Permitted Entrepreneur Scenario"}, cookies=cookie)
-        assert res_scen.status_code in [200, 201]
+        res_biz = api_client.post("/businesses", json={"name": "Permitted Business", "industry": "Retail"}, cookies=cookie)
+        assert res_biz.status_code in [200, 201]
 
     def test_deleted_user_account_immediately_invalidates_token(self, api_client):
         """When user is removed from database, their token immediately yields 401 Unauthorized."""
@@ -106,6 +106,6 @@ class TestJWTRoleFreshness:
             conn.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": user_id})
 
         # Subsequent call with same token must yield 401
-        res_after = api_client.post("/scenarios", json={"name": "Post-Delete Scenario"}, cookies=cookie)
+        res_after = api_client.post("/businesses", json={"name": "Post-Delete Business", "industry": "Retail"}, cookies=cookie)
         assert res_after.status_code == 401
         assert "no longer exists" in res_after.json()["detail"].lower()

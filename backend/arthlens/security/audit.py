@@ -59,6 +59,7 @@ class AuditService:
         target: str,
         payload: Optional[Dict[str, Any]] = None,
         prev_hash: Optional[str] = None,
+        session: Optional[Session] = None,
     ) -> int:
         """
         Record an immutable audit event.
@@ -85,10 +86,11 @@ class AuditService:
 
         sanitized_payload = self._sanitize_payload(payload or {})
 
-        with self._get_session() as session:
+        def _record(db_session: Session) -> int:
+            nonlocal prev_hash
             # If prev_hash not provided, chain from the latest audit event in the table
             if prev_hash is None:
-                latest = session.execute(
+                latest = db_session.execute(
                     select(AuditEventModel.id, AuditEventModel.timestamp)
                     .order_by(desc(AuditEventModel.id))
                     .limit(1)
@@ -105,14 +107,23 @@ class AuditService:
                 payload=sanitized_payload,
                 prev_hash=prev_hash,
             )
-            session.add(model)
-            session.commit()
+            db_session.add(model)
+            db_session.flush()
             return int(model.id)
 
-    def list_events(self, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+        if session is not None:
+            return _record(session)
+        with self._get_session() as db_session:
+            with db_session.begin():
+                return _record(db_session)
+
+    def list_events(self, limit: int = 100, offset: int = 0, target_prefix: Optional[str] = None) -> List[Dict[str, Any]]:
         """Retrieve audit events ordered by timestamp descending for administrative inspection."""
         with self._get_session() as session:
-            stmt = select(AuditEventModel).order_by(desc(AuditEventModel.timestamp)).limit(limit).offset(offset)
+            stmt = select(AuditEventModel)
+            if target_prefix:
+                stmt = stmt.where(AuditEventModel.target.like(f"{target_prefix}%"))
+            stmt = stmt.order_by(desc(AuditEventModel.timestamp)).limit(limit).offset(offset)
             records = session.execute(stmt).scalars().all()
             return [
                 {

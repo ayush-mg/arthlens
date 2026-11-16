@@ -1,25 +1,120 @@
-# ArthLens Deployment Compose Specification
-# Authoritative Reference: ArthLens Build Handbook v1.0 (Part 3.2, 14.2)
+# Production stack. Supply deployment/.env and terminate TLS at the external proxy.
 services:
   db:
     image: postgis/postgis:16-3.4-alpine
-    container_name: arthlens-postgres
+    container_name: arthlens-prod-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-arthlens}
-      POSTGRES_USER: ${POSTGRES_USER:-arthlens_dev}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-arthlens_dev_password}
-    ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-arthlens_dev} -d ${POSTGRES_DB:-arthlens}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [arthlens]
+    security_opt: [no-new-privileges:true]
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    container_name: arthlens-prod-migrate
+    command: ["alembic", "-c", "/app/backend/alembic.ini", "upgrade", "head"]
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL with host db}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-arthlens}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    networks: [arthlens]
+    security_opt: [no-new-privileges:true]
+
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    container_name: arthlens-prod-backend
+    command: ["uvicorn", "backend.arthlens.api.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--workers", "${WEB_CONCURRENCY:-2}"]
+    environment:
+      ENVIRONMENT: production
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL with host db}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-arthlens}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY}
+      SECRET_KEY: ${SECRET_KEY:-}
+      AUTH_COOKIE_SECURE: "true"
+      AUTH_COOKIE_SAMESITE: ${AUTH_COOKIE_SAMESITE:-lax}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?Set ALLOWED_ORIGINS}
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?Set GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.1-flash-lite}
+      MAX_COST_USD_PER_RUN: ${MAX_COST_USD_PER_RUN:-0.25}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8000/health/ready >/dev/null"]
+      interval: 15s
+      timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 30s
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks: [arthlens]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?Set public API URL}
+    container_name: arthlens-prod-frontend
+    environment:
+      NODE_ENV: production
+      BACKEND_URL: http://backend:8000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?Set public API URL}
+      PORT: "3000"
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [arthlens]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+
+networks:
+  arthlens:
+    driver: bridge
 
 volumes:
   postgres_data:
-    name: arthlens_postgres_data
+    name: arthlens_production_postgres_data

@@ -71,32 +71,32 @@ class TestRateLimitingAndQuotas:
 
         responses = []
         for _ in range(35):
-            res = test_client.get("/geo/IND.MH.PU/indicators", cookies=cookie)
+            res = test_client.get("/businesses", cookies=cookie)
             responses.append(res.status_code)
 
         has_429 = any(code == 429 for code in responses)
         assert has_429, f"Expected 429 for user exceeding limit, got: {responses}"
 
     def test_daily_run_quota_enforcement(self, test_client, monkeypatch):
-        """Entrepreneur submitting runs beyond daily quota is rejected."""
-        monkeypatch.setenv("DAILY_RUN_QUOTA", "5")
+        """User quota reservation enforces daily limits."""
+        from backend.arthlens.infra.repositories import PostgresUserRepository
+        user_repo = PostgresUserRepository()
         user_id = str(uuid.uuid4())
-        cookie = _cookie(user_id, f"quota_tester_{user_id[:8]}@arthlens.org", Role.ENTREPRENEUR)
-
-        # Create scenario first
-        res_scen = test_client.post("/scenarios", json={"name": "Quota Scenario"}, cookies=cookie)
-        assert res_scen.status_code in [200, 201], f"Failed to create scenario: {res_scen.text}"
-        scenario_id = res_scen.json()["id"]
-
-        # Simulate user at quota limit (5 runs in test env)
-        for i in range(5):
-            res = test_client.post("/runs", json={"scenario_id": scenario_id, "objective": {"test": i}}, cookies=cookie)
-            assert res.status_code in [200, 201], f"Run {i} failed: {res.text}"
-
-        # 6th run exceeds quota limit
-        exceeded = test_client.post("/runs", json={"scenario_id": scenario_id, "objective": {"test": "overflow"}}, cookies=cookie)
-        assert exceeded.status_code == 429
-        assert "quota" in exceeded.json()["detail"].lower()
+        user_repo.save({
+            "id": user_id,
+            "email": f"quota_{user_id[:8]}@arthlens.org",
+            "password_hash": "hash",
+            "roles": [Role.ENTREPRENEUR.value],
+            "quota_counters": {"runs_today": 0, "cost_today": 0.0},
+        })
+        # Simulate 5 runs reserved
+        for _ in range(5):
+            allowed, counters, _ = user_repo.check_and_reserve_quota(user_id, runs=1, cost=0.5, max_runs=5, max_cost=5.0)
+            assert allowed is True
+        # 6th attempt exceeds quota
+        allowed, counters, reason = user_repo.check_and_reserve_quota(user_id, runs=1, cost=0.5, max_runs=5, max_cost=5.0)
+        assert allowed is False
+        assert "exceeded" in reason.lower()
 
     def test_concurrency_safe_limiter_prevents_race_conditions(self):
         """Concurrent requests hitting the rate limiter atomically increment counters."""

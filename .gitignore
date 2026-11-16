@@ -222,7 +222,6 @@ __marimo__/
 .streamlit/secrets.toml
 
 # ArthLens local run artifacts and test outputs
-.arthlens-pids.json
 .vite/
 .next/
 frontend/.next/
@@ -230,6 +229,23 @@ artifacts/
 test-results/
 frontend/test-results/
 frontend/screenshots/
+
+*.log
+
+scripts/system_performance_metrics.json
+
 .env
 backend/.env
 frontend/.env.local
+
+playwright-report/
+frontend/playwright-report/
+
+# Local pytest workspaces created by interrupted acceptance runs
+.pytesttmp*
+.pytest_workspace*
+.arthlens-pids.json
+.postgres_local/
+scratch/
+frontend/scratch/
+*.tsbuildinfo

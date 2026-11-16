@@ -2,152 +2,145 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --bg-ivory: #F3F0E8;
-  --bg-paper: #FAF8F3;
-  --bg-card: #FFFFFF;
-  --bg-forest: #203D32;
-  --text-charcoal: #252923;
-  --text-muted: #5A6256;
-  --color-copper: #B76E4D;
-  --color-brass: #B49A65;
-  --color-sage: #A9B5A2;
-  --border-editorial: rgba(37, 41, 35, 0.12);
-  --border-brass: rgba(180, 154, 101, 0.35);
+:root{
+	--bg-ivory:#FAF7F2;
+	--surface-white:#FFFFFF;
+	--crimson-primary:#C8281E;
+	--vermilion-accent:#E64833;
+	--ink-espresso:#231412;
+	--ink-umber:#5C403B;
 }
 
-/* Lenis smooth scrolling recommendations */
-html.lenis,
-html.lenis body {
-  height: auto;
+*,*::before,*::after{
+	box-sizing:border-box;
+	border-radius:0px !important;
 }
 
-.lenis.lenis-smooth {
-  scroll-behavior: auto !important;
+html{
+	background-color:#FAF7F2;
+	color:#231412;
+	margin:0;
+	padding:0;
+	width:100%;
+	scroll-behavior:smooth;
+	-webkit-font-smoothing:antialiased;
 }
 
-.lenis.lenis-smooth [data-lenis-prevent] {
-  overscroll-behavior: contain;
+body{
+	background-color:transparent;
+	color:#231412;
+	margin:0;
+	padding:0;
+	width:100%;
+	min-height:100vh;
+	-webkit-font-smoothing:antialiased;
 }
 
-.lenis.lenis-stopped {
-  overflow: hidden;
+::-webkit-scrollbar{
+	width:5px;
+	height:5px;
 }
 
-.lenis.lenis-scrolling iframe {
-  pointer-events: none;
+::-webkit-scrollbar-track{
+	background:#FAF7F2;
 }
 
-body {
-  background-color: var(--bg-ivory);
-  color: var(--text-charcoal);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  overflow-x: hidden;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+::-webkit-scrollbar-thumb{
+	background:#231412;
 }
 
-/* Cartographic graticule background */
-.bg-carto-graticule {
-  background-size: 48px 48px;
-  background-image:
-    linear-gradient(to right, rgba(180, 154, 101, 0.12) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(180, 154, 101, 0.12) 1px, transparent 1px);
+::-webkit-scrollbar-thumb:hover{
+	background:#C8281E;
 }
 
-.bg-carto-dots {
-  background-image: radial-gradient(rgba(32, 61, 50, 0.15) 1px, transparent 1px);
-  background-size: 24px 24px;
+[class*="backdrop-blur"]{
+	backdrop-filter:none !important;
+	-webkit-backdrop-filter:none !important;
 }
 
-/* Editorial Cartographic Crosshair corner marks */
-.crosshair-corner {
-  position: relative;
-}
-.crosshair-corner::before,
-.crosshair-corner::after {
-  content: '';
-  position: absolute;
-  width: 9px;
-  height: 9px;
-  border-color: #B49A65;
-  pointer-events: none;
-}
-.crosshair-corner::before {
-  top: -1px;
-  left: -1px;
-  border-top: 1.5px solid;
-  border-left: 1.5px solid;
-}
-.crosshair-corner::after {
-  bottom: -1px;
-  right: -1px;
-  border-bottom: 1.5px solid;
-  border-right: 1.5px solid;
+[class*="bg-white/"],
+[class*="bg-[#FAF7F2]/"],
+[class*="bg-[#FFFDF9]/"],
+[class*="bg-stone-50/"],
+[class*="bg-stone-100/"],
+[class*="bg-neutral-50/"],
+[class*="bg-slate-50/"]{
+	background-color:#FFFFFF !important;
+	border-color:#231412 !important;
 }
 
-/* Custom scrollbar for data tables and panels */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #EAE6DB;
-}
-::-webkit-scrollbar-thumb {
-  background: #B49A65;
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #B76E4D;
-}
-
-/* Editorial Quality Hatched / Pattern backgrounds */
-.bg-hatched-stale {
-  background-image: repeating-linear-gradient(
-    45deg,
-    rgba(183, 110, 77, 0.12),
-    rgba(183, 110, 77, 0.12) 6px,
-    transparent 6px,
-    transparent 12px
-  );
+.bg-red-50,
+.bg-rose-50,
+.bg-red-500\/5,
+.bg-red-500\/10,
+.bg-red-500\/15,
+.bg-red-500\/20,
+.bg-rose-500\/5,
+.bg-rose-500\/10,
+.bg-rose-500\/15,
+.bg-rose-500\/20,
+.bg-\[\#C8281E\]\/5,
+.bg-\[\#C8281E\]\/8,
+.bg-\[\#C8281E\]\/10,
+.bg-\[\#C8281E\]\/12,
+.bg-\[\#C8281E\]\/15,
+.bg-\[\#C8281E\]\/20{
+	background-color:#FAF7F2 !important;
+	color:#231412 !important;
+	border-color:#231412 !important;
 }
 
-.bg-diagonal-unavailable {
-  background-image: repeating-linear-gradient(
-    -45deg,
-    rgba(169, 181, 162, 0.15),
-    rgba(169, 181, 162, 0.15) 6px,
-    transparent 6px,
-    transparent 12px
-  );
+.bg-emerald-50,
+.bg-emerald-100,
+.bg-emerald-500\/10,
+.bg-emerald-500\/15,
+.bg-emerald-500\/20{
+	background-color:#065F46 !important;
+	color:#FFFFFF !important;
+	border-color:#231412 !important;
 }
 
-.bg-dotted-estimated {
-  background-image: radial-gradient(
-    rgba(69, 90, 100, 0.25) 1.5px,
-    transparent 1.5px
-  );
-  background-size: 8px 8px;
+.bg-amber-50,
+.bg-amber-100,
+.bg-amber-500\/10,
+.bg-amber-500\/15,
+.bg-amber-500\/20{
+	background-color:#92400E !important;
+	color:#FFFFFF !important;
+	border-color:#231412 !important;
 }
 
-/* MapLibre map canvas container */
-.maplibre-container {
-  width: 100%;
-  height: 100%;
-  position: absolute;
-  top: 0;
-  left: 0;
+[class*="border-white/"],
+[class*="border-stone-200/"],
+[class*="border-black/"]{
+	border-color:#231412 !important;
 }
 
-/* Accessibility: respect reduced motion preferences */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
+[class*="border-[#C8281E]/"],
+[class*="border-red-500/"],
+[class*="border-rose-500/"],
+[class*="border-red-200"],
+[class*="border-rose-200"]{
+	border-color:#231412 !important;
+}
+
+main.min-h-screen,
+div.min-h-screen:not([class*="border"]){
+	background-color:transparent !important;
+}
+
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea{
+	background-color:#FFFFFF !important;
+	border:2px solid #231412 !important;
+	color:#231412 !important;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):focus,
+select:focus,
+textarea:focus{
+	outline:none !important;
+	border-color:#C8281E !important;
+	box-shadow:none !important;
 }

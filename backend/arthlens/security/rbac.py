@@ -55,10 +55,17 @@ class EndpointPolicyRegistry:
         self._register_handbook_policies()
 
     def _register_handbook_policies(self) -> None:
-        """Register the authoritative Handbook Part 10.1 permission matrix."""
+        """Register the authoritative ArthLens Business OS & Decision Platform permission matrix."""
         # 1. Public or Session endpoints
         self.register("/auth/login", "POST", allowed_roles={"*"})
+        self.register("/auth/login/initiate", "POST", allowed_roles={"*"})
+        self.register("/auth/login/verify-otp", "POST", allowed_roles={"*"})
         self.register("/auth/register", "POST", allowed_roles={"*"})
+        self.register("/auth/register/initiate", "POST", allowed_roles={"*"})
+        self.register("/auth/register/verify-otp", "POST", allowed_roles={"*"})
+        self.register("/auth/otp/resend", "POST", allowed_roles={"*"})
+        self.register("/auth/google", "POST", allowed_roles={"*"})
+        self.register("/auth/refresh", "POST", allowed_roles={"*"})
         self.register("/auth/logout", "POST", allowed_roles={"*"})
         self.register("/auth/ping", "GET", allowed_roles={"*"})
         self.register("/health", "GET", allowed_roles={"*"})
@@ -66,110 +73,130 @@ class EndpointPolicyRegistry:
         self.register("/auth/me", "GET", allowed_roles={"*"})
         self.register("/auth/password-reset/request", "POST", allowed_roles={"*"})
         self.register("/auth/password-reset/confirm", "POST", allowed_roles={"*"})
+        # Unauthenticated probes used by the load balancer and deployment smoke suite.
+        self.register("/health/live", "GET", allowed_roles={"*"})
+        self.register("/health/ready", "GET", allowed_roles={"*"})
 
-        # 2. Runs endpoints
-        self.register("/runs", "POST", allowed_roles={Role.ENTREPRENEUR.value})
-        self.register("/runs/{id}", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.ADMIN.value}, require_ownership=True, allow_admin_bypass=True)
-        self.register("/runs/{id}/events", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.ADMIN.value}, require_ownership=True, allow_admin_bypass=True)
-        self.register("/runs/{id}/answer", "POST", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True, allow_admin_bypass=False)
-        self.register("/runs/{id}/approve", "POST", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value}, require_ownership=True)
+        # 2. Business Operating System & Decision Intelligence endpoints
+        biz_roles = {Role.ENTREPRENEUR.value, Role.ADMIN.value}
+        self.register("/businesses", "GET", allowed_roles=biz_roles)
+        self.register("/businesses", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}", "PUT", allowed_roles=biz_roles)
+        self.register("/businesses/{id}", "DELETE", allowed_roles=biz_roles, require_ownership=True)
+        self.register("/businesses/{id}/archive", "POST", allowed_roles=biz_roles, require_ownership=True)
+        self.register("/businesses/{id}/members", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/members", "POST", allowed_roles=biz_roles, require_ownership=True)
+        self.register("/businesses/{id}/members/{id}", "PATCH", allowed_roles=biz_roles, require_ownership=True)
+        self.register("/businesses/{id}/members/{id}", "DELETE", allowed_roles=biz_roles, require_ownership=True)
+        self.register("/businesses/{id}/activity", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/khata/reconcile", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/customers", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/customers", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/customers/{id}", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/customers/{id}", "PUT", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/customers/{id}/ledger", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/suppliers", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/suppliers", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/suppliers/{id}", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/suppliers/{id}", "PUT", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/suppliers/{id}/ledger", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/products", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/products", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/products/{id}", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/products/{id}", "PUT", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/inventory/adjust", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/inventory/balances", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/inventory/movements", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/inventory/unreconciled-costs", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/inventory/reconcile-costs", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/inventory/cost-reconciliation-history", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/invoices", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/invoices", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/invoices/{id}", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/invoices/{id}", "PUT", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/invoices/{id}", "DELETE", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/invoices/{id}/payments", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/invoices/{id}/cancel", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/invoices/{id}/pdf", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/purchases", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/purchases", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/purchases/{id}", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/purchases/{id}", "PUT", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/purchases/{id}", "DELETE", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/purchases/{id}/payments", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/purchases/{id}/pdf", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/income", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/income", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/expenses", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/expenses", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/cash-position", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/goals", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/goals", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/goals/{id}", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/goals/{id}", "PUT", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/goals/{id}", "DELETE", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/goals/{id}/recalculate", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/goals/{id}/evaluate", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/goals/{id}/milestones", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/goals/{id}/milestones", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/goals/{id}/milestones/{id}", "DELETE", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/goals/{id}/plans", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/goals/{id}/plans", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/goals/{id}/tasks", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/goals/{id}/tasks", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/goals/{id}/tasks/{id}", "PATCH", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/goals/{id}/tasks/{id}", "DELETE", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/analytics/pnl", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/analytics/cash-flow", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/analytics/working-capital", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/analytics/ageing", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/analytics/break-even", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/analytics/health-score", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/decisions/evaluate", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/decisions/simulate-risk", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/decisions/sensitivity", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/decisions/history", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/decisions/{id}/versions", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/agent/investigate", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/agent/sessions/{id}/actions", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/agent/sessions/{id}/actions", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/agent/sessions/{id}/actions/{id}/confirm", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/agent/sessions/{id}/actions/{id}/reject", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/agent/sessions/{id}/actions/{id}/download", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/scenarios", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/scenarios", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/scenarios/{id}", "DELETE", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/scenarios/compare", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/scenarios/{id}/versions", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/scenarios/{id}/versions", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/scenarios/{id}/runs", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/scenarios/{id}/runs", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/scenarios/{id}/runs/{id}/replay", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/reports/dossier.pdf", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/reports/decisions/{id}/brief.pdf", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/reports/customers/{id}/ledger.csv", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/reports/suppliers/{id}/ledger.csv", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/reports/ledger.csv", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/ledger/journal-entries", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/ledger/trial-balance", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/ledger/accounts/{id}", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/periods", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/periods", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/periods/{id}/close", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/returns/sales", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/returns/purchases", "POST", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/transactions", "GET", allowed_roles=biz_roles)
+        self.register("/businesses/{id}/transactions/export.csv", "GET", allowed_roles=biz_roles)
 
-        # 2a. Persisted agent-run lifecycle API
-        self.register("/agent-runs", "POST", allowed_roles={Role.ENTREPRENEUR.value})
-        self.register(
-            "/agent-runs/{id}",
-            "GET",
-            allowed_roles={Role.ENTREPRENEUR.value, Role.ADMIN.value},
-            require_ownership=True,
-            allow_admin_bypass=True,
-        )
-        self.register(
-            "/agent-runs/{id}/events",
-            "GET",
-            allowed_roles={Role.ENTREPRENEUR.value, Role.ADMIN.value},
-            require_ownership=True,
-            allow_admin_bypass=True,
-        )
-        self.register(
-            "/agent-runs/{id}/events/stream",
-            "GET",
-            allowed_roles={Role.ENTREPRENEUR.value, Role.ADMIN.value},
-            require_ownership=True,
-            allow_admin_bypass=True,
-        )
-        self.register(
-            "/agent-runs/{id}/start",
-            "POST",
-            allowed_roles={Role.ENTREPRENEUR.value},
-            require_ownership=True,
-        )
-        self.register(
-            "/agent-runs/{id}/tasks",
-            "GET",
-            allowed_roles={Role.ENTREPRENEUR.value, Role.ADMIN.value},
-            require_ownership=True,
-            allow_admin_bypass=True,
-        )
-        self.register(
-            "/agent-runs/{id}/tasks",
-            "POST",
-            allowed_roles={Role.ENTREPRENEUR.value},
-            require_ownership=True,
-        )
-
-        # 3. Scenarios endpoints
-        self.register("/scenarios", "GET", allowed_roles={Role.ENTREPRENEUR.value})
-        self.register("/scenarios", "POST", allowed_roles={Role.ENTREPRENEUR.value})
-        self.register("/scenarios/{id}", "GET", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True)
-        self.register("/scenarios/{id}", "PUT", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True)
-        self.register("/scenarios/{id}", "DELETE", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True)
-        self.register("/scenarios/{id}/branch", "POST", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True)
-        self.register("/scenarios/{id}/calculate", "POST", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True)
-        self.register("/scenarios/{id}/simulate", "POST", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True)
-        self.register("/scenarios/{id}/spatial-demand", "POST", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True)
-        self.register("/scenarios/{id}/accessibility", "POST", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True)
-        self.register("/scenarios/{id}/policy", "POST", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value}, require_ownership=True)
-        self.register("/scenarios/{id}/report", "GET", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True)
-        self.register("/scenarios/compare", "POST", allowed_roles={Role.ENTREPRENEUR.value})
-        self.register("/scenarios/comparisons/{id}", "GET", allowed_roles={Role.ENTREPRENEUR.value}, require_ownership=True)
-
-        # 4. Epistemic Ledger, Geo, Reports, Policy, Replay
-        self.register("/reports/dossier", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
-        self.register("/ledger/{quantity_id}", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
-        self.register("/ledger/{quantity_id}/graph", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
-        self.register("/geo/units", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
-        self.register("/geo/pilot-boundaries", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
-        self.register("/geo/pilot-pmtiles", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
-        self.register("/geo/{id}", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
-        self.register("/geo/{id}/indicators", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
-        self.register("/geo/{id}/quality", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
-        self.register("/policy/rules", "GET", allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value})
-        self.register("/policy/rules", "POST", allowed_roles={Role.STEWARD.value})
-        self.register("/policy/documents", "POST", allowed_roles={Role.STEWARD.value})
-        self.register("/policy/documents/{id}/review", "POST", allowed_roles={Role.STEWARD.value})
-        self.register("/policy/rules/{id}/approve", "POST", allowed_roles={Role.STEWARD.value})
-        self.register("/policy/rules/{id}/retire", "POST", allowed_roles={Role.STEWARD.value})
-        self.register(
-            "/policy/schemes/{scheme_id}/evaluate",
-            "POST",
-            allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value},
-        )
-        self.register(
-            "/policy/evaluations/{id}",
-            "GET",
-            allowed_roles={Role.ENTREPRENEUR.value, Role.STEWARD.value, Role.ADMIN.value},
-            require_ownership=True,
-        )
-        self.register("/replay/{id}", "GET", allowed_roles={"*"})
-
-        # 5. Administrative endpoints
+        # 3. Administrative endpoints
         self.register("/admin/users", "GET", allowed_roles={Role.ADMIN.value})
         self.register("/admin/users/{id}/role", "POST", allowed_roles={Role.ADMIN.value})
         self.register("/admin/users/{id}/deactivate", "POST", allowed_roles={Role.ADMIN.value})
         self.register("/admin/users/{id}/activate", "POST", allowed_roles={Role.ADMIN.value})
         self.register("/admin/audit", "GET", allowed_roles={Role.ADMIN.value})
         self.register("/admin/audit-events", "GET", allowed_roles={Role.ADMIN.value})
-        self.register("/admin/sources", "GET", allowed_roles={Role.ADMIN.value, Role.STEWARD.value})
+        self.register("/admin/sources", "GET", allowed_roles={Role.ADMIN.value})
 
     def register(
         self,
@@ -258,6 +285,11 @@ def get_current_user(request: Request) -> AuthenticatedUser:
             detail=f"Invalid authentication credentials: {e}",
         )
 
+    if claims.get("token_type", "access") != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh credentials cannot be used as API access tokens.",
+        )
     user_id = claims["sub"]
 
     # Re-validate user existence and authoritative roles from repository (FAIL CLOSED)

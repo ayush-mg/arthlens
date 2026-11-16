@@ -22,6 +22,76 @@ def is_dev_mode() -> bool:
     return env not in ("production", "prod")
 
 
+def send_email_otp(to_email: str, otp_code: str, purpose: str) -> Tuple[bool, str]:
+    """Deliver a short-lived email verification/sign-in code.
+
+    OTP values are intentionally visible in logs only outside production so local
+    development remains usable without SMTP. Production fails closed if SMTP is
+    not configured or delivery fails.
+    """
+    smtp_host = os.environ.get("SMTP_HOST", "").strip()
+    smtp_port = int(os.environ.get("SMTP_PORT", "587"))
+    smtp_user = os.environ.get("SMTP_USER", "").strip()
+    smtp_pass = os.environ.get("SMTP_PASSWORD", "").strip()
+    if not smtp_host and smtp_user and smtp_pass:
+        smtp_host = "smtp.gmail.com"
+    smtp_from = os.environ.get("SMTP_FROM_EMAIL", "noreply@arthlens.org").strip()
+    smtp_use_tls = os.environ.get("SMTP_USE_TLS", "true").lower() in ("true", "1", "yes")
+    subject = "Your ArthLens sign-in code" if purpose == "LOGIN_2FA" else "Verify your ArthLens email"
+
+    if to_email.lower().endswith((".local", ".test", ".example")):
+        dev_message = f"[AUTH DEV OTP] {purpose} code for {to_email}: {otp_code} (expires in 10 minutes)"
+        print(dev_message)
+        logger.warning(dev_message)
+        return True, "development-console"
+
+    if smtp_host:
+        try:
+            message = MIMEMultipart("alternative")
+            message["Subject"] = subject
+            message["From"] = smtp_from
+            message["To"] = to_email
+            text_body = (
+                f"Your ArthLens verification code is {otp_code}.\n\n"
+                "It expires in 10 minutes and can be used once. If you did not request it, ignore this email."
+            )
+            html_body = (
+                '<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:28px;'
+                'background:#0b0f17;color:#f8fafc;border:1px solid #263244;border-radius:20px">'
+                '<p style="color:#34d399;font-size:12px;letter-spacing:.18em;text-transform:uppercase">ArthLens security</p>'
+                f'<h1 style="font-size:28px">{subject}</h1>'
+                f'<p style="font-size:34px;letter-spacing:.32em;font-weight:700">{otp_code}</p>'
+                '<p style="color:#94a3b8">This code expires in 10 minutes and can be used once.</p></div>'
+            )
+            message.attach(MIMEText(text_body, "plain"))
+            message.attach(MIMEText(html_body, "html"))
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
+                if smtp_use_tls:
+                    server.starttls()
+                if smtp_user and smtp_pass:
+                    server.login(smtp_user, smtp_pass)
+                server.send_message(message)
+            logger.info("Sent ArthLens OTP email to %s", to_email)
+            return True, "smtp"
+        except Exception as exc:
+            logger.exception("Failed to send ArthLens OTP email to %s", to_email)
+            if is_dev_mode():
+                logger.warning("SMTP failed in dev mode; falling back to console OTP: %s", exc)
+                dev_message = f"[AUTH DEV OTP] {purpose} code for {to_email}: {otp_code} (expires in 10 minutes)"
+                print(dev_message)
+                return True, "development-console"
+            raise RuntimeError("Email verification delivery is unavailable.") from exc
+
+    if not is_dev_mode():
+        raise RuntimeError("SMTP must be configured for production email verification.")
+
+    dev_message = f"[AUTH DEV OTP] {purpose} code for {to_email}: {otp_code} (expires in 10 minutes)"
+    print(dev_message)
+    logger.warning(dev_message)
+
+    return True, "development-console"
+
+
 def send_password_reset_email(
     to_email: str,
     reset_token: str,
@@ -41,6 +111,12 @@ def send_password_reset_email(
     smtp_pass = os.environ.get("SMTP_PASSWORD", "").strip()
     smtp_from = os.environ.get("SMTP_FROM_EMAIL", "noreply@arthlens.org").strip()
     smtp_use_tls = os.environ.get("SMTP_USE_TLS", "true").lower() in ("true", "1", "yes")
+
+    if to_email.lower().endswith((".local", ".test", ".example")):
+        dev_message = f"[AUTH DEV PASSWORD RESET] Recovery URL for {to_email}: {reset_url}"
+        print(dev_message)
+        logger.warning(dev_message)
+        return True, "development-console"
 
     if smtp_host:
         try:

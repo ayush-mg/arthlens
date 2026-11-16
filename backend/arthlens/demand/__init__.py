@@ -1,1 +1,0 @@
-"""ArthLens demand module."""

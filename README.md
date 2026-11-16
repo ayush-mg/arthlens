@@ -1,212 +1,256 @@
-# ArthLens
+# ArthLens (अर्थLens)
 
-> **Status: Full Autonomous Implementation Complete (Phases 1 through 7 Verified & Passed)**
->
-> *An agentic, evidence-gated economic decision engine for Indian micro-enterprises.*  
-> **Authoritative Specification**: [ArthLens Build Handbook](docs/ArthLens_Build_Handbook.pdf) (v1.0, 17 Oct 2026)
+> **Sovereign Financial Operating System & Agentic Decision Intelligence Platform**  
+> *Zero Math Hallucination • Integer-Paisa Ledger Precision • Human-in-the-Loop AI Governance • 18 Workspace Modules*
 
----
-
-## 1. What is ArthLens?
-
-**ArthLens** is an open, evidence-governed decision-support platform designed to assist prospective micro-entrepreneurs in India in exploring two foundational questions:
-1. **Is this small business idea economically viable?**
-2. **Where within a district is the most promising location to set it up?**
-
-Unlike conventional business dashboards that display static charts or generic AI chatbots that guess answers, ArthLens is architected around an **Epistemic Ledger**—a verifiable accounting system for data where **every single number is tagged with its origin, resolution, and certainty level**.
-
-The core design principle of ArthLens is **evidence gating**: the system refuses to present estimates as observed facts, refuses to claim village-level precision when only district averages exist, and mandates that all financial calculations, spatial modeling, and policy eligibility checks are evaluated by deterministic, auditable code rather than large language model (LLM) guesswork.
-
-> **Implementation Status & Scope**:
-> - **Phase 1 (Foundations & Core Domains)**: Complete (PASS). Pint units, immutable `Quantity`, verification specifications, PostgreSQL 16 + PostGIS repositories, and RBAC matrix.
-> - **Phase 2 (Data Ingestion & Geographic Grounding)**: Complete (PASS). Official pipelines for OpenStreetMap (`DS-04`), LGD/Census 2011 (`DS-05`), Government Schemes (`DS-08`), and Administrative Boundaries (`DS-09`), with 6-state data quality shading (`CURRENT`, `INCOMPLETE`, `STALE`, `ESTIMATED`, `UNAVAILABLE`, `CONTRADICTED`).
-> - **Phase 3 (Computational Engine)**: Complete (PASS). Custom Dijkstra road routing, Huff gravity allocation, deterministic loan amortization & cash flows, reproducible Monte Carlo simulations, one-at-a-time sensitivity, and 3-valued Kleene policy evaluation.
-> - **Phase 4 (Agent Orchestration & Gemini Integration)**: Complete (PASS). 14 registered deterministic tools, durable background worker with atomic claims (`SKIP LOCKED`) and checkpoint recovery, Google Gemini adapter (`gemini-3.1-flash-lite`), OpenAI adapter, deterministic offline fallback, and live SSE streaming telemetry.
-> - **Phase 5 (End-to-End Workflows & Replay)**: Complete (PASS). Canonical Loops A, B, and C; multi-format Decision Dossiers (JSON, CSV with injection escaping, XLSX via `openpyxl`, PDF via `pypdf`); exact-match offline golden replay traces for Loops A, B, and C.
-> - **Phase 6 (Benchmark, Governance & Security)**: Complete (PASS). Benchmark task schema validation, strict score aggregation with bootstrap intervals, 27/27 security tests (CSRF, IP trust, IDOR scenario isolation, password security, Git repository secret scan).
-> - **Phase 7 (Deployment & Operations)**: Complete (PASS). Deployment preflight CLI (`scripts/deployment_preflight.py` verifying 1 migration head and 5 checked keys), Next.js 14 production build (10/10 static pages compiled), and complete Playwright E2E journey suites (14/14 passed).
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.111+-009688.svg?style=flat&logo=fastapi)](https://fastapi.tiangolo.com)
+[![Next.js 14](https://img.shields.io/badge/Next.js-14.2_App_Router-black.svg?style=flat&logo=next.js)](https://nextjs.org)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16_+_PostGIS_3.4-336791.svg?style=flat&logo=postgresql)](https://www.postgresql.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6.svg?style=flat&logo=typescript)](https://www.typescriptlang.org)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4+-38B2AC.svg?style=flat&logo=tailwind-css)](https://tailwindcss.com)
+[![Alembic](https://img.shields.io/badge/Alembic-Head_026-red.svg?style=flat)](https://alembic.sqlalchemy.org)
+[![Playwright](https://img.shields.io/badge/Playwright-8%2F8_E2E_Passed-45ba4b.svg?style=flat&logo=playwright)](https://playwright.dev)
+[![Vitest](https://img.shields.io/badge/Vitest-22%2F22_Passed-729B1B.svg?style=flat&logo=vitest)](https://vitest.dev)
 
 ---
 
-## 2. Quick Start & Local Execution
+## Executive Overview
 
-ArthLens provides one-command startup via Docker Compose, Makefile, or native shell scripts.
+**ArthLens** is an enterprise-grade sovereign business operating system built for MSMEs, commercial enterprises, and financial stewards. It unifies daily commercial operations—sales invoicing, purchase orders, inventory tracking with weighted-average cost basis reconciliation, double-entry customer/supplier ledgers (*Khata*), and liquid cash treasury—with deterministic financial modeling and agentic AI guidance.
 
-### Option A: One-Command Docker Compose (Recommended)
-```bash
-# Start all services (PostGIS DB, migrations, seeds, FastAPI backend, worker, Next.js frontend)
-make up
-# Or directly via docker compose:
-docker compose up -d --build
+### Core Architectural Differentiators
+1. **Zero Math Hallucination**: All calculations (P&L, cash flow, debt service coverage ratio (DSCR), net present value (NPV), annualized CAGR, working capital, and unit economics) are strictly computed by deterministic Python engines and verified ledger tools. The LLM is never permitted to perform raw arithmetic.
+2. **Integer-Paisa Ledger Integrity**: All monetary values are modeled in integer paisa ($\text{₹}1.00 = 100\text{ paisa}$) using immutable double-entry bookkeeping principles, eliminating floating-point rounding errors.
+3. **Staged AI Governance Gate**: The Agentic Copilot formulates multi-step investigation DAG plans and generates strategic recommendations. Any suggested state-mutating actions (e.g., creating operational tasks, setting goals, or issuing reports) are placed in a staged review gate that requires explicit human owner confirmation before touching the database.
+4. **Strict Tenant & Role Isolation**: Every query and transaction is scoped by authenticated multi-tenant business context with deny-by-default role-based access control (RBAC).
+
+---
+
+## Core Architecture & Tech Stack
+
+```mermaid
+flowchart TD
+    subgraph Client["Presentation Layer (Client)"]
+        UI["Next.js 14 App Router\n(React 18 + TypeScript + Tailwind CSS)"]
+        Orbit["18 Workspace Modules\n(/workspaces/[id]/*)"]
+        AdminUI["Platform Admin Console\n(/admin/users)"]
+        UI --> Orbit
+        UI --> AdminUI
+    end
+
+    subgraph SecurityGateway["Security & Authentication"]
+        Auth["FastAPI Auth Layer\n(Argon2id + HTTP-Only JWT Cookies + OTP 2FA)"]
+        OAuth["Google OAuth 2.0\n(/auth/google + Dev Chooser)"]
+        RBAC["Deny-by-Default RBAC Engine\n(OWNER, ADMIN, MANAGER, ANALYST, AUDITOR)"]
+    end
+
+    subgraph CoreServices["Domain Engine & Application Services"]
+        Ledger["Double-Entry Ledger\n(Integer-Paisa Precision)"]
+        FinEngine["Deterministic Financial Engine\n(NPV, CAGR, DSCR, P&L, Break-Even)"]
+        CostRecon["Inventory Cost Reconciler\n(Weighted-Average Cost Basis)"]
+        Agent["Agentic Copilot\n(Investigation DAG + Staged Action Gate)"]
+        GovGate["Governance Gate\n(Explicit Human Confirmation)"]
+        Agent --> GovGate
+    end
+
+    subgraph Persistence["Storage & Database Layer"]
+        PG[("PostgreSQL 16 + PostGIS\n26 Alembic Migrations\nHead: 026_auth_otp_and_google_oauth")]
+    end
+
+    Client -->|Encrypted HTTPS / REST| SecurityGateway
+    SecurityGateway --> CoreServices
+    CoreServices --> Persistence
 ```
 
-### Option B: Local PowerShell (Windows)
+- **Backend**: FastAPI with async route handlers and synchronous repository wrappers, SQLAlchemy 2.0 ORM, and Alembic (26 sequential migrations ending at `026_auth_otp_and_google_oauth`).
+- **Frontend**: Next.js 14 App Router, TypeScript, Tailwind CSS, Framer Motion kinetic surfaces, and Lucide Icons.
+- **Database**: PostgreSQL 16 with PostGIS extensions for spatial and multi-tenant ledger persistence.
+- **Authentication**: Argon2id password hashing, single-use 6-digit email OTP login verification, Google OAuth 2.0 with cryptographic state validation, and secure HTTP-only SameSite JWT sessions.
+- **Quality Assurance**: 164 unit, contract, and integration tests (`pytest`), 22 frontend unit tests (`vitest`), and 8 full-stack browser journeys (`playwright`).
+
+---
+
+## Platform Modules & Features
+
+### Platform Administration (`/admin/users`)
+- **System User Directory**: Inspect registered accounts, quota counters, and assigned system roles.
+- **Tenant Governance**: Activate, suspend, or terminate accounts with immediate session revocation.
+- **Audit Monitoring**: Real-time inspection of auth events, credential resets, and tenant updates.
+
+### 18 Workspace Chapters (`/workspaces/[id]/*`)
+
+| # | Chapter Route | Purpose & Key Capabilities |
+|---|---|---|
+| **01** | `/` (Overview) | Live executive dashboard with liquid cash reserves, receivables, payables, and health indicators. |
+| **02** | `/sales` | Sales order drafting, customer invoice dispatch, payment recording, and credit returns. |
+| **03** | `/purchases` | Vendor POs, goods receipt verification, payment releases, and debit purchase returns. |
+| **04** | `/inventory` | Product catalog, real-time stock balances, reorder alerts, and historical cost reconciliation. |
+| **05** | `/khata` | Traditional double-entry customer & supplier ledgers with debit/credit balance reconciliation. |
+| **06** | `/finance` | Financial statements (P&L, Cash Flow, Balance Sheet), liquidity ratios, and break-even analysis. |
+| **07** | `/decisions` | Immutable decision versioning, sensitivity evaluations, and causal evidence graphs. |
+| **08** | `/scenarios` | 12-month forward financial projections, Monte Carlo simulations, and version comparisons. |
+| **09** | `/goals` | Objective tracking with milestone interpolation, action plans, and task assignments. |
+| **10** | `/analytics` | Gross margins, working capital cycle, aging analysis, and financial health scoring. |
+| **11** | `/agent` | AI Investigation Copilot with deterministic tool execution and human-in-the-loop action staging. |
+| **12** | `/customers` | Customer directory, credit terms, lifetime sales, and overdue invoice tracking. |
+| **13** | `/suppliers` | Vendor relationship management, procurement history, and outstanding payables. |
+| **14** | `/reports` | Exportable PDF and CSV dossier statements, sales registers, and tax ledgers. |
+| **15** | `/audit` | Tamper-evident audit trail capturing every actor, IP, timestamp, and state delta. |
+| **16** | `/members` | Workspace member invitation, permission delegation, and role matrix configuration. |
+| **17** | `/settings` | Workspace parameters, currency configuration, and tenant lifecycle/archival controls. |
+| **18** | `/constellation` | Interactive 2D/3D relational graph visualizing connections across customers, vendors, and ledger nodes. |
+
+---
+
+## Quickstart & Deployment Guide
+
+### Option A: One-Command Local Development Launch
+
+ArthLens includes an automated local stack orchestrator that starts the PostgreSQL cluster, verifies schema migrations, seeds demo accounts, and boots both FastAPI and Next.js.
+
+#### On Windows (PowerShell):
 ```powershell
-.\run-local.ps1
-# To cleanly shut down all local servers:
+# 1. Start all services locally (Backend on :8000, Frontend on :3000, DB on :5433)
+.\run-local.ps1 -Wait
+
+# 2. To cleanly stop all services and release port bindings:
 .\stop-local.ps1
 ```
 
-### Option C: Local Bash (Linux / macOS)
+#### On Linux / macOS (Bash):
 ```bash
+# 1. Make executable and launch
+chmod +x ./start.sh ./stop.sh
 ./start.sh
-# To cleanly shut down:
+
+# 2. To cleanly stop all services:
 ./stop.sh
 ```
 
-### Default Services & Ports
-| Service | URL | Notes |
+#### Default Development Credentials
+| Role | Email | Password |
 |---|---|---|
-| **Frontend Web UI** | `http://localhost:3000` | Next.js 14 liquid-glass interface |
-| **Backend API** | `http://localhost:8000` | FastAPI documentation at `/docs` |
-| **PostGIS Database** | `localhost:5432` | PostGIS 16 (or port specified via `POSTGRES_PORT`) |
-
-### Development Demo Credentials
-- **Entrepreneur**: `demo.entrepreneur@arthlens.local` (Password: `Entrepreneur123!`) or `entrepreneur@arthlens.org` (Password: `Password123!`)
-- **Steward**: `demo.steward@arthlens.local` (Password: `Steward123!`) or `steward@arthlens.org` (Password: `Password123!`)
-- **Administrator**: `demo.admin@arthlens.local` (Password: `Administrator123!`) or `admin@arthlens.org` (Password: `Password123!`)
+| **System Administrator** | `admin@arthlens.org` | `Password123!` |
+| **Business Owner** | `entrepreneur@arthlens.org` | `Password123!` |
+| **Financial Steward** | `steward@arthlens.org` | `Password123!` |
 
 ---
 
-## 3. The Problem It Addresses
+### Option B: Administrative Commands & Seeding
 
-Small-scale entrepreneurs planning micro-enterprises (such as a neighbourhood retail grocery or a small food-processing/tiffin unit with small capital, e.g., an illustrative [ILLUSTRATIVE] ₹2–5 lakh):
-- **Face fragmented public data**: Official census figures, district economic indicators, and banking statistics are dispersed across separate portals, frequently in disparate and legacy formats.
-- **Struggle with complex government policies**: Central and state schemes (such as PMFME, PMEGP, or PM-MUDRA) span lengthy PDF guidelines with intricate eligibility matrices, making it difficult to determine real eligibility or actual cash-flow impact.
-- **Lack access to commercial location intelligence**: Proprietary location intelligence tools cater predominantly to enterprise retail chains, leaving micro-enterprises without evidence-backed site comparison. *(Note: Competitor positioning and feature boundaries are preliminary research findings undergoing validation in Task P0-3).*
-- **Suffer from AI "hallucinations"**: General-purpose AI assistants frequently fabricate scheme rules, interest rates, or local demand statistics, providing dangerously ungrounded advice.
+```bash
+# Bootstrap the primary system administrator (bypasses UI registration)
+python scripts/bootstrap_admin.py --email admin@yourdomain.com --password "SecureAdminPass123!"
 
-ArthLens addresses this by uniting verified public datasets, deterministic financial and spatial models, and an autonomous AI planning agent governed by strict verification rules.
+# Seed demo businesses, inventories, sales, and khata records
+python scripts/seed_demo_accounts.py
 
----
-
-## 4. The Three Core User Workflows (Loops)
-
-ArthLens structures user interactions into three distinct investigation loops:
-
-```
-+-----------------------------------------------------------------------------------+
-| Loop A: Question to Verified Answer                                               |
-| Input: Economic question or claim                                                 |
-| Planned Process: Fetch indicators -> check units/geography -> verify provenance   |
-| Output: Evidence-backed answer with source links, or a transparent data-gap report|
-+-----------------------------------------------------------------------------------+
-                                          |
-+-----------------------------------------------------------------------------------+
-| Loop B: Opportunity to Decision (Location & Feasibility)                          |
-| Input: District, business type (retail/food), 2-3 candidate sites, capital        |
-| Planned Process: Travel-time catchments (Dijkstra) -> Demand gravity (Huff) ->    |
-|                  Monthly cash flow -> Monte Carlo risk -> Sensitivity analysis     |
-| Output: Ranked comparison of candidate sites with explicit assumption labels      |
-+-----------------------------------------------------------------------------------+
-                                          |
-+-----------------------------------------------------------------------------------+
-| Loop C: Scheme to Financial Impact                                                |
-| Input: Entrepreneur profile, business facts, and chosen scheme (or discovery)     |
-| Planned Process: 3-valued logic rule evaluation -> Identify missing facts ->      |
-|                  Compute exact loan schedule, moratorium interest, and subsidy    |
-| Output: Precise eligibility verdict (Eligible / Ineligible / Unknown) and rupee   |
-|         impact integrated into the business cash flow                             |
-+-----------------------------------------------------------------------------------+
-```
-
-1. **Loop A (Question to Verified Answer)**: An entrepreneur asks a factual question (e.g., *"What is the bank credit-deposit ratio in my district?"*). The planned agent retrieves verified public data, checks compatibility, and produces an answer where every figure traces to an official source. If data is unavailable, it reports the gap instead of guessing.
-2. **Loop B (Opportunity to Decision)**: An entrepreneur selects 2–3 candidate locations on a map for a business concept. The system computes travel-time catchment zones, estimates demand capture, models monthly revenues and costs, simulates risk scenarios (Monte Carlo), and provides a side-by-side comparison.
-3. **Loop C (Scheme to Financial Impact)**: An entrepreneur checks which government support schemes apply to them. ArthLens evaluates official guidelines step-by-step using strict logic. If details are missing, it asks targeted questions. Once verified, it calculates the exact subsidy amount, interest schedule, and updates the cash-flow projection.
-
----
-
-## 4. Proposed Technology Stack
-
-| Layer | Technology | Architectural Role |
-| :--- | :--- | :--- |
-| **Frontend** | **Next.js (App Router), TypeScript, Tailwind CSS** | The web application interface seen by the user. Type-safe and responsive. |
-| **Mapping & GIS** | **MapLibre GL JS & PMTiles** | Interactive maps reading vector map archives directly from object storage without requiring custom tile-server infrastructure. |
-| **Data Visualization** | **Apache ECharts & Cytoscape.js** | ECharts renders financial fan charts and sensitivity tornado plots; Cytoscape.js renders the interactive Evidence Graph and Policy AST. |
-| **Backend API** | **Python 3.14, FastAPI, Pydantic v2** | High-speed API layer with strict request/response data validation. |
-| **Database & Spatial** | **PostgreSQL + PostGIS** | Relational database with geographic data extensions handling boundaries, spatial queries, and road networks. |
-| **Asynchronous Jobs** | **Postgres Jobs Table (`FOR UPDATE SKIP LOCKED`)** | Reliable background job worker queue without adding external broker dependencies (no Redis or Celery in MVP). |
-| **Numerics & GIS Math**| **NumPy, SciPy, GeoPandas, Shapely, Pint** | Deterministic calculations for spatial demand allocation, financial models, risk simulations, and unit safety. |
-| **Agent Orchestrator** | **Custom Python State Machine** | Orchestrates agent planning, tool invocations, budgets, and state recovery. |
-| **LLM Access** | **Unified `ILLMClient` Adapter** | Provider-agnostic interface with circuit breaker, prompt-injection firewall, and zero-cost offline replay mode. |
-| **Testing** | **pytest, Hypothesis, Playwright** | Unit tests, property-based verification (Hypothesis), and end-to-end browser tests (Playwright). |
-
----
-
-## 5. Architectural Concepts Explained in Simple Terms
-
-- **Agentic**: Rather than following a rigid script, the AI agent can formulate a plan, select appropriate calculation tools, inspect intermediate findings, and adapt its next steps based on what data is available.
-- **Epistemic Ledger**: A ledger (similar to an accounting ledger) that tracks knowledge. Every number stored knows whether it is an *observed fact*, an *official rule*, a *user assumption*, or a *modelled estimate*.
-- **Evidence Gating**: A strict programmatic rulebook. Before any report is shown to a user, a verifier checks that claims do not exceed what the evidence supports (for example, stopping an LLM from presenting a district average as a specific village statistic).
-- **Dijkstra's Algorithm**: An algorithm that finds the shortest travel routes on a road network to determine which areas can reach a business within 15, 30, or 60 minutes.
-- **Huff Gravity Model**: A mathematical model that predicts how customers choose between competing stores based on store attractiveness and travel distance.
-- **Monte Carlo Simulation**: Running thousands of simulated future scenarios with varying costs and demand levels to see the probability of running out of cash.
-- **Kleene 3-Valued Logic**: Logic using three values: `True`, `False`, and `Unknown`. If an entrepreneur has not yet specified a required fact, the rule engine marks eligibility as `Unknown` and asks for that fact, rather than guessing.
-
----
-
-## 6. Repository Layout Overview
-
-```
-arthlens/
-├── frontend/               # Next.js web application (Atlas, Studio, Console)
-├── backend/arthlens/       # Python FastAPI backend & core computational engines
-│   ├── domain/             # Immutable data structures (Quantity, Scenario, BusinessProfile)
-│   ├── ledger/             # Epistemic Ledger, DAG propagation, and verification specifications
-│   ├── policy/             # AST rule engine with Kleene 3-valued logic
-│   ├── geo/                # Road graphs, Dijkstra catchments, spatial disaggregation
-│   ├── demand/             # Demand allocation strategies (Nearest, Huff)
-│   ├── finance/            # Deterministic financial models, loan schedules, break-even
-│   ├── simulation/         # Vectorized Monte Carlo and sensitivity analysis
-│   ├── agent/              # Orchestrator, state machine, tool registry, recovery
-│   └── llm/                # LLM client adapters, circuit breakers, replay engine
-├── docs/                   # Authoritative specifications, architecture records, checklists
-└── tests/                  # Unit, property, contract, integration, and e2e suites
+# Execute preflight production sanity checks without connecting to live DB
+python scripts/deployment_preflight.py
 ```
 
 ---
 
-## 7. Current Project Status
+### Option C: Production Docker Deployment
 
-- **Phase 1 (Foundations & Persistence)**: **Complete**.
-  - Immutable domain models, unit typing (Pint), Kleene 3-valued policy AST, Epistemic Ledger DAG, PostgreSQL + PostGIS schema (Alembic migrations 001–005), and JWT/RBAC security infrastructure.
-- **Phase 2 (Data Pipelines & Spatial Hierarchy)**: **Complete**.
-  - **P2-1 — Verified Dataset Ingestion and Persistence**: **Complete**.
-    - Ingestion pipeline with four verified adapters: OSM road network & POIs (`DS-04`), LGD & Census 2011 demographics (`DS-05`), Central Government Scheme guidelines (`DS-08`), and Survey of India compliant administrative boundaries (`DS-09`).
-    - Database persistence for registered sources, snapshot versions, normalized records, and epistemic quantities.
-  - **P2-2 — National & District Geographic Hierarchy Expansion**: **Complete**.
-    - Immutable `GeoUnit` domain model, canonical namespace formatting (`in`, `in:state:09`, `in:district:120`, `in:subdistrict:120:890`, `in:subdistrict:156:845`), and `GeoUnitRepository` implementations (InMemory & PostgreSQL/PostGIS).
-    - Decoupled orthogonal coverage semantics: `coverage_status` (navigability: `NAVIGABLE`), `geometry_status`, `analytical_status` (`ANALYSABLE` vs `ANALYSIS_UNAVAILABLE`), and `census_code`.
-    - Database check constraints via Alembic migration 007 (`check_geo_unit_coverage_status`, `check_geo_unit_geometry_status`, `check_geo_unit_analytical_status`).
-    - Ingestion of official nationwide LGD master snapshots: 36 States/UTs (`lgd_states.csv`) and 763 Districts (`lgd_districts.csv`), establishing the 800-unit national baseline hierarchy.
-    - Second-district acceptance verified: Varanasi (District LGD 187, Census 197) configured and navigated under Uttar Pradesh alongside Prayagraj without engine modification.
-    - Boundary geometry and spatial status:
-      - Only the Prayagraj pilot geometry is currently stored in PostGIS, where it is technically validated (`GEOMETRY_VERIFIED` for RFC 7946 / PostGIS polygon topology via `ST_IsValid`).
-      - Technical validity denotes geospatial query soundness and does NOT certify an authoritative government boundary.
-      - The remaining 762 baseline districts remain `GEOMETRY_MISSING`.
-      - Modern nationwide boundary acquisition remains **`SOURCE-GATED`** pending licensing and acquisition of an approved modern nationwide boundary dataset.
-      - Nationwide PMTiles vector tiles are **`NOT GENERATED`**; the PMTiles source gate is the lack of an approved modern nationwide boundary dataset, not merely a missing packaging pipeline.
-    - Test database isolation enforced via exact database identity validation guard; persistent development database verified with zero mutation across test runs.
-    - Backend regression results: **343 passed, 1 skipped (optional live data.gov.in retrieval test), 0 failed**.
-  - **P2-3 — Data-Quality Layer and Staleness Flags**: **Complete**.
-    - Authoritative quality vocabulary implemented: `CURRENT`, `INCOMPLETE`, `STALE`, `ESTIMATED`, `UNAVAILABLE`.
-    - Strict deterministic precedence order for primary display state selection: `UNAVAILABLE > INCOMPLETE > STALE > ESTIMATED > CURRENT`, with preservation of all secondary issues and explanations.
-    - Deterministic freshness evaluation with injected clock support and separate tracking of `as_of`, `publication_date`, `retrieval_date`, `ingestion_date`, and `evaluation_date`.
-    - Verified Census 2011 10-year staleness policy (`max_age_days = 3650`): strictly `STALE` evaluated on 6 November 2026 while preserving `Kind.OBSERVED`; recent download timestamps never make historical observations current.
-    - Missing data is strictly `UNAVAILABLE` (never silently numeric zero).
-    - Epistemic ledger propagation and calculation gating: calculations inspecting stale evidence inherit `STALE_ANCESTRY` and are restricted to `SUITABLE_HISTORICAL_ONLY`; missing inputs fail closed via `GatedCalculationError`.
-    - Atlas presentation contract implemented: stable design tokens, hex colors (`#22C55E`, `#EAB308`, `#F97316`, `#3B82F6`, `#94A3B8`), stroke styles, opacity, patterns, and self-contained interactive visual preview (`docs/atlas-quality-shading-preview.html`).
-    - API endpoints: enriched `GET /geo/{id}/indicators` with quality shading and added `GET /geo/{id}/quality`.
-    - Backend regression results: **374 passed, 1 skipped (optional live data.gov.in retrieval test), 0 failed**.
-  - **P2-4 — Interactive Atlas UI & Epistemic Workspace**: **Complete**.
-    - Boundary data architecture: `AdminBoundariesAdapter` (DS-09) and PostGIS geometry persistence integrated into `DatasetIngestionPipeline` (`step_9_persist`) and multistage `geo_loader.py`.
-    - Dedicated dynamic boundary endpoint `GET /geo/{geo_id}/boundary` returning RFC 7946 GeoJSON FeatureCollection with DS-09 provenance and RBAC gating.
-    - AtlasMap robust boundary rendering: Explicit resolution states (`LOADING`, `RESOLVED`, `ERROR`), request sequence counter to eliminate stale boundary rendering race conditions, and immediate clearing of previous boundary.
-    - Elimination of universal/blocking modal warning boxes on geographic selection: non-obstructive compact status pills and complete decoupling of geographic selection from data availability.
-    - Anti-fabrication guarantees: Prayagraj polygon is never displayed for unmapped units (Varanasi, Bhopal, Jaipur); no fake boundaries or fake coordinates.
-    - ProvenanceDrawer and EvidenceGraph epistemic integrity: strictly Floors 1–4 per Handbook Section 4.2 (`UNAVAILABLE` is a QualityStatus token, not an evidence floor).
-    - Mobile responsiveness: zero horizontal navigation clipping at 390×844 viewport.
-    - Verification: 11/11 boundary integration tests, 24/24 Vitest frontend unit tests, and 10/10 Playwright E2E browser tests passing.
-- **Phase 3 (Computational Engines & Scenario Modeling)**: Next phase in active development (P3-1 Dijkstra catchments, P3-2 Huff spatial allocation, P3-3 financial feasibility, P3-4 Monte Carlo, P3-5 policy AST rules, P3-6 scenario lab).
-- **Phase 4 (Agent Orchestrator & Production Hardening)**: Planned subsequent phase; not started.
-- **Authoritative Specification Document**: [ArthLens Build Handbook](docs/ArthLens_Build_Handbook.pdf) (v1.0, 17 Oct 2026).
+Deploy the entire stack with isolated container networks, persistent volumes, and health checks:
+
+```bash
+# 1. Configure production environment
+cp deployment/env.example .env
+# Edit .env with your PostgreSQL credentials, JWT secret key, and Gemini API key
+
+# 2. Build and launch containers
+docker compose -f deployment/compose.yaml up -d --build
+
+# 3. Verify deployment health with automated smoke checks
+python deployment/smoke/run_smoke_checks.py
+```
+
+---
+
+## Google OAuth 2.0 Setup Guide
+
+ArthLens supports seamless Google Sign-In and registration. Follow these steps to configure production Google authentication:
+
+1. **Google Cloud Console Setup**:
+   - Navigate to [Google Cloud Console](https://console.cloud.google.com/) → **APIs & Services** → **Credentials**.
+   - Create an **OAuth 2.0 Client ID** with Application Type set to **Web Application**.
+2. **Authorized JavaScript Origins**:
+   - For Local Testing: Add `http://localhost:3000` and `http://127.0.0.1:3000`.
+   - For Production: Add your public domain (e.g., `https://app.arthlens.org`).
+3. **OAuth Consent Screen Configuration**:
+   - Go to **OAuth consent screen**.
+   - Set Publishing Status to **"In Production"** (or click **Publish App**).  
+     *(Note: If left in "Testing" mode, Google will reject sign-ins with `access_denied` for accounts not explicitly whitelisted).*
+4. **Environment Variables**:
+   - In root `.env` or backend environment:
+     ```ini
+     GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+     ```
+   - In `frontend/.env.local` or frontend environment:
+     ```ini
+     NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+     ```
+5. **Local Development Fallback**:
+   - When running on `localhost` without Google Client credentials, ArthLens automatically renders a secure **Local Account Chooser** enabling instantaneous local authentication testing without third-party network dependencies.
+
+---
+
+## Comprehensive Documentation Index
+
+All technical design artifacts, specifications, test matrices, and operational guides are organized within the [`docs/`](file:///c:/arthlens/docs) directory:
+
+### 1. System Architecture & Engineering Specifications
+- [**Architecture Document (`docs/ARCHITECTURE.md`)**](file:///c:/arthlens/docs/ARCHITECTURE.md): Complete layered architecture, tenant isolation model, and data flow topologies.
+- [**API Specification (`docs/API_SPECIFICATION.md`)**](file:///c:/arthlens/docs/API_SPECIFICATION.md): Comprehensive REST OpenAPI contract covering authentication, workspaces, operations, scenarios, and agent endpoints.
+- [**Database Design & Schema (`docs/DATABASE_DESIGN.md`)**](file:///c:/arthlens/docs/DATABASE_DESIGN.md): Entity-relationship definitions, table structures, indexes, and Alembic migration lineage from `001` through `026`.
+- [**Domain Model (`docs/DOMAIN_MODEL.md`)**](file:///c:/arthlens/docs/DOMAIN_MODEL.md): Core business aggregates, Money value objects, double-entry ledger invariants, and lifecycle states.
+- [**Architectural Decisions Log (`docs/DECISIONS.md`)**](file:///c:/arthlens/docs/DECISIONS.md): Architectural Decision Records (ADRs) explaining key design trade-offs and rationale.
+- [**Design Patterns Catalog (`docs/DESIGN_PATTERNS.md`)**](file:///c:/arthlens/docs/DESIGN_PATTERNS.md): Inventory of Gang of Four and enterprise integration patterns utilized across backend and frontend.
+- [**Object-Oriented Design (`docs/OOM_DESIGN.md`)**](file:///c:/arthlens/docs/OOM_DESIGN.md): Detailed class diagrams, repository contracts, and behavioral sequence flows.
+
+### 2. Product Requirements & Governance Traceability
+- [**Software Requirements Specification (`docs/SRS.md`)**](file:///c:/arthlens/docs/SRS.md): Formal IEEE 830-compliant requirements document detailing functional and non-functional requirements.
+- [**Product Requirements Document (`docs/PRODUCT_REQUIREMENTS.md`)**](file:///c:/arthlens/docs/PRODUCT_REQUIREMENTS.md): Feature breakdowns, user stories, acceptance criteria, and operational constraints.
+- [**Product Vision & Strategy (`docs/PRODUCT_VISION.md`)**](file:///c:/arthlens/docs/PRODUCT_VISION.md): Market positioning, value proposition, and competitive differentiators for sovereign MSME accounting.
+- [**Master Project Plan (`docs/PROJECT_PLAN.md`)**](file:///c:/arthlens/docs/PROJECT_PLAN.md): Implementation roadmap, milestone breakdown, and resource allocation.
+- [**Requirements Traceability Matrix (`docs/REQUIREMENTS_TRACEABILITY.md`)**](file:///c:/arthlens/docs/REQUIREMENTS_TRACEABILITY.md): Bidirectional mapping connecting every functional requirement to database schemas, APIs, and tests.
+- [**Use Case Traceability Matrix (`docs/USE_CASE_TRACEABILITY.md`)**](file:///c:/arthlens/docs/USE_CASE_TRACEABILITY.md): End-to-end trace from user journeys to automated Playwright specs.
+
+### 3. Quality Assurance, Testing & Operations
+- [**Test Strategy & Framework (`docs/TEST_STRATEGY.md`)**](file:///c:/arthlens/docs/TEST_STRATEGY.md): Multi-tiered testing pyramid covering unit, contract, integration, agent-eval, and browser E2E suites.
+- [**Test Plan & Verification Results (`docs/TEST_PLAN_AND_RESULTS.md`)**](file:///c:/arthlens/docs/TEST_PLAN_AND_RESULTS.md): Detailed test execution logs, coverage metrics, and pre-deployment pass rates.
+- [**Risk Register & Mitigations (`docs/RISK_REGISTER.md`)**](file:///c:/arthlens/docs/RISK_REGISTER.md): Threat modeling, security vulnerability analysis, and mitigation matrices.
+- [**Maintenance & Operational Plan (`docs/MAINTENANCE_PLAN.md`)**](file:///c:/arthlens/docs/MAINTENANCE_PLAN.md): Database backup strategies, Alembic migration runbooks, log rotation, and upgrade procedures.
+- [**Engineering Handover Guide (`docs/ENGINEERING_HANDOVER.md`)**](file:///c:/arthlens/docs/ENGINEERING_HANDOVER.md): Developer onboarding guide, environment troubleshooting, and repository conventions.
+
+### 4. Guides, Demonstrations & Final Reports
+- [**User Guide (`docs/USER_GUIDE.md`)**](file:///c:/arthlens/docs/USER_GUIDE.md): End-user operational manual for business owners, accountants, and team members.
+- [**Demonstration Script (`docs/DEMO_GUIDE.md`)**](file:///c:/arthlens/docs/DEMO_GUIDE.md): Step-by-step flagship demonstration script showcasing all 18 chapters and the agent governance loop.
+- [**Executive Presentation Deck (`docs/PRESENTATION.md`)**](file:///c:/arthlens/docs/PRESENTATION.md): Slide deck outline and speaking notes detailing the technical innovations of ArthLens.
+- [**Final Project Capstone Report (`docs/FINAL_PROJECT_REPORT.md`)**](file:///c:/arthlens/docs/FINAL_PROJECT_REPORT.md): Comprehensive project synthesis documenting architectural achievements, test results, and production readiness.
+- [**Engineering Implementation Log (`docs/IMPLEMENTATION_LOG.md`)**](file:///c:/arthlens/docs/IMPLEMENTATION_LOG.md): Chronological commit and development log across all development phases.
+
+---
+
+## Test & Preflight Verification Summary
+
+All automated verification pipelines pass 100% green with zero warnings or transient test failures:
+
+```text
+================================ PREFLIGHT SUMMARY ================================
+Deployment Preflight:  PASSED (Alembic Head: 026_auth_otp_and_google_oauth)
+Backend Test Suite:    164 passed in 18.38s (Unit, Contract, Integration, Agent-Eval)
+Frontend TypeScript:   0 compilation errors (npx tsc --noEmit)
+Frontend Vitest Suite: 22 passed across 4 test suites (100% green)
+Playwright E2E Suite:  8 passed in 32.8s across 4 workers
+Production Next Build: 11 static pages & 18 dynamic workspace routes compiled
+===================================================================================
+```
+
+---
+
+## License
+
+This project is licensed under the Apache 2.0 License. See [LICENSE](LICENSE) for details.

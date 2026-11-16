@@ -1,8 +1,9 @@
 """Parameterized loan amortization with explicit moratorium and subsidy treatments."""
 
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation, localcontext
 from enum import Enum
-from math import expm1, fsum, isfinite, log1p
+from math import isfinite
 
 
 class MoratoriumInterestTreatment(str, Enum):
@@ -99,20 +100,30 @@ class LoanSchedule:
 
 def equal_monthly_installment(principal: float, annual_rate: float, months: int) -> float:
     """Return EMI using an annual rate as a decimal fraction and an explicit term."""
-    principal_value = _finite_number(principal, "principal")
-    annual_rate_value = _finite_number(annual_rate, "annual_rate")
-    if principal_value < 0 or annual_rate_value < 0:
+    principal_value = _finite_decimal(principal, "principal")
+    annual_rate_value = _finite_decimal(annual_rate, "annual_rate")
+    return float(_decimal_monthly_installment(principal_value, annual_rate_value, months))
+
+
+def _decimal_monthly_installment(
+    principal: Decimal,
+    annual_rate: Decimal,
+    months: int,
+) -> Decimal:
+    if principal < 0 or annual_rate < 0:
         raise ValueError("principal and annual_rate must be non-negative.")
     if not isinstance(months, int) or isinstance(months, bool) or months <= 0:
         raise ValueError("months must be a positive integer.")
-    if principal_value == 0:
-        return 0.0
-    monthly_rate = annual_rate_value / 12
-    if monthly_rate == 0:
-        return principal_value / months
-    denominator = -expm1(-months * log1p(monthly_rate))
-    payment = principal_value * monthly_rate / denominator
-    if not isfinite(payment):
+    if principal == 0:
+        return Decimal("0")
+    with localcontext() as context:
+        context.prec = 40
+        monthly_rate = annual_rate / Decimal("12")
+        if monthly_rate == 0:
+            return principal / Decimal(months)
+        factor = (Decimal("1") + monthly_rate) ** months
+        payment = principal * monthly_rate * factor / (factor - Decimal("1"))
+    if not payment.is_finite():
         raise ValueError("Loan inputs produce a non-finite monthly installment.")
     return payment
 
@@ -122,59 +133,62 @@ def build_loan_schedule(terms: LoanTerms) -> LoanSchedule:
     if not isinstance(terms, LoanTerms):
         raise TypeError("terms must be a LoanTerms instance.")
 
-    balance = terms.principal
+    balance = _finite_decimal(terms.principal, "principal")
     financed_principal = balance
     if terms.subsidy_treatment == SubsidyTreatment.ADJUSTS_PRINCIPAL:
-        balance -= terms.subsidy_amount
+        balance -= _finite_decimal(terms.subsidy_amount, "subsidy_amount")
         financed_principal = balance
 
-    monthly_rate = terms.annual_rate / 12
+    annual_rate = _finite_decimal(terms.annual_rate, "annual_rate")
+    monthly_rate = annual_rate / Decimal("12")
     rows: list[LoanScheduleRow] = []
-    installment: float | None = None
+    installment: Decimal | None = None
+    total_repaid = Decimal("0")
     for month in range(1, terms.moratorium_months + terms.repayment_months + 1):
         opening_balance = balance
-        principal_adjustment = 0.0
-        cash_release = 0.0
+        principal_adjustment = Decimal("0")
+        cash_release = Decimal("0")
 
         if (
             terms.subsidy_treatment == SubsidyTreatment.BACK_ENDED_RELEASE
             and month == terms.subsidy_release_month
         ):
-            if terms.subsidy_amount > balance:
+            subsidy_amount = _finite_decimal(terms.subsidy_amount, "subsidy_amount")
+            if subsidy_amount > balance:
                 raise ValueError(
                     "Back-ended subsidy exceeds the outstanding principal at its release month."
                 )
-            principal_adjustment = terms.subsidy_amount
+            principal_adjustment = subsidy_amount
             balance -= principal_adjustment
             if month > terms.moratorium_months:
                 remaining_months = terms.moratorium_months + terms.repayment_months - month + 1
-                installment = equal_monthly_installment(
+                installment = _decimal_monthly_installment(
                     balance,
-                    terms.annual_rate,
+                    annual_rate,
                     remaining_months,
                 )
         elif (
             terms.subsidy_treatment == SubsidyTreatment.LOCKED_DEPOSIT
             and month == terms.subsidy_release_month
         ):
-            cash_release = terms.subsidy_amount
+            cash_release = _finite_decimal(terms.subsidy_amount, "subsidy_amount")
 
         interest = balance * monthly_rate
-        if not isfinite(interest):
+        if not interest.is_finite():
             raise ValueError("Loan inputs produce non-finite monthly interest.")
 
         if month <= terms.moratorium_months:
-            principal_paid = 0.0
+            principal_paid = Decimal("0")
             if terms.moratorium_interest_treatment == MoratoriumInterestTreatment.PAID:
                 debt_service = interest
             else:
                 balance += interest
-                debt_service = 0.0
+                debt_service = Decimal("0")
         else:
             if installment is None:
-                installment = equal_monthly_installment(
+                installment = _decimal_monthly_installment(
                     balance,
-                    terms.annual_rate,
+                    annual_rate,
                     terms.repayment_months,
                 )
             if month == terms.moratorium_months + terms.repayment_months:
@@ -186,18 +200,19 @@ def build_loan_schedule(terms: LoanTerms) -> LoanSchedule:
                 raise ValueError("Monthly installment does not cover accrued interest.")
             balance -= principal_paid
             if month == terms.moratorium_months + terms.repayment_months:
-                balance = 0.0
+                balance = Decimal("0")
 
+        total_repaid += debt_service
         rows.append(
             LoanScheduleRow(
                 month=month,
-                opening_balance=opening_balance,
-                interest=interest,
-                principal_paid=principal_paid,
-                subsidy_principal_adjustment=principal_adjustment,
-                subsidy_cash_release=cash_release,
-                debt_service=debt_service,
-                closing_balance=balance,
+                opening_balance=float(opening_balance),
+                interest=float(interest),
+                principal_paid=float(principal_paid),
+                subsidy_principal_adjustment=float(principal_adjustment),
+                subsidy_cash_release=float(cash_release),
+                debt_service=float(debt_service),
+                closing_balance=float(balance),
             )
         )
 
@@ -205,9 +220,9 @@ def build_loan_schedule(terms: LoanTerms) -> LoanSchedule:
         raise ArithmeticError("Loan schedule did not amortize to a zero final balance.")
     return LoanSchedule(
         terms=terms,
-        financed_principal=financed_principal,
+        financed_principal=float(financed_principal),
         rows=tuple(rows),
-        total_repaid=fsum(row.debt_service for row in rows),
+        total_repaid=float(total_repaid),
     )
 
 
@@ -217,5 +232,15 @@ def _finite_number(value: float, name: str) -> float:
     except (TypeError, ValueError, OverflowError) as exc:
         raise ValueError(f"{name} must be numeric.") from exc
     if not isfinite(number):
+        raise ValueError(f"{name} must be finite.")
+    return number
+
+
+def _finite_decimal(value: float, name: str) -> Decimal:
+    try:
+        number = value if isinstance(value, Decimal) else Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be numeric.") from exc
+    if not number.is_finite():
         raise ValueError(f"{name} must be finite.")
     return number

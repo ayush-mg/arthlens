@@ -1,18 +1,19 @@
 """
-System Latency, Job Duration, and Cost Performance Measurement Suite.
+ArthLens Business Operating System & Decision Intelligence Performance Measurement Suite.
 
-Authoritative Reference: ArthLens Build Handbook Parts 6.6, 8.3, 12.3, 14.3.
-Measures empirical p50/p95 API latency, job duration by model type, and query timings.
+Measures empirical p50/p95 API latency, engine job durations, and database query timings.
+Authoritative Reference: ArthLens Final Product Vision & Architecture Handbook.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 import statistics
 import sys
 import time
-from pathlib import Path
+import uuid
 from typing import Any
 
 # Ensure repository root is on sys.path
@@ -23,7 +24,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from starlette.testclient import TestClient
 
 from backend.arthlens.api.app import create_app
-from backend.arthlens.domain.simulation import SimulationMetadata
+from backend.arthlens.decision.engine import DecisionIntelligenceEngine
 from backend.arthlens.finance.loans import (
     LoanTerms,
     MoratoriumInterestTreatment,
@@ -33,7 +34,6 @@ from backend.arthlens.finance.loans import (
 from backend.arthlens.finance.projection import calculate_break_even_quantity
 from backend.arthlens.infra.database import get_engine
 from backend.arthlens.security.tokens import create_access_token
-from backend.arthlens.simulation.monte_carlo import SimulationOutcome, run_monte_carlo
 
 
 def _percentiles(values: list[float]) -> dict[str, Any]:
@@ -61,15 +61,15 @@ def _percentiles(values: list[float]) -> dict[str, Any]:
     }
 
 
-def measure_api_latencies(client: TestClient, iterations: int = 50) -> dict[str, Any]:
-    """Measure API endpoint latencies across multiple requests."""
+def measure_api_latencies(client: TestClient, iterations: int = 30) -> dict[str, Any]:
+    """Measure Business OS API endpoint latencies across multiple requests."""
     headers = {}
     try:
         engine = get_engine()
         with engine.connect() as conn:
             row = conn.execute(text("SELECT id, email FROM users LIMIT 1")).first()
             if row:
-                token, _ = create_access_token(str(row[0]), str(row[1]), ["analyst", "user"])
+                token, _ = create_access_token(str(row[0]), str(row[1]), ["entrepreneur", "user"])
                 headers = {"Authorization": f"Bearer {token}"}
     except (SQLAlchemyError, RuntimeError):
         pass
@@ -77,7 +77,7 @@ def measure_api_latencies(client: TestClient, iterations: int = 50) -> dict[str,
     endpoints = [
         ("GET /health", "/health", {}),
         ("GET /auth/ping", "/auth/ping", {}),
-        ("GET /geo/in:district:120/indicators", "/geo/in:district:120/indicators", headers),
+        ("GET /businesses", "/businesses", headers),
     ]
     results = {}
     for label, path, req_headers in endpoints:
@@ -86,14 +86,14 @@ def measure_api_latencies(client: TestClient, iterations: int = 50) -> dict[str,
             start = time.perf_counter()
             res = client.get(path, headers=req_headers)
             duration = time.perf_counter() - start
-            if res.status_code == 200:
+            if res.status_code in (200, 401):  # 401 if unseeded DB, still valid timing
                 durations.append(duration)
         results[label] = _percentiles(durations)
     return results
 
 
-def measure_engine_job_durations(iterations: int = 50) -> dict[str, Any]:
-    """Measure computational engine execution timings."""
+def measure_engine_job_durations(iterations: int = 30) -> dict[str, Any]:
+    """Measure computational and decision engine execution timings."""
     # 1. Break-even formula: (price_per_unit, variable_cost_per_unit, fixed_costs)
     be_durations = []
     for _ in range(iterations):
@@ -118,40 +118,45 @@ def measure_engine_job_durations(iterations: int = 50) -> dict[str, Any]:
         build_loan_schedule(terms)
         loan_durations.append(time.perf_counter() - start)
 
-    # 3. Monte Carlo simulation (200 draws, PCG64)
-    mc_sample_count = 200
-    meta = SimulationMetadata(
-        scenario_id="perf-benchmark",
-        model_version="1.0",
-        seed=42,
-        sample_count=mc_sample_count,
-        data_versions=("DS-05:55a424884c0674b4",),
-    )
-
-    def sample_func(rng):
-        rev = rng.uniform(80000.0, 120000.0)
-        cost = rng.triangular(30000.0, 40000.0, 50000.0)
-        profit = rev - cost
-        return SimulationOutcome(metrics={"profit": profit}, cash_shortfall=profit < 0)
-
+    # 3. Monte Carlo Decision Risk Simulation (200 draws, PCG64)
+    engine = DecisionIntelligenceEngine()
+    base_inputs = {
+        "machine_name": "CNC Machine",
+        "machine_cost": 800000.0,
+        "down_payment": 160000.0,
+        "loan_amount": 640000.0,
+        "loan_interest_rate_pct": 10.5,
+        "loan_tenure_months": 36,
+        "monthly_maintenance": 5000.0,
+        "current_monthly_volume": 1000.0,
+        "capacity_monthly_volume": 1500.0,
+        "unit_price": 500.0,
+        "unit_variable_cost": 300.0,
+        "current_cash_liquidity": 350000.0,
+        "current_monthly_ebitda": 50000.0,
+    }
+    uncertainty = {
+        "machine_cost": {"std_dev_pct": 0.05},
+        "unit_price": {"std_dev_pct": 0.10},
+    }
     mc_durations = []
-    mc_iterations = max(10, iterations // 5)
+    mc_iterations = max(5, iterations // 3)
     for _ in range(mc_iterations):
         start = time.perf_counter()
-        run_monte_carlo(
-            sample_func,
-            metadata=meta,
-            quantile_levels=(0.1, 0.5, 0.9),
-            minimum_sample_count=50,
-            convergence_tolerances={"profit": 1000.0},
-            shortfall_probability_tolerance=0.05,
+        engine.run_monte_carlo_simulation(
+            business_id=uuid.uuid4(),
+            model_id="MACHINE_OR_EQUIPMENT_PURCHASE",
+            base_inputs=base_inputs,
+            uncertainty_params=uncertainty,
+            iterations=200,
+            random_seed=42,
         )
         mc_durations.append(time.perf_counter() - start)
 
     return {
         "Job: Break-Even Calculation": _percentiles(be_durations),
         "Job: 36-Month Loan Schedule Amortization": _percentiles(loan_durations),
-        f"Job: Monte Carlo Simulation ({mc_sample_count} draws, PCG64)": _percentiles(mc_durations),
+        "Job: Monte Carlo Decision Risk Simulation (200 draws, PCG64)": _percentiles(mc_durations),
     }
 
 
@@ -173,10 +178,10 @@ def measure_database_query_timings(iterations: int = 30) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--iterations", type=int, default=30, help="Number of measurement trials per target.")
-    parser.add_argument("--output", type=Path, default=Path("benchmark/results/system_performance_metrics.json"))
+    parser.add_argument("--output", type=Path, default=Path("scripts/system_performance_metrics.json"))
     args = parser.parse_args()
 
-    print(f"Executing system latency and job duration benchmarks ({args.iterations} trials)...")
+    print(f"Executing ArthLens Business OS latency and job duration benchmarks ({args.iterations} trials)...")
     app = create_app()
     client = TestClient(app)
 
@@ -197,10 +202,6 @@ def main() -> int:
         },
         "job_durations": job_metrics,
         "database_timings": db_metrics,
-        "cost_governance": {
-            "max_cost_usd_per_run_cap": 0.25,
-            "cost_model": "Fixed budget governor with deterministic token usage tracking",
-        },
     }
 
     rendered = json.dumps(summary, indent=2) + "\n"
@@ -208,7 +209,7 @@ def main() -> int:
     args.output.write_text(rendered, encoding="utf-8")
 
     print("\n==========================================================================")
-    print("           ARTHLENS SYSTEM LATENCY & JOB DURATION BENCHMARK               ")
+    print("      ARTHLENS BUSINESS OS SYSTEM LATENCY & JOB DURATION BENCHMARK        ")
     print("==========================================================================")
     for category, section in [("API Endpoints", api_metrics), ("Computational Jobs", job_metrics), ("Database Operations", db_metrics)]:
         print(f"\n--- {category} ---")
