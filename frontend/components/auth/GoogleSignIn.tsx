@@ -1,7 +1,7 @@
 'use client';
 import { MotionButton } from '@/components/ui/motion-button';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import Script from 'next/script';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
@@ -43,15 +43,20 @@ export function GoogleSignIn({
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [validationError, setValidationError] = useState('');
+  const credentialCallbackRef = useRef(onCredential);
+
+  useEffect(() => {
+    credentialCallbackRef.current = onCredential;
+  }, [onCredential]);
   const buttonRef = useCallback((element: HTMLDivElement | null) => {
     if (!element || !clientId || !scriptReady || !window.google) return;
     element.replaceChildren();
-    window.google.accounts.id.initialize({ client_id: clientId, callback: ({ credential }) => onCredential(credential) });
+    window.google.accounts.id.initialize({ client_id: clientId, callback: ({ credential }) => credentialCallbackRef.current(credential) });
     window.google.accounts.id.renderButton(element, {
       type: 'standard', theme: 'filled_black', size: 'large', shape: 'pill',
       text: mode === 'register' ? 'signup_with' : 'signin_with', width: '360',
     });
-  }, [clientId, mode, onCredential, scriptReady]);
+  }, [clientId, mode, scriptReady]);
 
   const submitLocalAccount = (event: FormEvent) => {
     event.preventDefault();
