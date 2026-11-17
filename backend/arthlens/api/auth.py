@@ -557,7 +557,7 @@ def google_auth(body: GoogleAuthRequest, request: Request, response: Response) -
 
 
 @router.post("/password-reset/request")
-def request_password_reset(body: PasswordResetRequest, request: Optional[Request] = None) -> Dict[str, Any]:
+def request_password_reset(request: Request, body: PasswordResetRequest) -> Dict[str, Any]:
     """
     Initiate password recovery. Generates an expiring single-use reset token.
     Persists token hash in database, dispatches via configurable SMTP email provider,
