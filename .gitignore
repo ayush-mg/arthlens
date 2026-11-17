@@ -249,3 +249,5 @@ frontend/playwright-report/
 scratch/
 frontend/scratch/
 *.tsbuildinfo
+*.pptx
+
