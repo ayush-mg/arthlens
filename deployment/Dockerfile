@@ -30,4 +30,4 @@ COPY scripts /app/scripts
 
 EXPOSE 8000
 
-CMD ["uvicorn", "backend.arthlens.api.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python","-B","scripts/renderstart.py"]
