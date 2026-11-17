@@ -25,6 +25,63 @@ def is_dev_mode() -> bool:
     return env not in ("production", "prod")
 
 
+def _send_via_brevo(
+    to_email: str,
+    subject: str,
+    text_content: str,
+    html_content: str,
+) -> Tuple[bool, str]:
+    """Send an email via Brevo (Sendinblue) HTTPS REST API v3 (Port 443).
+
+    Allows sending to ANY recipient in the world without requiring a custom domain;
+    only sender email verification (via confirmation email) is needed.
+    """
+    api_key = os.environ.get("BREVO_API_KEY", "").strip()
+    if not api_key:
+        return False, "BREVO_API_KEY is not configured"
+
+    sender_email = (
+        os.environ.get("BREVO_SENDER_EMAIL")
+        or os.environ.get("SMTP_FROM_EMAIL")
+        or os.environ.get("SMTP_USER")
+        or "noreply@arthlens.org"
+    ).strip()
+    sender_name = os.environ.get("BREVO_SENDER_NAME", "ArthLens Security").strip()
+
+    payload = {
+        "sender": {"name": sender_name, "email": sender_email},
+        "to": [{"email": to_email}],
+        "subject": subject,
+        "htmlContent": html_content,
+        "textContent": text_content,
+    }
+
+    req = urllib.request.Request(
+        "https://api.brevo.com/v3/smtp/email",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "api-key": api_key,
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "ArthLens-Backend/1.0",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            resp_body = resp.read().decode("utf-8")
+            logger.info("Sent email to %s via Brevo HTTPS API: %s", to_email, resp_body)
+            return True, "brevo"
+    except urllib.error.HTTPError as exc:
+        err_msg = exc.read().decode("utf-8")
+        logger.error("Brevo API HTTP error %d: %s", exc.code, err_msg)
+        raise RuntimeError(f"Brevo email delivery failed ({exc.code}): {err_msg}") from exc
+    except Exception as exc:
+        logger.error("Brevo API connection error: %s", exc)
+        raise RuntimeError(f"Brevo email delivery connection failed: {exc}") from exc
+
+
 def _send_via_resend(
     to_email: str,
     subject: str,
@@ -113,7 +170,20 @@ def send_email_otp(to_email: str, otp_code: str, purpose: str) -> Tuple[bool, st
         logger.warning(dev_message)
         return True, "development-console"
 
-    # 1. Resend HTTPS REST API (bypasses outbound SMTP port blocks)
+    # 1. Brevo (Sendinblue) HTTPS REST API v3 (Sends to any recipient without requiring a custom domain)
+    if os.environ.get("BREVO_API_KEY", "").strip():
+        try:
+            return _send_via_brevo(to_email, subject, text_body, html_body)
+        except Exception as exc:
+            logger.exception("Failed to deliver ArthLens OTP via Brevo to %s", to_email)
+            if is_dev_mode():
+                logger.warning("Brevo failed in dev mode; falling back to console OTP: %s", exc)
+                dev_message = f"[AUTH DEV OTP] {purpose} code for {to_email}: {otp_code} (expires in 10 minutes)"
+                print(dev_message)
+                return True, "development-console"
+            raise RuntimeError(f"Email verification delivery failed: {exc}") from exc
+
+    # 2. Resend HTTPS REST API (bypasses outbound SMTP port blocks)
     if os.environ.get("RESEND_API_KEY", "").strip():
         try:
             return _send_via_resend(to_email, subject, text_body, html_body)
@@ -210,7 +280,19 @@ def send_password_reset_email(
         logger.warning(dev_message)
         return True, "development-console"
 
-    # 1. Resend HTTPS REST API
+    # 1. Brevo (Sendinblue) HTTPS REST API v3
+    if os.environ.get("BREVO_API_KEY", "").strip():
+        try:
+            return _send_via_brevo(to_email, subject, text_content, html_content)
+        except Exception as exc:
+            logger.error("Failed to send password reset via Brevo to %s: %s", to_email, exc)
+            if is_dev_mode():
+                dev_msg = f"[AUTH DEV RECOVERY] Password recovery token for {to_email}: {reset_token} (URL: {reset_url})"
+                print(dev_msg)
+                return True, f"Logged to local development console: {reset_url}"
+            raise
+
+    # 2. Resend HTTPS REST API
     if os.environ.get("RESEND_API_KEY", "").strip():
         try:
             return _send_via_resend(to_email, subject, text_content, html_content)
