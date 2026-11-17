@@ -596,7 +596,15 @@ def request_password_reset(body: PasswordResetRequest) -> Dict[str, Any]:
         )
 
         # 4. Dispatch via configured email provider (or local dev console logger)
-        send_password_reset_email(clean_email, reset_token)
+        try:
+            send_password_reset_email(clean_email, reset_token)
+        except Exception as exc:
+            logger.error("Password recovery email dispatch failed for %s: %s", clean_email, exc)
+            if not is_dev_mode() and not clean_email.endswith((".local", ".test", ".example")):
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Email delivery unavailable: {exc}"
+                ) from exc
 
         if is_test_environment() or is_dev_mode() or clean_email.endswith((".local", ".test", ".example")):
             dev_token = reset_token
