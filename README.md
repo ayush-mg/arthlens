@@ -23,38 +23,37 @@ ArthLens is an enterprise-grade sovereign business operating system and decision
 
 1. [The Problem: The MSME Operational & Mathematical Crisis](#1-the-problem-the-msme-operational--mathematical-crisis)
 2. [What ArthLens Does](#2-what-arthlens-does)
-3. [Complete Directory Structure](#3-complete-directory-structure)
-4. [System Architecture & Multi-Tier Topology](#4-system-architecture--multi-tier-topology)
-5. [Object-Oriented Methodology (OOM) Deep Dive](#5-object-oriented-methodology-oom-deep-dive)
-   - [5.1 Classes, Objects, Attributes, Methods & Constructors](#51-classes-objects-attributes-methods--constructors)
-   - [5.2 The Four Pillars of Object-Oriented Programming](#52-the-four-pillars-of-object-oriented-programming)
-   - [5.3 Relationships Between Classes (Association, Aggregation, Composition)](#53-relationships-between-classes-association-aggregation-composition)
-   - [5.4 SOLID Object-Oriented Design Principles](#54-solid-object-oriented-design-principles)
-   - [5.5 Software Design Patterns Catalog (23 Patterns Implemented)](#55-software-design-patterns-catalog-23-patterns-implemented)
-   - [5.6 Exception Handling, Modularity & Defensive Programming](#56-exception-handling-modularity--defensive-programming)
-6. [Comprehensive UML Diagrams](#6-comprehensive-uml-diagrams)
-   - [6.1 Domain Class Diagram](#61-domain-class-diagram)
-   - [6.2 Actors & System Use-Case Diagram](#62-actors--system-use-case-diagram)
-   - [6.3 Sequence Diagram: Commercial Order-to-Ledger Execution](#63-sequence-diagram-commercial-order-to-ledger-execution)
-   - [6.4 Sequence Diagram: Staged AI Investigation & Human Confirmation](#64-sequence-diagram-staged-ai-investigation--human-confirmation)
-   - [6.5 State Diagram: Invoice & Staged AI Action Lifecycle Machines](#65-state-diagram-invoice--staged-ai-action-lifecycle-machines)
-7. [The Mathematics of Financial Sovereignty & Resilience](#7-the-mathematics-of-financial-sovereignty--resilience)
-   - [7.1 Integer-Paisa Khata Double-Entry Invariant](#71-integer-paisa-khata-double-entry-invariant)
-   - [7.2 Perpetual FIFO Inventory Lot Accounting & Weighted Average Cost (WAC)](#72-perpetual-fifo-inventory-lot-accounting--weighted-average-cost-wac)
-   - [7.3 Loan Total Repayment & Nominal Profit](#73-loan-total-repayment--nominal-profit)
-   - [7.4 Annualized Compound Annual Growth Rate (CAGR)](#74-annualized-compound-annual-growth-rate-cagr)
-   - [7.5 Inflation-Adjusted Net Present Value (Real NPV)](#75-inflation-adjusted-net-present-value-real-npv)
-   - [7.6 Altman Z'-Score for MSME Solvency & Bankruptcy Prediction](#76-altman-z-score-for-msme-solvency--bankruptcy-prediction)
-   - [7.7 Cash Conversion Cycle (CCC) & Working Capital Health](#77-cash-conversion-cycle-ccc--working-capital-health)
-8. [Platform Features & 18 Workspace Chapters](#8-platform-features--18-workspace-chapters)
-9. [Why Not Just an AI Wrapper?](#9-why-not-just-an-ai-wrapper)
-10. [Resilience & Defensive Architecture](#10-resilience--defensive-architecture)
-11. [The Interface: Cosmic Orbit Topology](#11-the-interface-cosmic-orbit-topology)
-12. [Demonstration Flows & Tactical Scenarios](#12-demonstration-flows--tactical-scenarios)
-13. [Production Deployment & The 14-Minute Ping Strategy](#13-production-deployment--the-14-minute-ping-strategy)
-14. [Local Quickstart & Execution Guide](#14-local-quickstart--execution-guide)
-15. [Verification & Test Suite Audit](#15-verification--test-suite-audit)
-16. [Academic Handover & Team Credits](#16-academic-handover--team-credits)
+3. [System Architecture & Multi-Tier Topology](#3-system-architecture--multi-tier-topology)
+4. [Object-Oriented Methodology (OOM) Deep Dive](#4-object-oriented-methodology-oom-deep-dive)
+   - [4.1 Classes, Objects, Attributes, Methods & Constructors](#41-classes-objects-attributes-methods--constructors)
+   - [4.2 The Four Pillars of Object-Oriented Programming](#42-the-four-pillars-of-object-oriented-programming)
+   - [4.3 Relationships Between Classes (Association, Aggregation, Composition)](#43-relationships-between-classes-association-aggregation-composition)
+   - [4.4 SOLID Object-Oriented Design Principles](#44-solid-object-oriented-design-principles)
+   - [4.5 Software Design Patterns Catalog (23 Patterns Implemented)](#45-software-design-patterns-catalog-23-patterns-implemented)
+   - [4.6 Exception Handling, Modularity & Defensive Programming](#46-exception-handling-modularity--defensive-programming)
+5. [Comprehensive UML Diagrams](#5-comprehensive-uml-diagrams)
+   - [5.1 Domain Class Diagram](#51-domain-class-diagram)
+   - [5.2 Actors & System Use-Case Diagram](#52-actors--system-use-case-diagram)
+   - [5.3 Sequence Diagram: Commercial Order-to-Ledger Execution](#53-sequence-diagram-commercial-order-to-ledger-execution)
+   - [5.4 Sequence Diagram: Staged AI Investigation & Human Confirmation](#54-sequence-diagram-staged-ai-investigation--human-confirmation)
+   - [5.5 State Diagram: Invoice & Staged AI Action Lifecycle Machines](#55-state-diagram-invoice--staged-ai-action-lifecycle-machines)
+6. [The Mathematics of Financial Sovereignty & Resilience](#6-the-mathematics-of-financial-sovereignty--resilience)
+   - [6.1 Integer-Paisa Khata Double-Entry Invariant](#61-integer-paisa-khata-double-entry-invariant)
+   - [6.2 Perpetual FIFO Inventory Lot Accounting & Weighted Average Cost (WAC)](#62-perpetual-fifo-inventory-lot-accounting--weighted-average-cost-wac)
+   - [6.3 Loan Total Repayment & Nominal Profit](#63-loan-total-repayment--nominal-profit)
+   - [6.4 Annualized Compound Annual Growth Rate (CAGR)](#64-annualized-compound-annual-growth-rate-cagr)
+   - [6.5 Inflation-Adjusted Net Present Value (Real NPV)](#65-inflation-adjusted-net-present-value-real-npv)
+   - [6.6 Altman Z'-Score for MSME Solvency & Bankruptcy Prediction](#66-altman-z-score-for-msme-solvency--bankruptcy-prediction)
+   - [6.7 Cash Conversion Cycle (CCC) & Working Capital Health](#67-cash-conversion-cycle-ccc--working-capital-health)
+7. [Platform Features & 18 Workspace Chapters](#7-platform-features--18-workspace-chapters)
+8. [Why Not Just an AI Wrapper?](#8-why-not-just-an-ai-wrapper)
+9. [Resilience & Defensive Architecture](#9-resilience--defensive-architecture)
+10. [The Interface: Cosmic Orbit Topology](#10-the-interface-cosmic-orbit-topology)
+11. [Demonstration Flows & Tactical Scenarios](#11-demonstration-flows--tactical-scenarios)
+12. [Production Deployment & The 14-Minute Ping Strategy](#12-production-deployment--the-14-minute-ping-strategy)
+13. [Local Quickstart & Execution Guide](#13-local-quickstart--execution-guide)
+14. [Verification & Test Suite Audit](#14-verification--test-suite-audit)
+15. [Academic Handover & Team Credits](#15-academic-handover--team-credits)
 
 ---
 
@@ -148,180 +147,7 @@ ArthLens continuously monitors the business's commercial vitals, validates finan
 
 ---
 
-## 3. Complete Directory Structure
-
-ArthLens is structured as an enterprise monorepo with strict layer boundaries decoupling presentation, domain logic, and persistence infrastructure:
-
-```
-arthlens/
-├── .env.example                     # Environment template (PostgreSQL, JWT, Brevo, Resend, Gemini)
-├── compose.yaml                     # Multi-container orchestration (PostgreSQL 16, Backend, Frontend)
-├── Makefile                         # Unified development & test task runner
-├── pytest.ini                       # Test suite runner configuration (164 tests, markers, timeouts)
-├── README.md                        # Masterwork Academic Report & OOM System Specification
-├── run-local.ps1                    # Native Windows one-command orchestration (Postgres, API, UI)
-├── start.sh                         # Native Linux/macOS one-command orchestration script
-├── stop-local.ps1                   # Graceful process shutdown & port cleanup (Windows)
-├── stop.sh                          # Graceful process shutdown & port cleanup (Linux/macOS)
-├── .github/
-│   └── workflows/
-│       └── ci.yml                   # GitHub Actions CI pipeline (Linting, Unit Tests, Build)
-├── backend/                         # FastAPI Enterprise Application & Domain Layer
-│   ├── Dockerfile                   # Multi-stage production container build (Debian Bookworm, Python 3.11)
-│   ├── pyproject.toml               # Poetry/pip build configuration & dependencies
-│   ├── alembic.ini                  # Database migration configuration
-│   ├── arthlens/
-│   │   ├── __init__.py
-│   │   ├── agent/                   # Agentic AI Copilot & Deterministic Tool Registry
-│   │   │   ├── business_agent.py    # Multi-step investigation DAG & Gemini synthesis coordinator
-│   │   │   └── business_tools.py    # 16 deterministic calculation tools & JSON schema specs
-│   │   ├── api/                     # Presentation Tier: REST API Routers & Gateways
-│   │   │   ├── admin.py             # System administrator endpoints (user lifecycle, quotas)
-│   │   │   ├── app.py               # FastAPI application factory, CORS, exception handlers
-│   │   │   ├── auth.py              # Identity router (Login, Registration, OTP 2FA, Password Reset)
-│   │   │   └── business.py          # Unified workspace router (18 chapters, transactions, Khata)
-│   │   ├── decision/                # Strategic Decision Modeling & Evaluation Engine
-│   │   │   ├── additional_models.py # Extended capital models (Machinery, Expansion, Staffing)
-│   │   │   ├── engine.py            # Deterministic math engine (NPV, CAGR, Payback, Sensitivity)
-│   │   │   └── models.py            # Decision entities, DecisionGraph, Node & Edge value objects
-│   │   ├── domain/                  # Pure Enterprise Domain Entities & Business Rules
-│   │   │   ├── agent.py             # Agent session, message history, and DAG node models
-│   │   │   ├── business.py          # Money, Customer, Product, SalesInvoice, KhataLedgerEntry
-│   │   │   ├── goals.py             # Strategic Goal, Milestone, and Key Result entities
-│   │   │   ├── interfaces.py        # Abstract Base Classes & Protocols (SRP / DIP contracts)
-│   │   │   └── repositories.py      # Abstract repository interface contracts
-│   │   ├── finance/                 # Mathematical Intelligence & Statement Generators
-│   │   │   ├── analysis.py          # Working capital cycles, DSO, DPO, DIO, Cash Conversion Cycle
-│   │   │   ├── intelligence.py      # P&L, Balance Sheet, Cash Flow statement synthesizers
-│   │   │   ├── loans.py             # Deterministic amortization, EMI, and interest calculations
-│   │   │   ├── projection.py        # 36-month Monte Carlo and deterministic financial forecasting
-│   │   │   └── scenarios.py         # Multi-case scenario generator (Base, Bull, Stressed)
-│   │   ├── infra/                   # Infrastructure Tier: Persistence & SQLAlchemy 2.0 ORM
-│   │   │   ├── business_repositories.py # Concrete PostgreSQL repository implementations
-│   │   │   ├── config.py            # Pydantic Settings management & environment loading
-│   │   │   ├── database.py          # Engine factory, connection pooling, SessionLocal maker
-│   │   │   ├── historical_models.py # Historical balance & audit snapshots
-│   │   │   ├── models.py            # Declarative ORM models (Users, Workspaces, Ledgers, Lots)
-│   │   │   └── repositories.py      # Core data access implementations
-│   │   ├── llm/                     # Sovereign LLM Integration & Provider Firewall
-│   │   │   ├── client.py            # HTTP client for Google Gemini 1.5 Flash API
-│   │   │   ├── provider.py          # Provider abstraction & schema serialization
-│   │   │   └── testing.py           # Mock LLM provider for deterministic offline test suites
-│   │   ├── reporting/               # Automated Financial Dossier Generation
-│   │   │   └── business_reports.py  # ReportLab PDF statement builder & CSV register exporters
-│   │   ├── security/                # Security Perimeter, Authentication & Governance
-│   │   │   ├── audit.py             # Tamper-evident immutable audit trail recorder
-│   │   │   ├── email_service.py     # Multi-provider email dispatcher (Brevo HTTPS, Resend, SMTP)
-│   │   │   ├── password.py          # Argon2id / bcrypt password hashing & verification
-│   │   │   ├── rate_limit.py        # In-memory sliding window IP rate limiter
-│   │   │   ├── rbac.py              # Role-Based Access Control guards & tenant IDOR verifiers
-│   │   │   ├── revocation.py        # Token revocation registry & session blacklisting
-│   │   │   ├── roles.py             # System & Business role enumerations
-│   │   │   └── tokens.py            # Cryptographic JWT creation, verification & refresh
-│   │   └── services/                # Application Service Layer (Unit of Work Orchestrators)
-│   │       ├── agent_action_service.py   # Staged action formulation, review & execution gate
-│   │       ├── business_service.py       # Central unified domain facade (orchestrates 11 repos)
-│   │       ├── goal_planning_service.py  # OKR and milestone tracking service
-│   │       ├── inventory_cost_service.py # Perpetual FIFO lot depletion & WAC recalculation
-│   │       └── scenario_service.py       # Forward-looking simulation scenario coordinator
-│   ├── migrations/                  # Alembic Database Migration Scripts
-│   │   ├── env.py                   # Alembic runtime environment & model discovery
-│   │   └── versions/                # 26 migration versions (001_initial ... 026_auth_otp)
-│   └── tests/                       # Comprehensive Backend Pytest Suite (164 tests)
-│       ├── conftest.py              # Pytest fixtures, mock DB sessions, test client
-│       ├── test_agent_tools.py      # Deterministic mathematical tool contract tests
-│       ├── test_business_api.py     # End-to-end REST endpoint integration tests
-│       ├── test_business_service.py # Core business rules & ledger balance unit tests
-│       ├── test_decision_engine.py  # NPV, CAGR, and payback calculation tests
-│       ├── test_domain_models.py    # Money value object & entity validation tests
-│       ├── test_financial_engine.py # Statement synthesis & ratio computation tests
-│       └── test_security_rbac.py    # Cross-tenant IDOR security boundary tests
-├── frontend/                        # Presentation Tier: Next.js 14 App Router (React 18 / TypeScript)
-│   ├── Dockerfile                   # Multi-stage production container build (Node.js Alpine)
-│   ├── package.json                 # Dependencies (React, Lucide, Tailwind, Framer Motion)
-│   ├── tailwind.config.js           # Brutalist tactical slate design system configuration
-│   ├── tsconfig.json                # Strict TypeScript configuration
-│   ├── playwright.config.ts         # Playwright E2E browser automation test config
-│   ├── vitest.config.mts            # Vitest unit test suite configuration
-│   ├── app/                         # App Router File-Based Routing Topology
-│   │   ├── layout.tsx               # Root layout, theme provider, and font definitions
-│   │   ├── page.tsx                 # Public landing page & platform presentation
-│   │   ├── globals.css              # Custom CSS glassmorphism & typography system
-│   │   ├── login/                   # Authentication: User sign-in with 2FA OTP prompt
-│   │   ├── register/                # Workspace onboarding & entrepreneur registration
-│   │   ├── forgot-password/         # Self-service single-use password recovery
-│   │   ├── reset-password/          # Cryptographic token-based password reset
-│   │   ├── admin/                   # System Administrator Console
-│   │   │   └── users/               # Tenant lifecycle, account statuses & quota management
-│   │   └── workspaces/
-│   │       └── [id]/                # Workspace Cosmic Orbit Topology (18 Chapters)
-│   │           ├── page.tsx         # Chapter 01: Executive Pulse Dashboard & Solvency
-│   │           ├── sales/           # Chapter 02: Commercial Invoicing & Khata Debit Posting
-│   │           ├── purchases/       # Chapter 03: Vendor Purchase Orders & Lot Additions
-│   │           ├── inventory/       # Chapter 04: Perpetual FIFO Lot & Stock Reorder Ledger
-│   │           ├── khata/           # Chapter 05: Traditional Double-Entry Customer/Supplier Bahi
-│   │           ├── finance/         # Chapter 06: Real-time P&L, Balance Sheet & Cash Flow
-│   │           ├── decisions/       # Chapter 07: Immutable Decision Graphs & Causal Replays
-│   │           ├── scenarios/       # Chapter 08: 36-Month Scenario Laboratory (Bull/Bear/Base)
-│   │           ├── goals/           # Chapter 09: Strategic OKRs & Operational Targets
-│   │           ├── analytics/       # Chapter 10: Gross Margins, DSO Aging & Health Scores
-│   │           ├── agent/           # Chapter 11: Staged AI Copilot & Investigation DAG
-│   │           ├── customers/       # Chapter 12: Customer Registry & Credit Limits
-│   │           ├── suppliers/       # Chapter 13: Vendor Directory & AP Balances
-│   │           ├── reports/         # Chapter 14: PDF Financial Dossiers & Tax Exporters
-│   │           ├── audit/           # Chapter 15: Tamper-Evident Immutable Audit Log
-│   │           ├── members/         # Chapter 16: Member Invitations & RBAC Role Matrix
-│   │           ├── settings/        # Chapter 17: Workspace Parameters & Sovereign Controls
-│   │           └── constellation/   # Chapter 18: Interactive Relational Network Graph
-│   ├── components/                  # Reusable Atomic UI Component Library
-│   │   ├── ui/                      # Buttons, inputs, modals, cards, badges, tooltips
-│   │   ├── navigation/              # Cosmic Orbit Shell, Chapter Dock, Breadcrumbs
-│   │   ├── finance/                 # MoneyDisplay, LedgerTable, FinancialHealthGauges
-│   │   └── agent/                   # InvestigationDAGViewer, StagedActionReviewTray
-│   ├── lib/                         # Client Utilities & State Management
-│   │   ├── api.ts                   # Secure HTTP client with JWT interceptors & token refresh
-│   │   ├── business-api.ts          # Strongly typed client API bindings for all 18 chapters
-│   │   ├── money.ts                 # Client-side paisa-safe currency formatting & arithmetic
-│   │   └── theme.ts                 # Visual theme & tactical slate design tokens
-│   ├── test/                        # Vitest Unit & Component Tests (22 tests)
-│   └── e2e/                         # Playwright End-to-End User Journeys (8 journeys)
-│       ├── auth-journey.spec.ts     # Login, registration, OTP 2FA, password recovery
-│       ├── business-operations.spec.ts # Invoice issue, payment, inventory depletion
-│       ├── intelligence-and-governance.spec.ts # AI investigation & staged action confirm
-│       └── workspace-orbit-routes.spec.ts # Navigation across all 18 workspace chapters
-├── deployment/                      # Cloud Hosting & Production Orchestration
-│   ├── Dockerfile                   # Consolidated deployment container specification
-│   ├── compose.yaml                 # Multi-service production compose blueprint
-│   ├── env.example                  # Production environment variable reference
-│   ├── preflight.py                 # Automated pre-deployment health & validation check
-│   └── smoke/                       # Production smoke check verification scripts
-├── scripts/                         # System Administration & Maintenance Utilities
-│   ├── bootstrap_admin.py           # First-time system administrator account provisioner
-│   ├── seed_demo_accounts.py        # Seeds demo entrepreneur, steward, and admin users
-│   ├── renderstart.py               # Render cloud deployment bootstrap & port binder
-│   ├── measure_system_performance.py # Latency, throughput, and memory benchmarking
-│   └── verify_all.ps1               # Complete local test suite & preflight execution
-├── benchmark/                       # Empirical Evaluation & Performance Harness
-│   ├── task_schema.json             # Benchmark evaluation task specification schema
-│   ├── harness/                     # Scoring, validation, and statistical analysis tools
-│   ├── results/                     # Empirical benchmark evaluation results & metrics
-│   └── tasks/                       # Standardized test scenarios (B1-B4 evaluation suites)
-└── docs/                            # Comprehensive System Documentation & Specifications
-    ├── API_SPECIFICATION.md         # Full REST API endpoint reference & schemas
-    ├── ARCHITECTURE.md              # Multi-tier system architecture & security model
-    ├── DATABASE_DESIGN.md           # Entity-Relationship diagrams & database schema
-    ├── DECISIONS.md                 # Architecture Decision Records (ADRs)
-    ├── DEMO_GUIDE.md                # Step-by-step evaluator demonstration walkthrough
-    ├── DESIGN_PATTERNS.md           # Catalog of implemented GoF & Enterprise patterns
-    ├── DOMAIN_MODEL.md              # Domain-Driven Design aggregates, entities & rules
-    ├── ENGINEERING_HANDOVER.md      # Maintenance, backup, and operations manual
-    ├── FINAL_PROJECT_REPORT.md      # Full academic project report document
-    └── OOM_DESIGN.md                # Object-Oriented Methodology formal course submission
-```
-
----
-
-## 4. System Architecture & Multi-Tier Topology
+## 3. System Architecture & Multi-Tier Topology
 
 ArthLens is built as an enterprise three-tier web application adhering to clean architecture and Domain-Driven Design:
 
@@ -361,13 +187,13 @@ flowchart TD
 
 ---
 
-## 5. Object-Oriented Methodology (OOM) Deep Dive
+## 4. Object-Oriented Methodology (OOM) Deep Dive
 
 ArthLens was engineered from the ground up as a showcase of rigorous Object-Oriented Methodology. Every business rule, financial constraint, and computational workflow is represented through explicit object abstractions.
 
 ---
 
-### 5.1 Classes, Objects, Attributes, Methods & Constructors
+### 4.1 Classes, Objects, Attributes, Methods & Constructors
 
 The system models business entities as rich domain objects encapsulating state, behavior, and invariants rather than passive data containers.
 
@@ -413,7 +239,7 @@ class Money:
 
 ---
 
-### 5.2 The Four Pillars of Object-Oriented Programming
+### 4.2 The Four Pillars of Object-Oriented Programming
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -507,7 +333,7 @@ class ProductLineExpansionStrategy(CapitalDecisionStrategy):
 
 ---
 
-### 5.3 Relationships Between Classes (Association, Aggregation, Composition)
+### 4.3 Relationships Between Classes (Association, Aggregation, Composition)
 
 Object relationships strictly mirror business domain lifecycles:
 
@@ -561,7 +387,7 @@ class SalesInvoice:
 
 ---
 
-### 5.4 SOLID Object-Oriented Design Principles
+### 4.4 SOLID Object-Oriented Design Principles
 
 ArthLens rigorously enforces the five SOLID principles across all backend and frontend layers:
 
@@ -620,7 +446,7 @@ class BusinessService:
 
 ---
 
-### 5.5 Software Design Patterns Catalog (23 Patterns Implemented)
+### 4.5 Software Design Patterns Catalog (23 Patterns Implemented)
 
 ArthLens implements 23 classic Gang of Four (GoF) and Enterprise Application patterns:
 
@@ -652,7 +478,7 @@ ArthLens implements 23 classic Gang of Four (GoF) and Enterprise Application pat
 
 ---
 
-### 5.6 Exception Handling, Modularity & Defensive Programming
+### 4.6 Exception Handling, Modularity & Defensive Programming
 
 The codebase enforces defensive programming with custom exception hierarchies preventing cascading failures:
 
@@ -677,11 +503,11 @@ def verify_workspace_access(
 
 ---
 
-## 6. Comprehensive UML Diagrams
+## 5. Comprehensive UML Diagrams
 
 ---
 
-### 6.1 Domain Class Diagram
+### 5.1 Domain Class Diagram
 
 ```mermaid
 %%{init: {'theme': 'dark', 'themeVariables': {'darkMode': true, 'background': '#0b0f19', 'primaryColor': '#1e293b', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#38bdf8', 'lineColor': '#94a3b8', 'secondaryColor': '#0f172a'}}}%%
@@ -819,7 +645,7 @@ classDiagram
 
 ---
 
-### 6.2 Actors & System Use-Case Diagram
+### 5.2 Actors & System Use-Case Diagram
 
 ```mermaid
 %%{init: {'theme': 'dark', 'themeVariables': {'darkMode': true, 'background': '#0b0f19', 'primaryColor': '#1e293b', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#38bdf8', 'lineColor': '#94a3b8', 'secondaryColor': '#0f172a'}}}%%
@@ -884,7 +710,7 @@ flowchart TD
 
 ---
 
-### 6.3 Sequence Diagram: Commercial Order-to-Ledger Execution
+### 5.3 Sequence Diagram: Commercial Order-to-Ledger Execution
 
 ```mermaid
 %%{init: {'theme': 'dark', 'themeVariables': {'darkMode': true, 'background': '#0b0f19', 'primaryColor': '#1e293b', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#38bdf8', 'lineColor': '#94a3b8', 'secondaryColor': '#0f172a', 'actorBkg': '#1e293b', 'actorBorder': '#38bdf8', 'actorTextColor': '#f8fafc', 'signalColor': '#38bdf8', 'signalTextColor': '#f8fafc'}}}%%
@@ -927,7 +753,7 @@ sequenceDiagram
 
 ---
 
-### 6.4 Sequence Diagram: Staged AI Investigation & Human Confirmation
+### 5.4 Sequence Diagram: Staged AI Investigation & Human Confirmation
 
 ```mermaid
 %%{init: {'theme': 'dark', 'themeVariables': {'darkMode': true, 'background': '#0b0f19', 'primaryColor': '#1e293b', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#38bdf8', 'lineColor': '#94a3b8', 'secondaryColor': '#0f172a', 'actorBkg': '#1e293b', 'actorBorder': '#38bdf8', 'actorTextColor': '#f8fafc', 'signalColor': '#38bdf8', 'signalTextColor': '#f8fafc'}}}%%
@@ -976,7 +802,7 @@ sequenceDiagram
 
 ---
 
-### 6.5 State Diagram: Invoice & Staged AI Action Lifecycle Machines
+### 5.5 State Diagram: Invoice & Staged AI Action Lifecycle Machines
 
 ```mermaid
 %%{init: {'theme': 'dark', 'themeVariables': {'darkMode': true, 'background': '#0b0f19', 'primaryColor': '#1e293b', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#38bdf8', 'lineColor': '#94a3b8', 'secondaryColor': '#0f172a'}}}%%
@@ -1011,11 +837,11 @@ stateDiagram-v2
 
 ---
 
-## 7. The Mathematics of Financial Sovereignty & Resilience
+## 6. The Mathematics of Financial Sovereignty & Resilience
 
 ArthLens prohibits language models from performing arithmetic. All calculations are executed by verified Python functions utilizing standard financial and actuarial formulas:
 
-### 7.1 Integer-Paisa Khata Double-Entry Invariant
+### 6.1 Integer-Paisa Khata Double-Entry Invariant
 
 Financial balances are represented as exact integer paisa:
 
@@ -1034,7 +860,7 @@ $$\sum_{i=1}^{n} \text{Debit}_i \equiv \sum_{j=1}^{m} \text{Credit}_j$$
 
 ---
 
-### 7.2 Perpetual FIFO Inventory Lot Accounting & Weighted Average Cost (WAC)
+### 6.2 Perpetual FIFO Inventory Lot Accounting & Weighted Average Cost (WAC)
 
 When goods are purchased at varying prices, inventory cost layers are tracked perpetually. Incoming stock updates the Weighted Average Cost (WAC):
 
@@ -1051,7 +877,7 @@ $$\text{New WAC} = \frac{(\text{Current Qty} \times \text{Current WAC}) + (\text
 
 ---
 
-### 7.3 Loan Total Repayment & Nominal Profit
+### 6.3 Loan Total Repayment & Nominal Profit
 
 $$\text{Total Repayment} = P \times \left(1 + \frac{r_{\text{loan}}}{100}\right)^{t_{\text{loan}}}$$
 
@@ -1068,7 +894,7 @@ $$\text{Nominal Profit} = \text{Expected Return} - \text{Total Repayment}$$
 
 ---
 
-### 7.4 Annualized Compound Annual Growth Rate (CAGR)
+### 6.4 Annualized Compound Annual Growth Rate (CAGR)
 
 $$\text{CAGR} = \left[ \left(\frac{\text{Expected Return}}{P}\right)^{\frac{1}{t_{\text{return}}}} - 1 \right] \times 100\%$$
 
@@ -1078,7 +904,7 @@ $$\text{CAGR} = \left[ \left(\frac{3500}{2000}\right)^{\frac{1}{3}} - 1 \right] 
 
 ---
 
-### 7.5 Inflation-Adjusted Net Present Value (Real NPV)
+### 6.5 Inflation-Adjusted Net Present Value (Real NPV)
 
 To prevent financial optical illusions where inflation erodes real purchasing power, cash flows are discounted by the inflation rate ($r_{\text{inflation}} = 6.0\%$):
 
@@ -1092,7 +918,7 @@ $$\text{Real NPV} = \text{Real Return} - \text{Discounted Repayment} = 2938.67 -
 
 ---
 
-### 7.6 Altman Z'-Score for MSME Solvency & Bankruptcy Prediction
+### 6.6 Altman Z'-Score for MSME Solvency & Bankruptcy Prediction
 
 ArthLens adapts Edward Altman's revised Z'-Score model calibrated specifically for private manufacturing and service MSMEs:
 
@@ -1113,7 +939,7 @@ Where:
 
 ---
 
-### 7.7 Cash Conversion Cycle (CCC) & Working Capital Health
+### 6.7 Cash Conversion Cycle (CCC) & Working Capital Health
 
 The Working Capital Cycle measures the elapsed days between paying for raw materials and collecting cash from customers:
 
@@ -1126,7 +952,7 @@ Where:
 
 ---
 
-## 8. Platform Features & 18 Workspace Chapters
+## 7. Platform Features & 18 Workspace Chapters
 
 ArthLens organizes the entire commercial enterprise into 18 dedicated chapters inside a unified cosmic orbit shell:
 
@@ -1153,7 +979,7 @@ ArthLens organizes the entire commercial enterprise into 18 dedicated chapters i
 
 ---
 
-## 9. Why Not Just an AI Wrapper?
+## 8. Why Not Just an AI Wrapper?
 
 ArthLens is fundamentally **not** an AI wrapper. The architecture enforces an absolute separation between linguistic interpretation and mathematical computation:
 
@@ -1169,7 +995,7 @@ ArthLens is fundamentally **not** an AI wrapper. The architecture enforces an ab
 
 ---
 
-## 10. Resilience & Defensive Architecture
+## 9. Resilience & Defensive Architecture
 
 ArthLens is engineered with multi-tiered fallback chains ensuring **zero single points of failure**:
 
@@ -1204,7 +1030,7 @@ Email Dispatch Waterfall:
 
 ---
 
-## 11. The Interface: Cosmic Orbit Topology
+## 10. The Interface: Cosmic Orbit Topology
 
 ArthLens abandons standard flat admin dashboards in favor of a specialized **Cosmic Orbit Interface** built with brutalist slate styling, high-contrast typography, and progressive disclosure:
 
@@ -1217,7 +1043,7 @@ ArthLens abandons standard flat admin dashboards in favor of a specialized **Cos
 
 ---
 
-## 12. Demonstration Flows & Tactical Scenarios
+## 11. Demonstration Flows & Tactical Scenarios
 
 ### Demo 1 — The Commercial Order-to-Ledger Cycle
 1. Navigate to `/sales` and issue a new Sales Invoice for customer *Sharma Electronics* for 20 units of *Solar Inverter* at ₹5,000/unit (+18% GST).
@@ -1249,7 +1075,7 @@ ArthLens abandons standard flat admin dashboards in favor of a specialized **Cos
 
 ---
 
-## 13. Production Deployment & The 14-Minute Ping Strategy
+## 12. Production Deployment & The 14-Minute Ping Strategy
 
 The live production deployment is globally accessible:
 
@@ -1268,7 +1094,7 @@ Because cloud providers block outbound SMTP ports (25, 465, 587) on standard ins
 
 ---
 
-## 14. Local Quickstart & Execution Guide
+## 13. Local Quickstart & Execution Guide
 
 ### Prerequisites
 - Python 3.11+
@@ -1320,7 +1146,7 @@ npm run dev  # Running on http://localhost:3000
 
 ---
 
-## 15. Verification & Test Suite Audit
+## 14. Verification & Test Suite Audit
 
 ArthLens is validated by an extensive automated quality assurance harness:
 
@@ -1338,7 +1164,7 @@ Email Delivery Providers:                   Brevo HTTPS API v3 (Port 443) + Rese
 
 ---
 
-## 16. Academic Handover & Team Credits
+## 15. Academic Handover & Team Credits
 
 - **Course:** Object-Oriented Methodology (OOM)
 - **Project Title:** ArthLens (अर्थLens) — Sovereign Financial Operating System & Decision Intelligence Platform
