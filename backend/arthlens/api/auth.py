@@ -557,7 +557,7 @@ def google_auth(body: GoogleAuthRequest, request: Request, response: Response) -
 
 
 @router.post("/password-reset/request")
-def request_password_reset(body: PasswordResetRequest) -> Dict[str, Any]:
+def request_password_reset(body: PasswordResetRequest, request: Optional[Request] = None) -> Dict[str, Any]:
     """
     Initiate password recovery. Generates an expiring single-use reset token.
     Persists token hash in database, dispatches via configurable SMTP email provider,
@@ -595,9 +595,24 @@ def request_password_reset(body: PasswordResetRequest) -> Dict[str, Any]:
             payload={"exp": exp.isoformat()},
         )
 
-        # 4. Dispatch via configured email provider (or local dev console logger)
+        # 4. Resolve client frontend base URL from request origin/referer
+        base_url: Optional[str] = None
+        if request:
+            origin = request.headers.get("origin")
+            referer = request.headers.get("referer")
+            base_url = origin
+            if not base_url and referer:
+                try:
+                    from urllib.parse import urlparse
+                    parsed = urlparse(referer)
+                    if parsed.scheme and parsed.netloc:
+                        base_url = f"{parsed.scheme}://{parsed.netloc}"
+                except Exception:
+                    pass
+
+        # 5. Dispatch via configured email provider (or local dev console logger)
         try:
-            send_password_reset_email(clean_email, reset_token)
+            send_password_reset_email(clean_email, reset_token, base_url=base_url)
         except Exception as exc:
             logger.error("Password recovery email dispatch failed for %s: %s", clean_email, exc)
             if not is_dev_mode() and not clean_email.endswith((".local", ".test", ".example")):

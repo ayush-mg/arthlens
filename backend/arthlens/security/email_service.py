@@ -252,7 +252,16 @@ def send_password_reset_email(
     Returns (success: bool, delivery_info: str).
     """
     if not base_url:
-        base_url = os.environ.get("APP_BASE_URL", "http://localhost:3000")
+        candidate_base = os.environ.get("APP_BASE_URL") or os.environ.get("FRONTEND_URL")
+        if not candidate_base:
+            allowed = os.environ.get("ALLOWED_ORIGINS", "")
+            for orig in [o.strip() for o in allowed.split(",") if o.strip()]:
+                if not any(lh in orig.lower() for lh in ("localhost", "127.0.0.1")):
+                    candidate_base = orig
+                    break
+        if not candidate_base:
+            candidate_base = "https://arthlens-two.vercel.app" if not is_dev_mode() else "http://localhost:3000"
+        base_url = candidate_base
     reset_url = f"{base_url.rstrip('/')}/reset-password?token={reset_token}"
     subject = "ArthLens: Password Recovery Request"
     text_content = (
