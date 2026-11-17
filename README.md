@@ -326,45 +326,37 @@ arthlens/
 ArthLens is built as an enterprise three-tier web application adhering to clean architecture and Domain-Driven Design:
 
 ```mermaid
+%%{init: {'theme': 'dark', 'themeVariables': {'darkMode': true, 'background': '#0b0f19', 'primaryColor': '#1e293b', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#38bdf8', 'lineColor': '#94a3b8', 'secondaryColor': '#0f172a', 'tertiaryColor': '#1e293b'}}}%%
 flowchart TD
-    subgraph Tier1["1. Presentation Layer (Next.js 14 App Router)"]
-        UI_Shell["Workspace Orbit Shell (/workspaces/[id]/*)"]
-        UI_18["18 Domain Modules (Sales, Khata, Inventory, Scenarios, AI)"]
-        UI_Admin["Platform Administration Console (/admin/users)"]
-        UI_Auth["Secure Auth Portal (Login, OTP 2FA, Google OAuth)"]
-        UI_Shell --> UI_18
+    subgraph Tier1["1. Presentation Tier (Next.js 14 App Router)"]
+        direction LR
+        UI_Auth["Identity & Auth Portal<br/>(Login, OTP 2FA, OAuth)"]
+        UI_Shell["Cosmic Orbit Navigation Shell<br/>(/workspaces/[id])"]
+        UI_Modules["18 Domain Modules<br/>(Sales, Khata, FIFO Inventory)"]
+        UI_Admin["Platform Administration<br/>(/admin/users)"]
+        UI_Auth ~~~ UI_Shell ~~~ UI_Modules ~~~ UI_Admin
     end
 
-    subgraph Tier2["2. Application & Domain Service Layer (FastAPI)"]
-        API_Gate["Security Perimeter (CORS, Rate Limiting, RBAC Guards)"]
-        SVC_Biz["BusinessService (Unified Domain Facade)"]
-        SVC_Fin["FinancialIntelligenceEngine (P&L, Cash Flow, Solvency)"]
-        SVC_Scen["ScenarioLaboratory (Multi-Case 36-Mo Projections)"]
-        SVC_Agent["Agentic Copilot (Investigation DAG & Tool Registry)"]
-        SVC_Gov["Governance Gate (Staged Action Confirmation)"]
-
-        API_Gate --> SVC_Biz
-        SVC_Biz --> SVC_Fin
-        SVC_Biz --> SVC_Scen
-        SVC_Biz --> SVC_Agent
-        SVC_Agent --> SVC_Gov
+    subgraph Tier2["2. Application & Domain Service Tier (FastAPI)"]
+        direction LR
+        API_Gate["Security Perimeter<br/>(JWT RBAC, Rate Limiter, IDOR)"]
+        SVC_Biz["BusinessService Facade<br/>(11 Repositories Coordinator)"]
+        SVC_Fin["Financial Intelligence Engine<br/>(P&L, Cash Flow, Solvency)"]
+        SVC_Gov["Governance & AI Copilot<br/>(Tool DAG, Staged Action Gate)"]
+        API_Gate ~~~ SVC_Biz ~~~ SVC_Fin ~~~ SVC_Gov
     end
 
-    subgraph Tier3["3. Infrastructure & Persistence Layer (PostgreSQL 16)"]
-        REPO_Postgres["Repository Implementations (SQLAlchemy 2.0 ORM)"]
-        DB_Ledger[("Double-Entry Khata Journal & Balances")]
-        DB_Inv[("FIFO Inventory Lots & Movement Audits")]
-        DB_Dec[("Immutable Decision Snapshots & Version Graphs")]
-        DB_Users[("User Identity, Sessions, Roles & OTP Challenges")]
-        
-        REPO_Postgres --> DB_Ledger
-        REPO_Postgres --> DB_Inv
-        REPO_Postgres --> DB_Dec
-        REPO_Postgres --> DB_Users
+    subgraph Tier3["3. Infrastructure & Persistence Tier (PostgreSQL 16)"]
+        direction LR
+        DB_Ledger[("Double-Entry Khata<br/>(Journal & Balance Ledgers)")]
+        DB_Inv[("FIFO Inventory<br/>(Stock Movement & Cost Lots)")]
+        DB_Dec[("Decision Models<br/>(Immutable Version Graphs)")]
+        DB_Sec[("Security & Audit<br/>(Identities, Roles, Audit Trail)")]
+        DB_Ledger ~~~ DB_Inv ~~~ DB_Dec ~~~ DB_Sec
     end
 
-    Tier1 -->|HTTPS / REST / JSON| Tier2
-    Tier2 --> Tier3
+    Tier1 ==>|"HTTPS REST / JSON API (Port 443)"| Tier2
+    Tier2 ==>|"SQLAlchemy 2.0 Async Connection Pool"| Tier3
 ```
 
 ---
@@ -692,10 +684,12 @@ def verify_workspace_access(
 ### 6.1 Domain Class Diagram
 
 ```mermaid
+%%{init: {'theme': 'dark', 'themeVariables': {'darkMode': true, 'background': '#0b0f19', 'primaryColor': '#1e293b', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#38bdf8', 'lineColor': '#94a3b8', 'secondaryColor': '#0f172a'}}}%%
 classDiagram
     direction TB
 
     class Money {
+        <<Value Object>>
         +Decimal amount
         +str currency
         +from_float(val) Money
@@ -706,6 +700,7 @@ classDiagram
     }
 
     class BusinessWorkspace {
+        <<Aggregate Root>>
         +UUID id
         +str name
         +str industry
@@ -714,12 +709,14 @@ classDiagram
     }
 
     class BusinessMembership {
+        <<Entity>>
         +UUID business_id
         +UUID user_id
         +BusinessRole role
     }
 
     class Customer {
+        <<Entity>>
         +UUID id
         +UUID business_id
         +str name
@@ -729,6 +726,7 @@ classDiagram
     }
 
     class Product {
+        <<Entity>>
         +UUID id
         +UUID business_id
         +str sku
@@ -738,7 +736,27 @@ classDiagram
         +float current_stock
     }
 
+    class InventoryBalance {
+        <<Aggregate Component>>
+        +UUID product_id
+        +float total_quantity
+        +Money average_cost
+        +apply_addition(qty, cost) void
+        +apply_deduction(qty) void
+    }
+
+    class InventoryMovement {
+        <<Domain Event / Audit>>
+        +UUID id
+        +UUID product_id
+        +MovementType movement_type
+        +float quantity
+        +Money unit_cost
+        +datetime timestamp
+    }
+
     class SalesInvoice {
+        <<Aggregate Root>>
         +UUID id
         +UUID business_id
         +UUID customer_id
@@ -753,6 +771,7 @@ classDiagram
     }
 
     class SalesInvoiceItem {
+        <<Entity>>
         +UUID id
         +UUID product_id
         +str description
@@ -761,24 +780,8 @@ classDiagram
         +Money total_price
     }
 
-    class InventoryBalance {
-        +UUID product_id
-        +float total_quantity
-        +Money average_cost
-        +apply_addition(qty, cost) void
-        +apply_deduction(qty) void
-    }
-
-    class InventoryMovement {
-        +UUID id
-        +UUID product_id
-        +MovementType movement_type
-        +float quantity
-        +Money unit_cost
-        +datetime timestamp
-    }
-
     class BusinessService {
+        <<Application Facade>>
         -PostgresBusinessRepository business_repo
         -PostgresSalesInvoiceRepository invoice_repo
         -PostgresInventoryRepository inventory_repo
@@ -787,29 +790,31 @@ classDiagram
     }
 
     class BusinessToolRegistry {
+        <<Command Registry>>
         -dict tools
         -list tool_schemas
         +execute_tool(name, args) dict
         +get_tool_schemas() list
     }
 
-    %% Relationships
-    BusinessWorkspace "1" *-- "many" BusinessMembership : Aggregation
-    BusinessWorkspace "1" o-- "many" Customer : Association
-    BusinessWorkspace "1" o-- "many" Product : Association
-    BusinessWorkspace "1" *-- "many" SalesInvoice : Composition
-    SalesInvoice "1" *-- "many" SalesInvoiceItem : Composition
-    Customer "1" <-- "many" SalesInvoice : References
-    Product "1" <-- "many" SalesInvoiceItem : References
-    Product "1" *-- "1" InventoryBalance : Composition
-    InventoryBalance "1" *-- "many" InventoryMovement : Composition
-    SalesInvoiceItem ..> Money : Uses
-    SalesInvoice ..> Money : Uses
-    Product ..> Money : Uses
-    Customer ..> Money : Uses
-    BusinessService ..> BusinessWorkspace : Orchestrates
-    BusinessService ..> SalesInvoice : Creates
-    BusinessToolRegistry ..> BusinessService : Delegates
+    %% Aggregations and Compositions (Symmetrical Hierarchy)
+    BusinessWorkspace "1" *-- "many" BusinessMembership : Aggregates
+    BusinessWorkspace "1" o-- "many" Customer : Manages
+    BusinessWorkspace "1" o-- "many" Product : Manages
+    BusinessWorkspace "1" *-- "many" SalesInvoice : Contains
+
+    SalesInvoice "1" *-- "many" SalesInvoiceItem : Composed of
+    Product "1" *-- "1" InventoryBalance : Tracks
+    InventoryBalance "1" *-- "many" InventoryMovement : Depletes via FIFO
+
+    %% Clean Non-Crossing Associations
+    Customer "1" <-- "many" SalesInvoice : Billed to
+    Product "1" <-- "many" SalesInvoiceItem : Fulfills
+
+    %% Orchestrators
+    BusinessService ..> BusinessWorkspace : Coordinates
+    BusinessService ..> SalesInvoice : Emits
+    BusinessToolRegistry ..> BusinessService : Queries
 ```
 
 ---
@@ -817,58 +822,64 @@ classDiagram
 ### 6.2 Actors & System Use-Case Diagram
 
 ```mermaid
-flowchart LR
-    subgraph Actors["Primary Actors"]
-        Ent["Entrepreneur / Owner"]
-        Stew["Financial Steward"]
-        Aud["Auditor / Compliance"]
-        Adm["Platform Admin"]
-        AI["Agentic AI Copilot"]
+%%{init: {'theme': 'dark', 'themeVariables': {'darkMode': true, 'background': '#0b0f19', 'primaryColor': '#1e293b', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#38bdf8', 'lineColor': '#94a3b8', 'secondaryColor': '#0f172a'}}}%%
+flowchart TD
+    subgraph Actors["System Actors"]
+        direction LR
+        Owner["Entrepreneur<br/>(Business Owner)"]
+        Steward["Financial Steward<br/>(Accountant)"]
+        Auditor["Auditor<br/>(Compliance Officer)"]
+        Admin["Platform Administrator<br/>(System Admin)"]
+        AI["Agentic AI Copilot<br/>(Decision Copilot)"]
     end
 
-    subgraph Workspaces["Workspace Operations"]
-        UC1["Create & Configure Workspace"]
-        UC2["Issue Sales Invoice & Post Khata"]
-        UC3["Manage Inventory & Reorder Stock"]
-        UC4["Inspect Real-Time P&L and Balance Sheet"]
-        UC5["Simulate 12-Month Financial Scenarios"]
-        UC6["Review Tamper-Evident Audit Trail"]
+    subgraph Operations["Commercial Operations Context"]
+        direction TB
+        UC1["Issue Sales Invoice & Post Khata"]
+        UC2["Receive Stock & Manage FIFO Lots"]
+        UC3["Reconcile Customer & Vendor Ledgers"]
     end
 
-    subgraph Governance["Staged AI Governance"]
-        UC7["Ask Financial & ROI Inquiries"]
-        UC8["Formulate Tool Investigation DAG"]
-        UC9["Stage Action Proposals (PENDING)"]
-        UC10["Confirm Staged Action (Human-in-the-Loop)"]
+    subgraph Intelligence["Financial Intelligence Context"]
+        direction TB
+        UC4["Real-Time Statements (P&L, Cash Flow)"]
+        UC5["Altman Z'-Score & Solvency Analysis"]
+        UC6["36-Month Scenario Laboratory"]
     end
 
-    subgraph PlatformAdmin["Platform Governance"]
-        UC11["Manage System Accounts & Quotas"]
-        UC12["Inspect Tenant Integrity"]
+    subgraph Governance["Staged AI Governance Context"]
+        direction TB
+        UC7["Natural Language Financial Inquiry"]
+        UC8["Formulate Tool Execution DAG"]
+        UC9["Review & Confirm Staged Action"]
     end
 
-    Ent --> UC1
-    Ent --> UC2
-    Ent --> UC3
-    Ent --> UC4
-    Ent --> UC5
-    Ent --> UC7
-    Ent --> UC10
+    subgraph Platform["Platform Administration Context"]
+        direction TB
+        UC10["Inspect Tamper-Evident Audit Trail"]
+        UC11["Manage Tenant Lifecycle & Quotas"]
+        UC12["Enforce Multi-Tenant IDOR Security"]
+    end
 
-    Stew --> UC2
-    Stew --> UC4
-    Stew --> UC5
-    Stew --> UC7
+    Owner --> UC1
+    Owner --> UC4
+    Owner --> UC9
 
-    Aud --> UC6
-    Aud --> UC4
+    Steward --> UC1
+    Steward --> UC2
+    Steward --> UC3
+    Steward --> UC4
+    Steward --> UC6
 
-    Adm --> UC11
-    Adm --> UC12
+    Auditor --> UC10
+    Auditor --> UC4
 
+    Admin --> UC11
+    Admin --> UC12
+
+    AI --> UC7
     AI --> UC8
-    AI --> UC9
-    UC9 -.->|"Requires Owner Approval"| UC10
+    UC8 -.->|"Proposes Staged Action"| UC9
 ```
 
 ---
@@ -876,6 +887,7 @@ flowchart LR
 ### 6.3 Sequence Diagram: Commercial Order-to-Ledger Execution
 
 ```mermaid
+%%{init: {'theme': 'dark', 'themeVariables': {'darkMode': true, 'background': '#0b0f19', 'primaryColor': '#1e293b', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#38bdf8', 'lineColor': '#94a3b8', 'secondaryColor': '#0f172a', 'actorBkg': '#1e293b', 'actorBorder': '#38bdf8', 'actorTextColor': '#f8fafc', 'signalColor': '#38bdf8', 'signalTextColor': '#f8fafc'}}}%%
 sequenceDiagram
     autonumber
     actor Client as Business Owner (Client)
@@ -886,29 +898,31 @@ sequenceDiagram
     participant Khata as KhataLedgerEngine
     participant DB as PostgreSQL (Atomic UoW)
 
-    Client->>API: POST /businesses/{id}/invoices (InvoicePayload)
-    API->>Auth: verify_access(business_id, user_id, [OWNER, MANAGER])
-    Auth-->>API: Access Granted (Tenant Confirmed)
+    Client->>+API: POST /businesses/{id}/invoices (InvoicePayload)
+    API->>+Auth: verify_access(business_id, user_id, [OWNER, MANAGER])
+    Auth-->>-API: Access Granted (Tenant Confirmed)
     
-    API->>Svc: create_sales_invoice(business_id, invoice_data)
+    API->>+Svc: create_sales_invoice(business_id, invoice_data)
     
-    rect rgb(240, 248, 255)
-        note right of Svc: Atomic Transaction Boundary (Unit of Work)
-        Svc->>InvRepo: check_stock_availability(product_id, qty)
-        InvRepo-->>Svc: Stock Available (50 units on hand)
+    rect rgb(15, 23, 42)
+        note over Svc,DB: Atomic Transaction Boundary (PostgreSQL Unit of Work)
+        Svc->>+InvRepo: check_stock_availability(product_id, qty)
+        InvRepo-->>-Svc: Stock Available (50 units on hand)
         
-        Svc->>InvRepo: deduct_inventory(product_id, qty, movement_type='SALE')
+        Svc->>+InvRepo: deduct_inventory(product_id, qty, movement_type='SALE')
         InvRepo->>DB: INSERT into inventory_movements (FIFO lot reduction)
+        InvRepo-->>-Svc: Lots Depleted Successfully
         
-        Svc->>Khata: post_customer_debit(customer_id, invoice_total)
+        Svc->>+Khata: post_customer_debit(customer_id, invoice_total)
         Khata->>DB: INSERT into customer_ledger_entries (DEBIT ₹1,000.00)
+        Khata-->>-Svc: Balance Updated (Sum Debits == Sum Credits)
         
         Svc->>DB: INSERT into sales_invoices & sales_invoice_items
         DB-->>Svc: Transaction Committed Successfully
     end
 
-    Svc-->>API: SalesInvoice Entity (Status: ISSUED)
-    API-->>Client: HTTP 201 Created (JSON Response)
+    Svc-->>-API: SalesInvoice Entity (Status: ISSUED)
+    API-->>-Client: HTTP 201 Created (JSON Invoice Receipt)
 ```
 
 ---
@@ -916,6 +930,7 @@ sequenceDiagram
 ### 6.4 Sequence Diagram: Staged AI Investigation & Human Confirmation
 
 ```mermaid
+%%{init: {'theme': 'dark', 'themeVariables': {'darkMode': true, 'background': '#0b0f19', 'primaryColor': '#1e293b', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#38bdf8', 'lineColor': '#94a3b8', 'secondaryColor': '#0f172a', 'actorBkg': '#1e293b', 'actorBorder': '#38bdf8', 'actorTextColor': '#f8fafc', 'signalColor': '#38bdf8', 'signalTextColor': '#f8fafc'}}}%%
 sequenceDiagram
     autonumber
     actor Owner as Business Owner
@@ -926,33 +941,36 @@ sequenceDiagram
     participant Gate as Governance Gate (/actions)
     participant DB as PostgreSQL Database
 
-    Owner->>Web: "Should we take a ₹2,000 loan at 10% interest to buy equipment?"
-    Web->>Agent: POST /businesses/{id}/agent/investigate
+    Owner->>+Web: "Should we take a ₹2,000 loan at 10% interest to buy equipment?"
+    Web->>+Agent: POST /businesses/{id}/agent/investigate
     
-    Agent->>Agent: Parse query & extract loan/investment parameters
-    Agent->>Reg: execute_tool('evaluate_investment_and_loan', {principal: 2000, rate: 10, ...})
+    rect rgb(15, 23, 42)
+        note over Agent,Tool: Deterministic Tool DAG Execution (Zero DB Mutation)
+        Agent->>Agent: Parse query and extract loan parameters
+        Agent->>+Reg: execute_tool('evaluate_investment_and_loan', {principal: 2000, rate: 10, ...})
+        Reg->>+Tool: Execute deterministic NPV and CAGR calculation
+        Tool-->>-Reg: Total Repayment: ₹2,200 | Real NPV: ₹1,092.90 | CAGR: 18.92%
+        Reg-->>-Agent: Verified mathematical metrics receipt
+        Agent->>Agent: Synthesize recommendation ("PROCEED: Verified Positive Real NPV")
+    end
+    Agent-->>-Web: Return synthesis and investigation DAG
+    Web-->>-Owner: Display Analysis & "+ Stage Action Preview" Button
     
-    Reg->>Tool: Execute deterministic NPV & CAGR calculation
-    Tool-->>Reg: Total Repayment: ₹2,200 | Real NPV: ₹1,092.90 | CAGR: 18.92%
-    Reg-->>Agent: Verified metrics receipt
-    
-    Agent->>Agent: Synthesize recommendation ("PROCEED: Verified Positive Real NPV")
-    Agent-->>Web: Return synthesis & investigation DAG (Zero database mutation)
-    
-    rect rgb(255, 245, 245)
-        note over Web,Gate: Staged Governance Review Gate
-        Owner->>Web: Click "+ Stage Action Preview" (Action: CREATE_GOAL)
-        Web->>Gate: POST /sessions/{id}/actions (CREATE_GOAL, target=₹50,000)
+    rect rgb(26, 35, 50)
+        note over Owner,DB: Staged Governance Review Gate (Human-in-the-Loop)
+        Owner->>+Web: Click "+ Stage Action Preview" (Action: CREATE_GOAL)
+        Web->>+Gate: POST /sessions/{id}/actions (CREATE_GOAL, target=₹50,000)
         Gate->>DB: INSERT into staged_actions (Status: PENDING_CONFIRMATION)
         DB-->>Gate: Staged Action ID created
-        Gate-->>Web: Display Staged Action in Review Tray
+        Gate-->>-Web: Display Staged Action in Review Tray
         
-        Owner->>Web: Click "Explicit Confirm"
-        Web->>Gate: POST /sessions/{id}/actions/{id}/confirm
+        Owner->>+Web: Click "Explicit Confirm"
+        Web->>+Gate: POST /sessions/{id}/actions/{id}/confirm
         Gate->>DB: UPDATE staged_actions (Status: CONFIRMED)
         Gate->>DB: INSERT into goals (Target: ₹50,000, Type: REVENUE)
-        DB-->>Gate: Goal Created
-        Gate-->>Web: HTTP 200 OK (Action Confirmed & Executed)
+        DB-->>Gate: Goal Created Successfully
+        Gate-->>-Web: HTTP 200 OK (Action Confirmed & Executed)
+        Web-->>-Owner: Goal Activated on Workspace Dashboard
     end
 ```
 
@@ -961,27 +979,33 @@ sequenceDiagram
 ### 6.5 State Diagram: Invoice & Staged AI Action Lifecycle Machines
 
 ```mermaid
+%%{init: {'theme': 'dark', 'themeVariables': {'darkMode': true, 'background': '#0b0f19', 'primaryColor': '#1e293b', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#38bdf8', 'lineColor': '#94a3b8', 'secondaryColor': '#0f172a'}}}%%
 stateDiagram-v2
-    [*] --> DRAFT : Draft Invoice Created
-    DRAFT --> ISSUED : Finalize & Dispatch
-    ISSUED --> PARTIALLY_PAID : Customer Partial Payment
-    PARTIALLY_PAID --> PAID : Full Balance Settled
-    ISSUED --> PAID : Full Payment Received
-    ISSUED --> OVERDUE : Due Date Elapsed
-    OVERDUE --> PARTIALLY_PAID : Partial Recovery
-    OVERDUE --> PAID : Full Settlement
-    DRAFT --> CANCELLED : Void Before Issuance
-    ISSUED --> CANCELLED : Credit Note Issued
-    PAID --> [*]
-    CANCELLED --> [*]
+    state "Commercial Sales Invoice Lifecycle" as InvoiceMachine {
+        [*] --> DRAFT : Create Draft Invoice
+        DRAFT --> ISSUED : Finalize & Post Khata Debit
+        ISSUED --> PARTIALLY_PAID : Customer Partial Payment
+        PARTIALLY_PAID --> PAID : Full Balance Settled
+        ISSUED --> PAID : Full Payment Received
+        ISSUED --> OVERDUE : Due Date Elapsed
+        OVERDUE --> PARTIALLY_PAID : Partial Recovery
+        OVERDUE --> PAID : Full Settlement
+        DRAFT --> CANCELLED : Void Before Issuance
+        ISSUED --> CANCELLED : Credit Note Issued
+        PAID --> [*]
+        CANCELLED --> [*]
+    }
 
-    state "Staged AI Action Lifecycle" as GovernanceState {
-        [*] --> PENDING_CONFIRMATION : AI Formulates Action Proposal
-        PENDING_CONFIRMATION --> CONFIRMED : Human Owner Clicks Confirm
+    state "Staged AI Governance Action Lifecycle" as GovernanceMachine {
+        [*] --> PENDING_CONFIRMATION : AI Proposes Capital Action
+        PENDING_CONFIRMATION --> CONFIRMED : Human Owner Confirms
         PENDING_CONFIRMATION --> REJECTED : Human Owner Dismisses
-        CONFIRMED --> EXECUTED : Domain Service Mutates Database
+        CONFIRMED --> EXECUTING : Dispatch Unit of Work
+        EXECUTING --> EXECUTED : Ledger & Goals Mutated
+        EXECUTING --> FAILED : Invariant Check Failed (Rollback)
         EXECUTED --> [*]
         REJECTED --> [*]
+        FAILED --> [*]
     }
 ```
 
