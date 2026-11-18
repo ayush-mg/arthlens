@@ -250,4 +250,5 @@ scratch/
 frontend/scratch/
 *.tsbuildinfo
 *.pptx
+/docs/
 
