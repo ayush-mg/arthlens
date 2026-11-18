@@ -1,1182 +1,398 @@
-<div align="center">
-  <h1>अर्थLens (ArthLens)</h1>
-  <p><b>Sovereign Financial Operating System, Deterministic Integer-Paisa Khata & Staged AI Decision Intelligence Platform</b></p>
-  <p><i>Academic Project Report & Object-Oriented Methodology (OOM) Specification</i></p>
+# अर्थLens (ArthLens) — Software Engineering Project
 
-  [![Live Frontend Deployment](https://img.shields.io/badge/Live_Frontend-Active-emerald?style=for-the-badge&logo=vercel)](https://arthlens-two.vercel.app)
-  [![Production Backend API](https://img.shields.io/badge/Production_Backend-Active-blue?style=for-the-badge&logo=render)](https://arthlens-n6ah.onrender.com)
-  [![GitHub Repository](https://img.shields.io/badge/GitHub-Repository-black?style=for-the-badge&logo=github)](https://github.com/ayush-mg/arthlens)
-  [![Test Suite](https://img.shields.io/badge/Pytest-164%20Passed-brightgreen?style=for-the-badge&logo=python)](https://github.com/ayush-mg/arthlens)
-  [![E2E Coverage](https://img.shields.io/badge/Playwright-8%2F8%20Journeys-purple?style=for-the-badge&logo=playwright)](https://github.com/ayush-mg/arthlens)
-  [![OOM Compliance](https://img.shields.io/badge/OOM%20Design-SOLID%20%2B%2023%20GoF-gold?style=for-the-badge)](https://github.com/ayush-mg/arthlens)
-</div>
+ArthLens is a web application for small businesses that connects purchases, inventory, invoices, customer and supplier ledgers (*Khata*), financial analysis and decisions within a workspace. A sale is a useful way to understand the engineering problem: the invoice, stock movement, receivable and journal entries must agree, including when the sale fails halfway through.
 
----
+**Course project · Software Engineering · IIIT Allahabad**
 
-> **"Spreadsheets guess. Disconnected accounting tools drift. Generative AI hallucinates arithmetic. ArthLens binds commercial invoicing, vendor procurement, perpetual FIFO inventory lots, integer-paisa Khata double-entry ledgers, and human-in-the-loop AI governance into one living, mathematically locked sovereign operating system."**
+[Frontend](https://arthlens-two.vercel.app) · [Backend](https://arthlens-n6ah.onrender.com) · [User guide](docs/USER_GUIDE.md) · [Evaluation walkthrough](#11-evaluation-walkthrough-and-team)
 
-ArthLens is an enterprise-grade sovereign business operating system and decision intelligence platform designed for Micro, Small, and Medium Enterprises (MSMEs), commercial operators, and financial stewards. It demonstrates an advanced implementation of **Object-Oriented Methodology (OOM)**, **Domain-Driven Design (DDD)**, and **SOLID architecture**, integrating deterministic financial arithmetic with agentic AI copilots.
+## Reading guide
 
----
+| Course unit | Project material |
+|---|---|
+| 1 · Software characteristics, components, principles, measurement and process models | [Problem and scope](#1-problem-and-scope), [lifecycle](#2-development-lifecycle), [measurement and control](#7-planning-estimation-and-control) |
+| 2 · Requirements, structured analysis, design, architecture and UML | [Requirements](#3-requirements-and-acceptance), [architecture and data flow](#4-architecture-and-structured-design), [object-oriented principles](#5-object-oriented-design), [UML models](#6-uml-models) |
+| 3 · Planning, scheduling, size and cost, risks, reliability, quality and client/server development | [Client and server](#4-architecture-and-structured-design), [planning and estimates](#7-planning-estimation-and-control), [risk and quality](#8-risk-reliability-and-quality-assurance) |
+| 4 · Verification, validation, inspection, testing, debugging, maintenance and configuration management | [Test plan and results](#9-verification-validation-and-test-plan), [release and maintenance](#10-local-launch-release-and-maintenance) |
 
-## Table of Contents
+## 1. Problem and scope
 
-1. [The Problem: The MSME Operational & Mathematical Crisis](#1-the-problem-the-msme-operational--mathematical-crisis)
-2. [What ArthLens Does](#2-what-arthlens-does)
-3. [System Architecture & Multi-Tier Topology](#3-system-architecture--multi-tier-topology)
-4. [Object-Oriented Methodology (OOM) Deep Dive](#4-object-oriented-methodology-oom-deep-dive)
-   - [4.1 Classes, Objects, Attributes, Methods & Constructors](#41-classes-objects-attributes-methods--constructors)
-   - [4.2 The Four Pillars of Object-Oriented Programming](#42-the-four-pillars-of-object-oriented-programming)
-   - [4.3 Relationships Between Classes (Association, Aggregation, Composition)](#43-relationships-between-classes-association-aggregation-composition)
-   - [4.4 SOLID Object-Oriented Design Principles](#44-solid-object-oriented-design-principles)
-   - [4.5 Software Design Patterns Catalog (23 Patterns Implemented)](#45-software-design-patterns-catalog-23-patterns-implemented)
-   - [4.6 Exception Handling, Modularity & Defensive Programming](#46-exception-handling-modularity--defensive-programming)
-5. [Comprehensive UML Diagrams](#5-comprehensive-uml-diagrams)
-   - [5.1 Domain Class Diagram](#51-domain-class-diagram)
-   - [5.2 Actors & System Use-Case Diagram](#52-actors--system-use-case-diagram)
-   - [5.3 Sequence Diagram: Commercial Order-to-Ledger Execution](#53-sequence-diagram-commercial-order-to-ledger-execution)
-   - [5.4 Sequence Diagram: Staged AI Investigation & Human Confirmation](#54-sequence-diagram-staged-ai-investigation--human-confirmation)
-   - [5.5 State Diagram: Invoice & Staged AI Action Lifecycle Machines](#55-state-diagram-invoice--staged-ai-action-lifecycle-machines)
-6. [The Mathematics of Financial Sovereignty & Resilience](#6-the-mathematics-of-financial-sovereignty--resilience)
-   - [6.1 Integer-Paisa Khata Double-Entry Invariant](#61-integer-paisa-khata-double-entry-invariant)
-   - [6.2 Perpetual FIFO Inventory Lot Accounting & Weighted Average Cost (WAC)](#62-perpetual-fifo-inventory-lot-accounting--weighted-average-cost-wac)
-   - [6.3 Loan Total Repayment & Nominal Profit](#63-loan-total-repayment--nominal-profit)
-   - [6.4 Annualized Compound Annual Growth Rate (CAGR)](#64-annualized-compound-annual-growth-rate-cagr)
-   - [6.5 Inflation-Adjusted Net Present Value (Real NPV)](#65-inflation-adjusted-net-present-value-real-npv)
-   - [6.6 Altman Z'-Score for MSME Solvency & Bankruptcy Prediction](#66-altman-z-score-for-msme-solvency--bankruptcy-prediction)
-   - [6.7 Cash Conversion Cycle (CCC) & Working Capital Health](#67-cash-conversion-cycle-ccc--working-capital-health)
-7. [Platform Features & 18 Workspace Chapters](#7-platform-features--18-workspace-chapters)
-8. [Why Not Just an AI Wrapper?](#8-why-not-just-an-ai-wrapper)
-9. [Resilience & Defensive Architecture](#9-resilience--defensive-architecture)
-10. [The Interface: Cosmic Orbit Topology](#10-the-interface-cosmic-orbit-topology)
-11. [Demonstration Flows & Tactical Scenarios](#11-demonstration-flows--tactical-scenarios)
-12. [Production Deployment & The 14-Minute Ping Strategy](#12-production-deployment--the-14-minute-ping-strategy)
-13. [Local Quickstart & Execution Guide](#13-local-quickstart--execution-guide)
-14. [Verification & Test Suite Audit](#14-verification--test-suite-audit)
-15. [Academic Handover & Team Credits](#15-academic-handover--team-credits)
+A shop can record a credit sale in its billing system and still omit the amount from the customer's Khata. A second operator can sell the same remaining stock before the first operator finishes. A report built from either partial record can overstate cash or margin. ArthLens treats these as requirements for consistency, concurrency control and traceability.
 
----
-
-## 1. The Problem: The MSME Operational & Mathematical Crisis
-
-India’s 63 million Micro, Small, and Medium Enterprises (MSMEs) form the backbone of the national economy:
-
-- **30% of National GDP** is driven by MSME manufacturing and commercial distribution.
-- **45% of Total Industrial Output** originates from decentralized commercial clusters.
-- **110+ Million Citizens** are employed across MSME operations.
-
-Despite their economic criticality, over **80% of Indian commercial enterprises operate under severe operational, mathematical, and computational vulnerabilities**:
-
-```
-                              THE MSME OPERATIONAL TRAP
-                                          │
-       ┌──────────────────┬───────────────┴───────────────┬──────────────────┐
-       │                  │                               │                  │
- 1. INFORMAL CREDIT   2. FLOATING-POINT           3. AI HALLUCINATION   4. TOOL SPRAWL
-    DEFAULT SPIRAL       CORRUPTION DRIFT            IN FINANCE            & DRIFT
-       │                  │                               │                  │
-  ₹10.2 Lakh Cr      IEEE 754 float:            LLM generating         Paper Bahi-Khata,
-  informal credit    0.1 + 0.2 = 0.3000000004   "approximate" CAGR     Excel sheets &
-  gap; 42-day avg    Corrupts balance sheets    & NPV figures          isolated billing
-  collection delay   over 50,000 invoices       causes bankruptcy      apps desynchronize
-```
-
-### The Breakdown of MSME Failure Modes:
-
-1. **The Informal Credit Trap (*Bahi-Khata* Drift)**:
-   - India's MSMEs face a **₹10.2 Lakh Crore ($120 Billion) informal credit gap**.
-   - Average receivables collection cycle stretches to **42 days**, with delayed payments cascading across supply chains.
-   - When customer debits and supplier credits are tracked on loose paper ledgers or detached spreadsheets, credit limit breaches go unnoticed until cash reserves are exhausted.
-
-2. **Floating-Point Rounding Corruption**:
-   - Generic web applications model financial balances using IEEE 754 double-precision floating-point numbers:
-     $$\text{In IEEE 754: } 0.1 + 0.2 = 0.30000000000000004$$
-   - Over 50,000 commercial transactions, fractional paisa rounding errors accumulate into severe discrepancies between invoices, tax filings (GST), and bank reconciliation statements.
-
-3. **Generative AI Hallucination in Financial Operations**:
-   - Off-the-shelf "AI wrappers" feed balance sheets directly into LLMs, asking the model to compute ROI, compounding growth rates, or loan viability.
-   - Large Language Models are statistical token predictors, **not arithmetic engines**. They hallucinate plausible-sounding financial metrics (e.g., claiming a ₹2,000 loan at 10% interest generates positive NPV when real inflation-adjusted cash flows are negative).
-
-4. **Rogue Autonomous Agent Mutations**:
-   - Emerging AI agent platforms grant autonomous tools direct write access to relational databases.
-   - An unsupervised agent interpreting a conversational query can mistakenly issue credit notes, zero out customer balances, or mutate live inventory counts without a human-in-the-loop authorization gate.
-
-5. **Reconciliation Drift Across Disconnected Tools**:
-   - The typical MSME uses one tool for billing, another spreadsheet for stock counts, a third app for payment reminders, and WhatsApp for vendor communication.
-   - There is no single atomic boundary ensuring that when an invoice is issued, inventory lots are reduced by FIFO, and the customer's Khata ledger is debited simultaneously.
-
-**ArthLens was engineered to eliminate these failure modes permanently.** By anchoring commercial workflows to an uncompromising Object-Oriented domain model, integer-paisa Khata double-entry ledgers, perpetual FIFO lot tracking, and a human-governed Staged Action review gate, ArthLens delivers true financial sovereignty.
-
----
-
-## 2. What ArthLens Does
-
-ArthLens continuously monitors the business's commercial vitals, validates financial transactions through deterministic arithmetic, and powers strategic decision-making through a 7-step sovereign pipeline:
-
-```
-                          ARTHLENS SOVEREIGN OPERATIONAL PIPELINE
-                                             │
-1. COMMERCIAL EVENT  ───► Invoice, PO, Customer Payment, or Capital Loan Proposal
-                                             │
-                                             ▼
-2. INTEGER-PAISA     ───► Converts amount to integer paisa: amount_paisa = int(round(val * 100))
-   CONVERSION             Eliminates IEEE 754 floating-point drift at the domain boundary
-                                             │
-                                             ▼
-3. ATOMIC UNIT       ───► Executes within a single PostgreSQL transaction boundary:
-   OF WORK                ├── 3a. Invariant Check: Sum(Debits) == Sum(Credits)
-                          ├── 3b. FIFO Lot Allocation: Deducts oldest product lots first
-                          └── 3c. Ledger Posting: Updates customer Khata balance
-                                             │
-                                             ▼
-4. FINANCIAL         ───► Real-time statement synthesis (P&L, Balance Sheet, Cash Flow)
-   INTELLIGENCE           Computes Altman Z'-Score, Working Capital, DSO, and Solvency
-                                             │
-                                             ▼
-5. SCENARIO LAB      ───► 36-Month forward-looking simulation engine (Base / Bull / Stressed)
-                          Deterministic Monte Carlo projections without token hallucination
-                                             │
-                                             ▼
-6. AGENTIC COPILOT   ───► Formulates multi-step investigation DAG across 16 deterministic tools
-   (READ-ONLY DAG)        Generates synthesized recommendations with zero database mutation
-                                             │
-                                             ▼
-7. STAGED ACTION     ───► Proposals staged in PENDING_CONFIRMATION state
-   GOVERNANCE GATE        Requires explicit human entrepreneur signature to execute
-```
-
----
-
-## 3. System Architecture & Multi-Tier Topology
-
-ArthLens is built as an enterprise three-tier web application adhering to clean architecture and Domain-Driven Design:
-
-```mermaid
-%%{init: {'theme': 'dark', 'themeVariables': {'darkMode': true, 'background': '#0b0f19', 'primaryColor': '#1e293b', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#38bdf8', 'lineColor': '#94a3b8', 'secondaryColor': '#0f172a', 'tertiaryColor': '#1e293b'}}}%%
-flowchart TD
-    subgraph Tier1["1. Presentation Tier (Next.js 14 App Router)"]
-        direction LR
-        UI_Auth["Identity & Auth Portal<br/>(Login, OTP 2FA, OAuth)"]
-        UI_Shell["Cosmic Orbit Navigation Shell<br/>(/workspaces/[id])"]
-        UI_Modules["18 Domain Modules<br/>(Sales, Khata, FIFO Inventory)"]
-        UI_Admin["Platform Administration<br/>(/admin/users)"]
-        UI_Auth ~~~ UI_Shell ~~~ UI_Modules ~~~ UI_Admin
-    end
-
-    subgraph Tier2["2. Application & Domain Service Tier (FastAPI)"]
-        direction LR
-        API_Gate["Security Perimeter<br/>(JWT RBAC, Rate Limiter, IDOR)"]
-        SVC_Biz["BusinessService Facade<br/>(11 Repositories Coordinator)"]
-        SVC_Fin["Financial Intelligence Engine<br/>(P&L, Cash Flow, Solvency)"]
-        SVC_Gov["Governance & AI Copilot<br/>(Tool DAG, Staged Action Gate)"]
-        API_Gate ~~~ SVC_Biz ~~~ SVC_Fin ~~~ SVC_Gov
-    end
-
-    subgraph Tier3["3. Infrastructure & Persistence Tier (PostgreSQL 16)"]
-        direction LR
-        DB_Ledger[("Double-Entry Khata<br/>(Journal & Balance Ledgers)")]
-        DB_Inv[("FIFO Inventory<br/>(Stock Movement & Cost Lots)")]
-        DB_Dec[("Decision Models<br/>(Immutable Version Graphs)")]
-        DB_Sec[("Security & Audit<br/>(Identities, Roles, Audit Trail)")]
-        DB_Ledger ~~~ DB_Inv ~~~ DB_Dec ~~~ DB_Sec
-    end
-
-    Tier1 ==>|"HTTPS REST / JSON API (Port 443)"| Tier2
-    Tier2 ==>|"SQLAlchemy 2.0 Async Connection Pool"| Tier3
-```
-
----
-
-## 4. Object-Oriented Methodology (OOM) Deep Dive
-
-ArthLens was engineered from the ground up as a showcase of rigorous Object-Oriented Methodology. Every business rule, financial constraint, and computational workflow is represented through explicit object abstractions.
-
----
-
-### 4.1 Classes, Objects, Attributes, Methods & Constructors
-
-The system models business entities as rich domain objects encapsulating state, behavior, and invariants rather than passive data containers.
-
-#### Concrete Implementation: The `Money` Value Object
-The `Money` class ([`backend/arthlens/domain/business.py`](file:///c:/arthlens/backend/arthlens/domain/business.py#L22-L96)) eliminates floating-point representation drift across currency operations:
-
-```python
-@dataclass(frozen=True)
-class Money:
-    amount: Decimal = field(default=Decimal("0.00"))
-    currency: str = "INR"
-
-    def __post_init__(self):
-        # Enforce exact two-decimal precision and non-empty currency code
-        object.__setattr__(self, 'amount', Decimal(str(self.amount)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-        object.__setattr__(self, 'currency', (self.currency or "INR").upper())
-
-    @classmethod
-    def from_float(cls, value: float, currency: str = "INR") -> "Money":
-        # Factory method guaranteeing round-half-up decimal normalization
-        return cls(amount=Decimal(str(round(value, 2))), currency=currency)
-
-    @classmethod
-    def zero(cls, currency: str = "INR") -> "Money":
-        return cls(amount=Decimal("0.00"), currency=currency)
-
-    def __add__(self, other: "Money") -> "Money":
-        if self.currency != other.currency:
-            raise CurrencyMismatchException(f"Cannot add {self.currency} and {other.currency}")
-        return Money(amount=self.amount + other.amount, currency=self.currency)
-
-    def __sub__(self, other: "Money") -> "Money":
-        if self.currency != other.currency:
-            raise CurrencyMismatchException(f"Cannot subtract {other.currency} from {self.currency}")
-        return Money(amount=self.amount - other.amount, currency=self.currency)
-```
-
-**Key OOM Concepts Demonstrated:**
-- **Attributes**: `amount` (`Decimal`), `currency` (`str`).
-- **Constructors**: Standard `__init__` augmented by immutable validation in `__post_init__`.
-- **Factory Methods**: `Money.from_float()` and `Money.zero()`.
-- **Operator Overloading**: Polymorphic dunder methods `__add__`, `__sub__`, and `__eq__`.
-
----
-
-### 4.2 The Four Pillars of Object-Oriented Programming
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│               THE FOUR PILLARS OF OOP IN ARTHLENS                     │
-├─────────────────────┬────────────────────┬─────────────────────────────┤
-│ 1. ENCAPSULATION    │ 2. ABSTRACTION     │ 3. INHERITANCE              │
-│ State & invariants  │ Abstract base      │ Unified domain exception    │
-│ locked in Value     │ classes define     │ and entity hierarchy        │
-│ Objects & Roots     │ repository bounds  │                             │
-├─────────────────────┴────────────────────┴─────────────────────────────┤
-│ 4. POLYMORPHISM                                                        │
-│ Dynamic dispatch across decision strategies and tool execution handlers│
-└────────────────────────────────────────────────────────────────────────┘
-```
-
-#### 1. Encapsulation
-State mutation is strictly guarded. In `SalesInvoice` ([`backend/arthlens/domain/business.py`](file:///c:/arthlens/backend/arthlens/domain/business.py#L182-L242)), line items cannot be modified directly; totals must be recomputed through explicit domain methods:
-
-```python
-class SalesInvoice:
-    def recalculate_totals(self) -> None:
-        subtotal = Money.zero(self.currency)
-        for item in self.items:
-            subtotal = subtotal + item.total_price
-        self.subtotal = subtotal
-        self.tax_amount = Money(
-            amount=(self.subtotal.amount * Decimal(str(self.tax_rate))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
-            currency=self.currency
-        )
-        self.total_amount = self.subtotal + self.tax_amount
-```
-
-#### 2. Abstraction
-High-level application services depend on abstract contracts ([`backend/arthlens/domain/repositories.py`](file:///c:/arthlens/backend/arthlens/domain/repositories.py)), completely hiding the underlying SQL, connection pooling, and ORM mechanics:
-
-```python
-class AbstractSalesInvoiceRepository(ABC):
-    @abstractmethod
-    def get_by_id(self, invoice_id: UUID) -> Optional[SalesInvoice]:
-        raise NotImplementedError
-
-    @abstractmethod
-    def save(self, invoice: SalesInvoice) -> SalesInvoice:
-        raise NotImplementedError
-```
-
-#### 3. Inheritance
-ArthLens uses explicit inheritance trees for domain models and exceptions:
-
-```python
-class ArthLensException(Exception):
-    """Base domain exception for all sovereign operations."""
-    pass
-
-class DomainException(ArthLensException):
-    """Business rule or invariant violation."""
-    pass
-
-class InsufficientStockException(DomainException):
-    """Raised when an order quantity exceeds physical inventory lots."""
-    def __init__(self, product_id: UUID, requested: float, available: float):
-        super().__init__(f"Product {product_id} has insufficient stock: requested {requested}, available {available}")
-        self.product_id = product_id
-        self.requested = requested
-        self.available = available
-
-class CreditLimitExceededException(DomainException):
-    """Raised when an invoice pushes customer balance past credit limit."""
-    pass
-```
-
-#### 4. Polymorphism
-Different capital decision evaluation strategies share a unified polymorphic interface ([`backend/arthlens/decision/models.py`](file:///c:/arthlens/backend/arthlens/decision/models.py)):
-
-```python
-class CapitalDecisionStrategy(ABC):
-    @abstractmethod
-    def evaluate(self, payload: Dict[str, Any]) -> EvaluationMetrics:
-        raise NotImplementedError
-
-class MachinePurchaseStrategy(CapitalDecisionStrategy):
-    def evaluate(self, payload: Dict[str, Any]) -> EvaluationMetrics:
-        # Evaluates depreciating asset cash flows, tax shields, and payback
-        ...
-
-class ProductLineExpansionStrategy(CapitalDecisionStrategy):
-    def evaluate(self, payload: Dict[str, Any]) -> EvaluationMetrics:
-        # Evaluates inventory carrying costs, working capital drain, and margin
-        ...
-```
-
----
-
-### 4.3 Relationships Between Classes (Association, Aggregation, Composition)
-
-Object relationships strictly mirror business domain lifecycles:
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                     CLASS RELATIONSHIP TOPOLOGY                        │
-├───────────────────┬──────────────────────────┬─────────────────────────┤
-│ Composition (•──) │ Aggregation (◇──)        │ Association (───)       │
-│ Strict existential│ Shared lifecycle         │ Loose reference         │
-│ lifecycle binding │                          │                         │
-├───────────────────┼──────────────────────────┼─────────────────────────┤
-│ SalesInvoice      │ BusinessWorkspace        │ Customer                │
-│   •── LineItems   │   ◇── Memberships        │   ─── SalesInvoice      │
-│ Product           │ BusinessWorkspace        │ Product                 │
-│   •── InventoryLot│   ◇── Customers          │   ─── LineItem          │
-└───────────────────┴──────────────────────────┴─────────────────────────┘
-```
-
-#### Composition Code Example: `SalesInvoice` and `SalesInvoiceItem`
-If a `SalesInvoice` is deleted, its constituent `SalesInvoiceItem` line items cannot exist independently and are destroyed:
-
-```python
-@dataclass
-class SalesInvoice:
-    id: UUID
-    business_id: UUID
-    customer_id: UUID
-    items: List["SalesInvoiceItem"] = field(default_factory=list) # COMPOSITION
-```
-
-#### Aggregation Code Example: `BusinessWorkspace` and `BusinessMembership`
-Users exist independently in the system. A `BusinessWorkspace` aggregates memberships, but destroying a workspace does not delete the user account:
-
-```python
-@dataclass
-class BusinessWorkspace:
-    id: UUID
-    name: str
-    memberships: List["BusinessMembership"] = field(default_factory=list) # AGGREGATION
-```
-
-#### Association Code Example: `Customer` and `SalesInvoice`
-A `SalesInvoice` references a `Customer` by foreign key association. The customer exists independently of whether invoices have been issued:
-
-```python
-@dataclass
-class SalesInvoice:
-    id: UUID
-    customer_id: UUID # ASSOCIATION
-```
-
----
-
-### 4.4 SOLID Object-Oriented Design Principles
-
-ArthLens rigorously enforces the five SOLID principles across all backend and frontend layers:
-
-#### 1. Single Responsibility Principle (SRP)
-Each class possesses exactly one reason to change:
-- `KhataLedgerEngine` ([`backend/arthlens/finance/intelligence.py`](file:///c:/arthlens/backend/arthlens/finance/intelligence.py)): Responsible solely for double-entry ledger balance arithmetic ($\sum \text{Debits} \equiv \sum \text{Credits}$).
-- `Argon2PasswordHasher` ([`backend/arthlens/security/password.py`](file:///c:/arthlens/backend/arthlens/security/password.py)): Responsible solely for cryptographic hashing and salt verification.
-- `InventoryCostService` ([`backend/arthlens/services/inventory_cost_service.py`](file:///c:/arthlens/backend/arthlens/services/inventory_cost_service.py)): Responsible solely for FIFO lot depletion and Weighted Average Cost (WAC) calculations.
-
-#### 2. Open/Closed Principle (OCP)
-The system is open for extension but closed for modification. The `BusinessToolRegistry` ([`backend/arthlens/agent/business_tools.py`](file:///c:/arthlens/backend/arthlens/agent/business_tools.py#L40-L110)) allows adding new deterministic tools via decorator registration without mutating the invocation engine:
-
-```python
-class BusinessToolRegistry:
-    def __init__(self):
-        self._tools: Dict[str, Callable] = {}
-        self._schemas: List[Dict[str, Any]] = []
-
-    def register(self, name: str, schema: Dict[str, Any]):
-        def decorator(func: Callable):
-            self._tools[name] = func
-            self._schemas.append(schema)
-            return func
-        return decorator
-```
-
-#### 3. Liskov Substitution Principle (LSP)
-Any concrete repository implementation (e.g., `PostgresSalesInvoiceRepository`) can seamlessly replace `AbstractSalesInvoiceRepository` without altering system correctness or violating client assumptions.
-
-#### 4. Interface Segregation Principle (ISP)
-Interfaces are fine-grained and client-specific. Instead of a monolithic "God Interface", distinct protocols govern separate capabilities:
-- `TokenRateLimiterProtocol`: Defines solely `check_rate_limit(key)`.
-- `AuditTrailRecorder`: Defines solely `record_event(actor, action, delta)`.
-- `ReadOnlyKhataQuery`: Exposes solely read operations for reporting without mutation methods.
-
-#### 5. Dependency Inversion Principle (DIP)
-High-level use case coordinators (`BusinessService`) depend exclusively on abstract repository contracts, never on concrete SQLAlchemy database sessions:
-
-```python
-class BusinessService:
-    def __init__(
-        self,
-        business_repo: AbstractBusinessRepository,
-        invoice_repo: AbstractSalesInvoiceRepository,
-        inventory_repo: AbstractInventoryRepository,
-        khata_repo: AbstractKhataRepository,
-        audit_recorder: AbstractAuditRecorder
-    ):
-        # Inversion of Control via Constructor Dependency Injection
-        self.business_repo = business_repo
-        self.invoice_repo = invoice_repo
-        self.inventory_repo = inventory_repo
-        self.khata_repo = khata_repo
-        self.audit_recorder = audit_recorder
-```
-
----
-
-### 4.5 Software Design Patterns Catalog (23 Patterns Implemented)
-
-ArthLens implements 23 classic Gang of Four (GoF) and Enterprise Application patterns:
-
-| # | Design Pattern | Classification | Implemented Component & Location | Concrete Architectural Purpose in ArthLens |
-|:---|:---|:---|:---|:---|
-| **1** | **Singleton** | Creational | `infra/database.py`<br>`DatabaseConnectionManager` | Ensures a single shared SQLAlchemy Engine and connection pool across the application lifecycle. |
-| **2** | **Value Object** | Domain / Structural | `domain/business.py`<br>`class Money` | Immutable monetary representation guaranteeing integer-paisa math and eliminating IEEE 754 drift. |
-| **3** | **Aggregate Root** | Domain / Structural | `domain/business.py`<br>`class SalesInvoice` | Manages consistency boundaries, line items, and stock invariants upon creation and payment. |
-| **4** | **Repository Pattern** | Architectural / Data | `infra/business_repositories.py`<br>`class PostgresSalesInvoiceRepository` | Decouples domain logic from SQL queries and SQLAlchemy persistence. |
-| **5** | **Unit of Work** | Architectural / Data | `services/business_service.py`<br>`with self.session_factory() as session:` | Atomic transaction management guaranteeing rollback across invoices, stock movements, and ledgers. |
-| **6** | **Strategy Pattern** | Behavioral | `decision/models.py`<br>`class DecisionModel` | Encapsulates distinct capital decision strategies (`MachinePurchase`, `ProductAddition`, etc.) behind a common interface. |
-| **7** | **Factory Method** | Creational | `domain/business.py`<br>`Money.from_float()`, `Money.zero()` | Standardizes object creation while enforcing domain rounding constraints. |
-| **8** | **Command Pattern** | Behavioral | `agent/business_tools.py`<br>`execute_tool(name, args)` | Encapsulates tool invocations as standalone command objects with validated arguments. |
-| **9** | **Template Method** | Behavioral | `decision/engine.py`<br>`evaluate_with_constraints()` | Defines algorithm skeleton: validation → baseline query → math computation → constraint audit. |
-| **10** | **Observer Pattern** | Behavioral | `services/business_service.py`<br>`record_audit_event()` | Decoupled event logging that observes and records state mutations across all chapters. |
-| **11** | **Decorator Pattern** | Structural | `api/dependencies.py`<br>`@router.post()`, `@dataclass` | Enhances endpoint functions with authentication, rate limiting, and schema validation. |
-| **12** | **Registry Pattern** | Creational / Behavioral | `agent/business_tools.py`<br>`class BusinessToolRegistry` | Centralized registry maintaining the 16 deterministic tools and Gemini schema specs. |
-| **13** | **Builder Pattern** | Creational | `reporting/business_reports.py`<br>`BusinessReportGenerator` | Incremental assembly of multi-page PDF dossiers with ReportLab Flowable tables and charts. |
-| **14** | **Adapter Pattern** | Structural | `api/business.py`<br>`serialize_invoice()` | Adapts internal domain entities into external REST API JSON response structures. |
-| **15** | **Façade Pattern** | Structural | `services/business_service.py`<br>`class BusinessService` | Unified high-level API shielding presentation routes from 11 underlying repositories. |
-| **16** | **Composite Pattern** | Structural | `decision/models.py`<br>`DecisionGraph` | Models hierarchical decision networks consisting of individual Nodes and connecting Edges. |
-| **17** | **Chain of Responsibility** | Behavioral | `agent/business_agent.py`<br>`BusinessAgent.investigate()` | Request passes through: Token Firewall → Intent Classifier → Tool Execution DAG → Synthesizer. |
-| **18** | **State Pattern** | Behavioral | `domain/business.py`<br>`class InvoiceStatus` | Manages invoice lifecycle transitions (`DRAFT` → `ISSUED` → `PAID` → `CANCELLED`). |
-| **19** | **Proxy Pattern** | Structural | `api/dependencies.py`<br>`Depends(get_current_user)` | Security proxy intercepting incoming HTTP requests to verify JWT claims and tenant roles. |
-| **20** | **Memento / Snapshot** | Behavioral | `infra/models.py`<br>`class DecisionEvaluationModel` | Captures immutable historical snapshots of inputs and calculated metrics for audit replays. |
-| **21** | **Specification Pattern** | Behavioral | `services/business_service.py`<br>`verify_access()` | Encapsulates business rule predicate checks for credit exposure and permission bounds. |
-| **22** | **Null Object Pattern** | Behavioral | `domain/business.py`<br>`Money.zero()` | Provides neutral zero representations preventing `NoneType` crashes in arithmetic. |
-| **23** | **Flyweight Pattern** | Structural | `infra/config.py`<br>SQLAlchemy Connection Pool | Shares pre-allocated database connections across concurrent API workers, minimizing overhead. |
-
----
-
-### 4.6 Exception Handling, Modularity & Defensive Programming
-
-The codebase enforces defensive programming with custom exception hierarchies preventing cascading failures:
-
-```python
-# backend/arthlens/security/rbac.py
-def verify_workspace_access(
-    membership: Optional[BusinessMembership],
-    required_roles: List[BusinessRole]
-) -> BusinessMembership:
-    if not membership:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied: You are not a registered member of this sovereign workspace."
-        )
-    if membership.role not in required_roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Insufficient role privileges. Required: {[r.value for r in required_roles]}"
-        )
-    return membership
-```
-
----
-
-## 5. Comprehensive UML Diagrams
-
----
-
-### 5.1 Domain Class Diagram
-
-```mermaid
-%%{init: {'theme': 'dark', 'themeVariables': {'darkMode': true, 'background': '#0b0f19', 'primaryColor': '#1e293b', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#38bdf8', 'lineColor': '#94a3b8', 'secondaryColor': '#0f172a'}}}%%
-classDiagram
-    direction TB
-
-    class Money {
-        <<Value Object>>
-        +Decimal amount
-        +str currency
-        +from_float(val) Money
-        +zero(currency) Money
-        +format_inr() str
-        +__add__(other) Money
-        +__sub__(other) Money
-    }
-
-    class BusinessWorkspace {
-        <<Aggregate Root>>
-        +UUID id
-        +str name
-        +str industry
-        +str currency
-        +datetime created_at
-    }
-
-    class BusinessMembership {
-        <<Entity>>
-        +UUID business_id
-        +UUID user_id
-        +BusinessRole role
-    }
-
-    class Customer {
-        <<Entity>>
-        +UUID id
-        +UUID business_id
-        +str name
-        +str phone
-        +Money credit_limit
-        +Money current_balance
-    }
-
-    class Product {
-        <<Entity>>
-        +UUID id
-        +UUID business_id
-        +str sku
-        +str name
-        +Money purchase_price
-        +Money selling_price
-        +float current_stock
-    }
-
-    class InventoryBalance {
-        <<Aggregate Component>>
-        +UUID product_id
-        +float total_quantity
-        +Money average_cost
-        +apply_addition(qty, cost) void
-        +apply_deduction(qty) void
-    }
-
-    class InventoryMovement {
-        <<Domain Event / Audit>>
-        +UUID id
-        +UUID product_id
-        +MovementType movement_type
-        +float quantity
-        +Money unit_cost
-        +datetime timestamp
-    }
-
-    class SalesInvoice {
-        <<Aggregate Root>>
-        +UUID id
-        +UUID business_id
-        +UUID customer_id
-        +str invoice_number
-        +date invoice_date
-        +InvoiceStatus status
-        +Money subtotal
-        +Money tax_amount
-        +Money total_amount
-        +add_item(item) void
-        +recalculate_totals() void
-    }
-
-    class SalesInvoiceItem {
-        <<Entity>>
-        +UUID id
-        +UUID product_id
-        +str description
-        +float quantity
-        +Money unit_price
-        +Money total_price
-    }
-
-    class BusinessService {
-        <<Application Facade>>
-        -PostgresBusinessRepository business_repo
-        -PostgresSalesInvoiceRepository invoice_repo
-        -PostgresInventoryRepository inventory_repo
-        +create_invoice(biz_id, invoice_data) SalesInvoice
-        +verify_access(biz_id, user_id, roles) BusinessMembership
-    }
-
-    class BusinessToolRegistry {
-        <<Command Registry>>
-        -dict tools
-        -list tool_schemas
-        +execute_tool(name, args) dict
-        +get_tool_schemas() list
-    }
-
-    %% Aggregations and Compositions (Symmetrical Hierarchy)
-    BusinessWorkspace "1" *-- "many" BusinessMembership : Aggregates
-    BusinessWorkspace "1" o-- "many" Customer : Manages
-    BusinessWorkspace "1" o-- "many" Product : Manages
-    BusinessWorkspace "1" *-- "many" SalesInvoice : Contains
-
-    SalesInvoice "1" *-- "many" SalesInvoiceItem : Composed of
-    Product "1" *-- "1" InventoryBalance : Tracks
-    InventoryBalance "1" *-- "many" InventoryMovement : Depletes via FIFO
-
-    %% Clean Non-Crossing Associations
-    Customer "1" <-- "many" SalesInvoice : Billed to
-    Product "1" <-- "many" SalesInvoiceItem : Fulfills
-
-    %% Orchestrators
-    BusinessService ..> BusinessWorkspace : Coordinates
-    BusinessService ..> SalesInvoice : Emits
-    BusinessToolRegistry ..> BusinessService : Queries
-```
-
----
-
-### 5.2 Actors & System Use-Case Diagram
-
-```mermaid
-%%{init: {'theme': 'dark', 'themeVariables': {'darkMode': true, 'background': '#0b0f19', 'primaryColor': '#1e293b', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#38bdf8', 'lineColor': '#94a3b8', 'secondaryColor': '#0f172a'}}}%%
-flowchart TD
-    subgraph Actors["System Actors"]
-        direction LR
-        Owner["Entrepreneur<br/>(Business Owner)"]
-        Steward["Financial Steward<br/>(Accountant)"]
-        Auditor["Auditor<br/>(Compliance Officer)"]
-        Admin["Platform Administrator<br/>(System Admin)"]
-        AI["Agentic AI Copilot<br/>(Decision Copilot)"]
-    end
-
-    subgraph Operations["Commercial Operations Context"]
-        direction TB
-        UC1["Issue Sales Invoice & Post Khata"]
-        UC2["Receive Stock & Manage FIFO Lots"]
-        UC3["Reconcile Customer & Vendor Ledgers"]
-    end
-
-    subgraph Intelligence["Financial Intelligence Context"]
-        direction TB
-        UC4["Real-Time Statements (P&L, Cash Flow)"]
-        UC5["Altman Z'-Score & Solvency Analysis"]
-        UC6["36-Month Scenario Laboratory"]
-    end
-
-    subgraph Governance["Staged AI Governance Context"]
-        direction TB
-        UC7["Natural Language Financial Inquiry"]
-        UC8["Formulate Tool Execution DAG"]
-        UC9["Review & Confirm Staged Action"]
-    end
-
-    subgraph Platform["Platform Administration Context"]
-        direction TB
-        UC10["Inspect Tamper-Evident Audit Trail"]
-        UC11["Manage Tenant Lifecycle & Quotas"]
-        UC12["Enforce Multi-Tenant IDOR Security"]
-    end
-
-    Owner --> UC1
-    Owner --> UC4
-    Owner --> UC9
-
-    Steward --> UC1
-    Steward --> UC2
-    Steward --> UC3
-    Steward --> UC4
-    Steward --> UC6
-
-    Auditor --> UC10
-    Auditor --> UC4
-
-    Admin --> UC11
-    Admin --> UC12
-
-    AI --> UC7
-    AI --> UC8
-    UC8 -.->|"Proposes Staged Action"| UC9
-```
-
----
-
-### 5.3 Sequence Diagram: Commercial Order-to-Ledger Execution
-
-```mermaid
-%%{init: {'theme': 'dark', 'themeVariables': {'darkMode': true, 'background': '#0b0f19', 'primaryColor': '#1e293b', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#38bdf8', 'lineColor': '#94a3b8', 'secondaryColor': '#0f172a', 'actorBkg': '#1e293b', 'actorBorder': '#38bdf8', 'actorTextColor': '#f8fafc', 'signalColor': '#38bdf8', 'signalTextColor': '#f8fafc'}}}%%
-sequenceDiagram
-    autonumber
-    actor Client as Business Owner (Client)
-    participant API as FastAPI Router (/invoices)
-    participant Auth as Security Proxy (RBAC)
-    participant Svc as BusinessService (Facade)
-    participant InvRepo as InventoryRepository
-    participant Khata as KhataLedgerEngine
-    participant DB as PostgreSQL (Atomic UoW)
-
-    Client->>+API: POST /businesses/{id}/invoices (InvoicePayload)
-    API->>+Auth: verify_access(business_id, user_id, [OWNER, MANAGER])
-    Auth-->>-API: Access Granted (Tenant Confirmed)
-    
-    API->>+Svc: create_sales_invoice(business_id, invoice_data)
-    
-    rect rgb(15, 23, 42)
-        note over Svc,DB: Atomic Transaction Boundary (PostgreSQL Unit of Work)
-        Svc->>+InvRepo: check_stock_availability(product_id, qty)
-        InvRepo-->>-Svc: Stock Available (50 units on hand)
-        
-        Svc->>+InvRepo: deduct_inventory(product_id, qty, movement_type='SALE')
-        InvRepo->>DB: INSERT into inventory_movements (FIFO lot reduction)
-        InvRepo-->>-Svc: Lots Depleted Successfully
-        
-        Svc->>+Khata: post_customer_debit(customer_id, invoice_total)
-        Khata->>DB: INSERT into customer_ledger_entries (DEBIT ₹1,000.00)
-        Khata-->>-Svc: Balance Updated (Sum Debits == Sum Credits)
-        
-        Svc->>DB: INSERT into sales_invoices & sales_invoice_items
-        DB-->>Svc: Transaction Committed Successfully
-    end
-
-    Svc-->>-API: SalesInvoice Entity (Status: ISSUED)
-    API-->>-Client: HTTP 201 Created (JSON Invoice Receipt)
-```
-
----
-
-### 5.4 Sequence Diagram: Staged AI Investigation & Human Confirmation
-
-```mermaid
-%%{init: {'theme': 'dark', 'themeVariables': {'darkMode': true, 'background': '#0b0f19', 'primaryColor': '#1e293b', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#38bdf8', 'lineColor': '#94a3b8', 'secondaryColor': '#0f172a', 'actorBkg': '#1e293b', 'actorBorder': '#38bdf8', 'actorTextColor': '#f8fafc', 'signalColor': '#38bdf8', 'signalTextColor': '#f8fafc'}}}%%
-sequenceDiagram
-    autonumber
-    actor Owner as Business Owner
-    participant Web as Next.js 14 Frontend
-    participant Agent as Agentic Copilot (/investigate)
-    participant Reg as BusinessToolRegistry
-    participant Tool as evaluate_investment_and_loan
-    participant Gate as Governance Gate (/actions)
-    participant DB as PostgreSQL Database
-
-    Owner->>+Web: "Should we take a ₹2,000 loan at 10% interest to buy equipment?"
-    Web->>+Agent: POST /businesses/{id}/agent/investigate
-    
-    rect rgb(15, 23, 42)
-        note over Agent,Tool: Deterministic Tool DAG Execution (Zero DB Mutation)
-        Agent->>Agent: Parse query and extract loan parameters
-        Agent->>+Reg: execute_tool('evaluate_investment_and_loan', {principal: 2000, rate: 10, ...})
-        Reg->>+Tool: Execute deterministic NPV and CAGR calculation
-        Tool-->>-Reg: Total Repayment: ₹2,200 | Real NPV: ₹1,092.90 | CAGR: 18.92%
-        Reg-->>-Agent: Verified mathematical metrics receipt
-        Agent->>Agent: Synthesize recommendation ("PROCEED: Verified Positive Real NPV")
-    end
-    Agent-->>-Web: Return synthesis and investigation DAG
-    Web-->>-Owner: Display Analysis & "+ Stage Action Preview" Button
-    
-    rect rgb(26, 35, 50)
-        note over Owner,DB: Staged Governance Review Gate (Human-in-the-Loop)
-        Owner->>+Web: Click "+ Stage Action Preview" (Action: CREATE_GOAL)
-        Web->>+Gate: POST /sessions/{id}/actions (CREATE_GOAL, target=₹50,000)
-        Gate->>DB: INSERT into staged_actions (Status: PENDING_CONFIRMATION)
-        DB-->>Gate: Staged Action ID created
-        Gate-->>-Web: Display Staged Action in Review Tray
-        
-        Owner->>+Web: Click "Explicit Confirm"
-        Web->>+Gate: POST /sessions/{id}/actions/{id}/confirm
-        Gate->>DB: UPDATE staged_actions (Status: CONFIRMED)
-        Gate->>DB: INSERT into goals (Target: ₹50,000, Type: REVENUE)
-        DB-->>Gate: Goal Created Successfully
-        Gate-->>-Web: HTTP 200 OK (Action Confirmed & Executed)
-        Web-->>-Owner: Goal Activated on Workspace Dashboard
-    end
-```
-
----
-
-### 5.5 State Diagram: Invoice & Staged AI Action Lifecycle Machines
-
-```mermaid
-%%{init: {'theme': 'dark', 'themeVariables': {'darkMode': true, 'background': '#0b0f19', 'primaryColor': '#1e293b', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#38bdf8', 'lineColor': '#94a3b8', 'secondaryColor': '#0f172a'}}}%%
-stateDiagram-v2
-    state "Commercial Sales Invoice Lifecycle" as InvoiceMachine {
-        [*] --> DRAFT : Create Draft Invoice
-        DRAFT --> ISSUED : Finalize & Post Khata Debit
-        ISSUED --> PARTIALLY_PAID : Customer Partial Payment
-        PARTIALLY_PAID --> PAID : Full Balance Settled
-        ISSUED --> PAID : Full Payment Received
-        ISSUED --> OVERDUE : Due Date Elapsed
-        OVERDUE --> PARTIALLY_PAID : Partial Recovery
-        OVERDUE --> PAID : Full Settlement
-        DRAFT --> CANCELLED : Void Before Issuance
-        ISSUED --> CANCELLED : Credit Note Issued
-        PAID --> [*]
-        CANCELLED --> [*]
-    }
-
-    state "Staged AI Governance Action Lifecycle" as GovernanceMachine {
-        [*] --> PENDING_CONFIRMATION : AI Proposes Capital Action
-        PENDING_CONFIRMATION --> CONFIRMED : Human Owner Confirms
-        PENDING_CONFIRMATION --> REJECTED : Human Owner Dismisses
-        CONFIRMED --> EXECUTING : Dispatch Unit of Work
-        EXECUTING --> EXECUTED : Ledger & Goals Mutated
-        EXECUTING --> FAILED : Invariant Check Failed (Rollback)
-        EXECUTED --> [*]
-        REJECTED --> [*]
-        FAILED --> [*]
-    }
-```
-
----
-
-## 6. The Mathematics of Financial Sovereignty & Resilience
-
-ArthLens prohibits language models from performing arithmetic. All calculations are executed by verified Python functions utilizing standard financial and actuarial formulas:
-
-### 6.1 Integer-Paisa Khata Double-Entry Invariant
-
-Financial balances are represented as exact integer paisa:
-
-$$\text{paisa} = \lfloor \text{amount} \times 100 + 0.5 \rfloor, \quad \text{display\_inr} = \frac{\text{paisa}}{100.0}$$
-
-Every transaction must satisfy the fundamental double-entry ledger invariant:
-
-$$\sum_{i=1}^{n} \text{Debit}_i \equiv \sum_{j=1}^{m} \text{Credit}_j$$
-
-| Ledger Account | Debit (₹) | Credit (₹) | Invariant Check |
-|---|---|---|---|
-| Accounts Receivable (Customer: Sharma Traders) | ₹11,800.00 | ₹0.00 | Debits = ₹11,800.00 |
-| Sales Revenue (Product: 100 units @ ₹100) | ₹0.00 | ₹10,000.00 | Credits = ₹10,000.00 |
-| Output GST Payable (18% GST) | ₹0.00 | ₹1,800.00 | Credits = ₹1,800.00 |
-| **Transaction Totals** | **₹11,800.00** | **₹11,800.00** | **Balanced (Delta = 0)** |
-
----
-
-### 6.2 Perpetual FIFO Inventory Lot Accounting & Weighted Average Cost (WAC)
-
-When goods are purchased at varying prices, inventory cost layers are tracked perpetually. Incoming stock updates the Weighted Average Cost (WAC):
-
-$$\text{New WAC} = \frac{(\text{Current Qty} \times \text{Current WAC}) + (\text{Incoming Qty} \times \text{Unit Cost})}{\text{Current Qty} + \text{Incoming Qty}}$$
-
-#### Worked Numerical Example:
-1. **Initial Stock**: 50 units @ ₹10.00 (Total value: ₹500.00)
-2. **Purchase Lot 2**: 50 units @ ₹12.00 (Incoming value: ₹600.00)
-   $$\text{Updated WAC} = \frac{(50 \times 10.00) + (50 \times 12.00)}{50 + 50} = \frac{500 + 600}{100} = ₹11.00$$
-3. **Sale of 60 Units (FIFO Depletion)**:
-   - Deplete Lot 1: 50 units @ ₹10.00 = ₹500.00 COGS
-   - Deplete Lot 2: 10 units @ ₹12.00 = ₹120.00 COGS
-   - **Total COGS**: ₹620.00 | **Remaining Ending Inventory**: 40 units @ ₹12.00 = ₹480.00
-
----
-
-### 6.3 Loan Total Repayment & Nominal Profit
-
-$$\text{Total Repayment} = P \times \left(1 + \frac{r_{\text{loan}}}{100}\right)^{t_{\text{loan}}}$$
-
-$$\text{Nominal Profit} = \text{Expected Return} - \text{Total Repayment}$$
-
-| Parameter | Symbol | Value |
+| User task | Workspace modules | Observable result |
 |---|---|---|
-| Principal Borrowed | $P$ | ₹2,000.00 |
-| Annual Loan Interest Rate | $r_{\text{loan}}$ | 10.0% |
-| Loan Duration | $t_{\text{loan}}$ | 1.0 Year |
-| Expected Return from Capital Investment | $\text{Return}$ | ₹3,500.00 in 3 Years |
-| **Total Loan Repayment** | $\text{Repayment}$ | **₹2,200.00** |
-| **Nominal Profit** | $\text{Nominal Profit}$ | **₹1,300.00** |
+| Record what was bought, sold or returned | Suppliers, purchases, inventory, sales, customers, Khata | Stock, party balances and the general ledger reflect the commercial event. |
+| Understand the business | Finance, analytics, reports, constellation | The operator can inspect financial results and export evidence. |
+| Evaluate a change | Decisions, scenarios, goals | The workspace can retain a decision version, replay a seeded scenario and check progress against a goal. |
+| Control who can act | Workspace overview, members, settings, audit, agent | Requests are scoped to the workspace. Proposed agent actions can be reviewed before execution. |
 
----
+**System boundary.** The assessed prototype covers the path from a business transaction to a report or a reviewed decision. It relies on a browser, a server and a relational database. Identity, email and model providers are external integrations. Statutory filing, actual bank settlement and an independently audited financial statement are outside this demonstration. The [workspace pages](frontend/app/workspaces/%5Bid%5D), [product requirements](docs/PRODUCT_REQUIREMENTS.md) and [API specification](docs/API_SPECIFICATION.md) provide the detailed inventory.
 
-### 6.4 Annualized Compound Annual Growth Rate (CAGR)
+## 2. Development lifecycle
 
-$$\text{CAGR} = \left[ \left(\frac{\text{Expected Return}}{P}\right)^{\frac{1}{t_{\text{return}}}} - 1 \right] \times 100\%$$
+**Software characteristics and applications.** A second installation can run the same code, yet its behaviour depends on its schema revision, configuration, stored records and external services. Maintenance therefore includes migrating data and reproducing the running environment. The transactional application (sales and Khata) requires consistency, the analytical application (financial statements and scenarios) requires reproducible inputs, and the interactive application (agent and workspace UI) requires clear feedback and permission boundaries. These different quality needs explain the module boundaries.
 
-Using the capital investment parameters above:
+**Model selected: iterative and incremental development.** Domain and persistence are prerequisites for recording sales. Sales and purchase history supply the inputs for financial analysis. Versioned analyses, in turn, provide evidence for agent investigations. These dependencies give each increment a useful output and a clear acceptance test. Existing increments can be revisited when a new requirement exposes a weakness. For example, historical inventory movements with missing cost evidence need reconciliation before some reversals can be valued reliably.
 
-$$\text{CAGR} = \left[ \left(\frac{3500}{2000}\right)^{\frac{1}{3}} - 1 \right] \times 100\% = \left[ (1.75)^{0.3333} - 1 \right] \times 100\% = \mathbf{20.51\%}$$
+| Increment | Requirement and design work | Deliverable and exit check |
+|---|---|---|
+| 1 · Foundation | Define workspace ownership, roles, monetary precision and tenancy boundaries. Model entities and keys. | A member can access their workspace, while a request for another workspace is refused. Check the role matrix. |
+| 2 · Commerce | Trace a credit sale, a purchase and a return. Identify which writes must succeed together. | Post a sale, then try a multi-line sale with insufficient stock on the last line. Check both the success and rollback paths. |
+| 3 · Financial intelligence | Agree how to value stock and calculate receivables. Identify where historical cost is missing. | Reconcile a supported historical movement and trace its effect on the financial view. |
+| 4 · Decisions and governance | Version assumptions, capture simulation seeds and define the approval boundary. | Replay a scenario. Propose a goal, inspect the pending action, confirm once and check the resulting goal. |
+| 5 · Release and feedback | Integrate the browser, API and database. Review migration compatibility and the operating guide. | Exercise the complete workflow, export a report, record defects and feed them into the next increment. |
 
----
+Within each increment the cycle is **elicit → specify acceptance criteria → model → implement → verify → demonstrate → revise**. This is a retrospective interpretation of the [project plan](docs/PROJECT_PLAN.md), [implementation log](docs/IMPLEMENTATION_LOG.md) and migration sequence. The repository does not establish formal Scrum ceremonies or a measured sprint velocity.
 
-### 6.5 Inflation-Adjusted Net Present Value (Real NPV)
+| Syllabus process model | Where it fits this project |
+|---|---|
+| Waterfall | An agreed role matrix or database migration benefits from specification and review before implementation. Freezing the entire product up front would make discoveries such as missing historical cost expensive to address. |
+| Prototyping | A seeded workspace lets a reviewer try a purchase or read a goal deviation before settling the interface and terminology. Feedback should become a testable requirement. |
+| Incremental and iterative enhancement | Adding scenario replay is an increment. Revisiting an existing cost workflow to recover provenance is iterative enhancement. Both depend on regression tests. |
+| Spiral | Use a risk-driven loop for a change such as concurrent returns: identify over-return risk, prototype a locking rule, exercise two sessions, then decide whether to release. |
+| Agile and contemporary practice | Small demonstrable changes, version control, automated checks and deployment preflight shorten the feedback loop. CI provides rapid integration feedback. An AI feature still needs explicit inputs, acceptance tests and human review. |
 
-To prevent financial optical illusions where inflation erodes real purchasing power, cash flows are discounted by the inflation rate ($r_{\text{inflation}} = 6.0\%$):
+## 3. Requirements and acceptance
 
-$$\text{Real Return} = \frac{\text{Expected Return}}{\left(1 + \frac{r_{\text{inflation}}}{100}\right)^{t_{\text{return}}}} = \frac{3500}{(1.06)^3} = \frac{3500}{1.1910} = ₹2,938.67$$
+**Stakeholders.** The owner needs a trustworthy view of cash and stock. The accountant needs balanced postings and traceable corrections. The manager needs operational access. An analyst or viewer needs authorised read access. The maintainer needs a reproducible schema, configuration and diagnosis procedure. The [business role definitions](backend/arthlens/domain/business.py) and [role contract tests](backend/tests/contract/test_rbac_matrix.py) specify where these responsibilities differ.
 
-$$\text{Discounted Repayment} = \frac{\text{Total Repayment}}{\left(1 + \frac{r_{\text{inflation}}}{100}\right)^{t_{\text{loan}}}} = \frac{2200}{(1.06)^1} = ₹2,075.47$$
+**Elicitation and analysis.** The [SRS](docs/SRS.md) and [use-case traceability](docs/USE_CASE_TRACEABILITY.md) are available evidence. Three techniques suit further elicitation: walk through an invoice and its ledger entries with an accountant, observe a clerk handling a partial return, and ask an owner to review a prototype showing overdue balances. Record the actor, preconditions, normal path, exceptions and acceptance criterion. These are proposed stakeholder sessions, with no interview outcomes assumed here.
 
-$$\text{Real NPV} = \text{Real Return} - \text{Discounted Repayment} = 2938.67 - 2075.47 = \mathbf{+₹863.20}$$
+| Requirement | Constraint or exception | Acceptance evidence |
+|---|---|---|
+| Record a credit invoice and its financial effects together. | Caller has a permitted role, products belong to the business, credit and stock checks pass. | Insufficient stock on a later line undoes earlier deductions. [Transaction tests](backend/tests/integration/test_business_transaction_integrity.py) |
+| Return purchased stock against its source. | The same request cannot refund the same quantity twice. Source value and tax determine the return. | Check partial, repeated and concurrent returns against the original purchase. [Transaction tests](backend/tests/integration/test_business_transaction_integrity.py) |
+| Preserve financial assumptions for repeat review. | A replay uses stored scenario-version inputs and random seed. | Compare the replayed run with its originating version. [Scenario service](backend/arthlens/services/scenario_service.py) · [Decision API tests](backend/tests/integration/test_decision_api.py) |
+| Explicitly approve an agent-proposed change. | The pending proposal belongs to a workspace and session. An already resolved action cannot be confirmed again. | Proposing a goal creates a pending action. Confirmation creates the goal and records its resource ID. [API test](backend/tests/integration/test_agent_and_reports_api.py) |
+| Control access throughout the lifecycle. | A valid identity alone does not establish authority over a different business. | Exercise allowed and forbidden role/operation combinations. [RBAC contract](backend/tests/contract/test_rbac_matrix.py) |
 
-**Decision Rule**: Since $\text{Real NPV} > 0$ and $\text{CAGR} > \text{Inflation}$, the Copilot certifies the investment with a **PROCEED** verdict.
+**Non-functional requirements.** Financial operations must preserve exact two-decimal results at the domain boundary. Failed transactions must leave no partial writes. Workspace isolation must cover both data retrieval and mutation. Important workflows must be repeatable on an isolated test database. Usability and response-time objectives require explicit task definitions, load and measurements. The [requirements matrix](docs/REQUIREMENTS_TRACEABILITY.md) provides broader coverage. Use the tests and implementation to resolve differences between early design documents and the prototype.
 
----
+## 4. Architecture and structured design
 
-### 6.6 Altman Z'-Score for MSME Solvency & Bankruptcy Prediction
+ArthLens uses a client/server architecture. Next.js presents the workspace and sends HTTP requests. FastAPI authenticates the caller, validates the request and invokes application services. Services coordinate domain rules and repositories. PostgreSQL persists changes, with Alembic maintaining the schema. Financial and decision modules compute results used by reports and the agent. The browser presents outcomes while the server enforces access and correctness.
 
-ArthLens adapts Edward Altman's revised Z'-Score model calibrated specifically for private manufacturing and service MSMEs:
+| Component | Responsibility | Boundary and design decision |
+|---|---|---|
+| [Web client](frontend/app) and [API](backend/arthlens/api) | Navigation, forms, HTTP validation, authorisation and response formatting | A client can preview a value. The server recalculates or validates values it will persist. |
+| [Domain](backend/arthlens/domain) | Money, invoice items, inventory balances, journal entries and their rules | A domain object can be tested without starting a web server. |
+| [Application services](backend/arthlens/services) and [infrastructure](backend/arthlens/infra) | Coordinate workflows and persist state | Multiple repositories can share one transaction. Splitting inventory, billing and posting into independently committed writes would risk partial sales. |
+| [Finance](backend/arthlens/finance), [decisions](backend/arthlens/decision) and [reporting](backend/arthlens/reporting) | Compute indicators, compare alternatives, render evidence | Stored inputs and computed results can be inspected independently of how a screen or PDF presents them. |
+| [Agent](backend/arthlens/agent) and [action service](backend/arthlens/services/agent_action_service.py) | Investigate with tools and stage permitted actions | The model can propose an action. The service checks its payload and state before applying it. |
 
-$$Z' = 0.717 X_1 + 0.847 X_2 + 3.107 X_3 + 0.420 X_4 + 0.998 X_5$$
+**Structured analysis (SA).** At context level, the operator supplies transaction details and receives an invoice or rejection. At the next level, the data-flow diagram below follows the information for a credit sale. Arrows describe data movement, while the sequence diagram in section 6 shows call order.
 
-Where:
-- $X_1 = \frac{\text{Working Capital}}{\text{Total Assets}}$ (Liquidity measure)
-- $X_2 = \frac{\text{Retained Earnings}}{\text{Total Assets}}$ (Cumulative profitability)
-- $X_3 = \frac{\text{EBIT}}{\text{Total Assets}}$ (Operating productivity)
-- $X_4 = \frac{\text{Book Value of Equity}}{\text{Total Liabilities}}$ (Financial leverage)
-- $X_5 = \frac{\text{Sales}}{\text{Total Assets}}$ (Asset turnover)
-
-| Zone | Z'-Score Range | Solvency Interpretation |
-|:---|:---|:---|
-| **Safe Zone** | $Z' > 2.90$ | Financially sound; negligible probability of default within 24 months. |
-| **Grey Zone** | $1.23 \le Z' \le 2.90$ | Moderate solvency risk; working capital injection or debtor collection required. |
-| **Distress Zone** | $Z' < 1.23$ | Critical insolvency risk; high probability of default without debt restructuring. |
-
----
-
-### 6.7 Cash Conversion Cycle (CCC) & Working Capital Health
-
-The Working Capital Cycle measures the elapsed days between paying for raw materials and collecting cash from customers:
-
-$$\text{Cash Conversion Cycle (CCC)} = \text{DIO} + \text{DSO} - \text{DPO}$$
-
-Where:
-- **Days Sales Outstanding (DSO)**: $\text{DSO} = \frac{\text{Accounts Receivable}}{\text{Total Credit Sales}} \times 365$
-- **Days Inventory Outstanding (DIO)**: $\text{DIO} = \frac{\text{Average Inventory}}{\text{Cost of Goods Sold (COGS)}} \times 365$
-- **Days Payable Outstanding (DPO)**: $\text{DPO} = \frac{\text{Accounts Payable}}{\text{Cost of Goods Sold}} \times 365$
-
----
-
-## 7. Platform Features & 18 Workspace Chapters
-
-ArthLens organizes the entire commercial enterprise into 18 dedicated chapters inside a unified cosmic orbit shell:
-
-| Chapter | Route Path | Core Capabilities & Object-Oriented Domain Scope |
-|:---|:---|:---|
-| **01. Overview** | `/` | Executive pulse dashboard, liquid cash reserves, receivables, payables, and real-time solvency ratios. |
-| **02. Sales** | `/sales` | Commercial sales orders, customer invoice dispatch, payment recording, and credit returns. |
-| **03. Purchases** | `/purchases` | Vendor POs, goods receipt verification, payment releases, and debit purchase returns. |
-| **04. Inventory** | `/inventory` | Product catalog, real-time stock balances, reorder alerts, and historical FIFO lot cost basis reconciliation. |
-| **05. Khata** | `/khata` | Traditional double-entry customer & supplier ledgers with debit/credit balance reconciliation. |
-| **06. Finance** | `/finance` | Financial statements (P&L, Cash Flow, Balance Sheet), liquidity ratios, and break-even analysis. |
-| **07. Decisions** | `/decisions` | Immutable decision versioning, sensitivity evaluations, and causal evidence graphs. |
-| **08. Scenarios** | `/scenarios` | Scenario Laboratory: 36-month forward projections across Base, Optimistic, and Pessimistic cases. |
-| **09. Goals** | `/goals` | Target planning (Revenue, Profit, Working Capital), progress monitoring, and task assignments. |
-| **10. Analytics** | `/analytics` | Gross margins, working capital cycles, aging analysis, and composite financial health scoring. |
-| **11. AI Agent** | `/agent` | Agentic Copilot with deterministic tool execution DAGs and Staged Action review gates. |
-| **12. Customers** | `/customers` | Customer entity directory, credit limits, opening balances, and overdue payment tracking. |
-| **13. Suppliers** | `/suppliers` | Vendor relationship management, procurement history, and outstanding payables. |
-| **14. Reports** | `/reports` | Exportable PDF and CSV dossier statements, sales registers, and tax ledgers. |
-| **15. Audit & Access** | `/audit` | Tamper-evident audit trail capturing every actor, IP, timestamp, and state delta. |
-| **16. Members** | `/members` | Workspace member invitation, permission delegation, and role matrix configuration. |
-| **17. Settings** | `/settings` | Workspace parameters, currency configuration, and tenant lifecycle/archival controls. |
-| **18. Constellation**| `/constellation` | Interactive 2D/3D relational graph visualizing connections across customers, vendors, and ledger nodes. |
-
----
-
-## 8. Why Not Just an AI Wrapper?
-
-ArthLens is fundamentally **not** an AI wrapper. The architecture enforces an absolute separation between linguistic interpretation and mathematical computation:
-
-| Feature Dimension | Generic AI Wrapper | ArthLens Sovereign Engineering |
-|:---|:---|:---|
-| **Arithmetic Execution** | Large language model predicts tokens (`"10% of 2,000 is probably..."`) | 100% verified Python deterministic functions using integer-paisa math |
-| **Financial Invariants** | None; hallucinated figures mismatch between prompts | Enforced algebraic invariant: $\sum \text{Debits} \equiv \sum \text{Credits}$ per transaction |
-| **Inventory Depletion** | Textual approximations of stock availability | Perpetual FIFO cost layer accounting with automated stockout locks |
-| **Database Mutations** | Autonomous agents issue direct SQL updates without human oversight | Staged Action Governance Gate; proposals require explicit human confirmation |
-| **Multi-Tenant Security** | Fragile prompt rules prone to prompt injection and cross-tenant leakage | Cryptographic JWT claims, DB-level tenant UUID scoping, and RBAC guards |
-| **Solvency Analysis** | Generic conversational advice | Exact Altman Z'-Score, Working Capital Cycle, and 36-month Monte Carlo models |
-| **System Uptime** | Hard failure if OpenAI or Anthropic API goes down | Offline fallback execution DAG runs 100% of mathematical tools without LLM |
-
----
-
-## 9. Resilience & Defensive Architecture
-
-ArthLens is engineered with multi-tiered fallback chains ensuring **zero single points of failure**:
-
-### 1. Agentic AI Copilot Resilience
-
-```
-Live Mode (Copilot Ingestion):
-  1. Attempt Gemini 1.5 Flash query parsing  ──► Success? Extract tool parameters
-  2. Gemini API fails (quota / network)     ──► Fall back to deterministic regex parameter extractor
-  3. Execute Tool Execution DAG              ──► Pure Python math functions (NPV, CAGR, Khata balance)
-  4. Synthesis Generation                    ──► Gemini text synthesis OR fallback deterministic sitrep template
+```mermaid
+flowchart LR
+    U[Operator] -->|Customer and invoice lines| V([1. Validate sale])
+    C[(Customer and product records)] -->|Credit terms and product details| V
+    V -->|Validated quantities and amounts| P([2. Record credit sale])
+    S[(Stock balances)] -->|Available quantity and unit cost| P
+    P -->|New balance and sale movement| S
+    P -->|Invoice and lines| I[(Invoices)]
+    P -->|Receivable update| C
+    P -->|Balanced postings| J[(Journal)]
+    P -->|Saved invoice| U
 ```
 
-### 2. Production Email Delivery Resilience
-
-Render Cloud instances drop outbound SMTP packets on ports 25, 465, and 587. ArthLens implements a robust 4-tier dispatch waterfall:
-
-```
-Email Dispatch Waterfall:
-  Tier 1: Brevo HTTPS REST API v3 (Port 443)  ──► Success? Immediate domainless delivery to any recipient
-  Tier 2: Resend HTTPS REST API (Port 443)   ──► Fallback if Brevo key absent
-  Tier 3: Standard Authenticated SMTP (587)   ──► Local / self-hosted environments
-  Tier 4: Secure Dev Console Logging         ──► Development test mode (zero email drops)
-```
-
-### 3. Database & Unit of Work Resilience
-- **Atomic Rollback Boundaries**: Invoices, stock movement entries, and customer Khata ledger postings execute inside an atomic SQLAlchemy transaction. If stock deduction fails, the entire transaction rolls back cleanly with zero orphaned records.
-- **Savepoints for AI Staged Actions**: Staging an AI proposal creates an isolated record with status `PENDING_CONFIRMATION` without touching primary accounting tables.
-
-### 4. Frontend & Session Resilience
-- **Token Refresh & IDOR Interception**: The Axios/Fetch HTTP client automatically captures expired JWT tokens and refreshes them seamlessly. Cross-tenant IDOR attacks trigger an immediate 403 Forbidden redirect.
-
----
-
-## 10. The Interface: Cosmic Orbit Topology
-
-ArthLens abandons standard flat admin dashboards in favor of a specialized **Cosmic Orbit Interface** built with brutalist slate styling, high-contrast typography, and progressive disclosure:
-
-- **Central Orbit Shell**: Persistent left-hand orbital navigation dock providing instantaneous access to all 18 chapters with active route indicators and role-filtered visibility.
-- **Financial Health Gauges**: Real-time SVG circular meters displaying Current Ratio, Quick Ratio, Debt-to-Equity, and Altman Z'-Score with dynamic color coding (Green = Safe, Yellow = Warning, Red = Distress).
-- **Double-Entry Khata Ledger View**: Traditional Indian *Bahi-Khata* representation presenting side-by-side Debit (*Jama*) and Credit (*Naam*) balances with running reconciliation totals.
-- **Perpetual FIFO Lot Inspector**: Visual stack displaying active inventory cost layers, remaining unit counts per lot, purchase timestamps, and calculated Weighted Average Cost.
-- **Staged AI Review Drawer**: Floating bottom tray highlighting pending AI proposals with exact parameter receipts, NPV impact previews, and two-key confirmation controls.
-- **Platform Admin Console**: Restricted administrative portal (`/admin/users`) enabling system administrators to monitor registered tenants, toggle account statuses, and audit quotas.
-
----
-
-## 11. Demonstration Flows & Tactical Scenarios
-
-### Demo 1 — The Commercial Order-to-Ledger Cycle
-1. Navigate to `/sales` and issue a new Sales Invoice for customer *Sharma Electronics* for 20 units of *Solar Inverter* at ₹5,000/unit (+18% GST).
-2. The system verifies that 50 units exist in stock across 2 historical lots.
-3. Upon clicking **Issue Invoice**:
-   - 20 units are depleted from Lot #1 (FIFO cost: ₹3,200/unit).
-   - Customer Khata is debited by ₹118,000.00.
-   - P&L records ₹100,000.00 revenue and ₹64,000.00 COGS (Gross Profit: ₹36,000.00).
-   - Output GST ledger records ₹18,000.00 tax payable.
-4. Open `/khata` to verify the debit entry matches the invoice total to the exact paisa.
-
-### Demo 2 — The Staged AI Capital Investment Decision
-1. Navigate to `/agent` and prompt the Copilot:
-   > *"Should we borrow ₹50,000 at 12% annual interest to purchase a commercial packaging machine expected to return ₹85,000 over 3 years?"*
-2. The Copilot decomposes the inquiry into an execution DAG and calls `evaluate_investment_and_loan`.
-3. The deterministic math engine computes:
-   - **Total Repayment**: ₹56,000.00 | **Nominal Profit**: ₹29,000.00
-   - **CAGR**: 19.35% | **Real NPV (at 6% inflation)**: +₹15,412.80
-4. The Copilot provides a verified **PROCEED** verdict and stages a proposed business goal: `Target: ₹85,000 Revenue by Month 36`.
-5. The proposed action sits harmlessly in `PENDING_CONFIRMATION` until the owner clicks **Confirm Action**, which atomically creates the strategic goal.
-
-### Demo 3 — Multi-Year Scenario Stress Testing
-1. Navigate to `/scenarios` and open the **Scenario Laboratory**.
-2. Select **Pessimistic Case** (Simulating a 25% revenue drop, 15% inflation surge, and 60-day customer payment delays).
-3. The engine simulates 36-month monthly cash flows:
-   - Identifies an imminent working capital deficit in Month 8.
-   - Computes a drop in Altman Z'-Score from 3.12 (Safe) to 1.18 (Distress).
-   - Recommends an immediate supplier payment terms renegotiation to avert insolvency.
-
----
-
-## 12. Production Deployment & The 14-Minute Ping Strategy
-
-The live production deployment is globally accessible:
-
-- **Frontend Deployment**: [https://arthlens-two.vercel.app](https://arthlens-two.vercel.app) (Next.js 14 on Vercel Edge Network)
-- **Backend Deployment**: [https://arthlens-n6ah.onrender.com](https://arthlens-n6ah.onrender.com) (FastAPI container on Render Cloud)
-- **Database Engine**: Managed PostgreSQL 16 on Neon Serverless with connection pooling
-
-### The 14-Minute Ping Strategy
-Because academic evaluators and external judges assess submissions asynchronously, Render's free tier spins down web instances after 15 minutes of inactivity:
-
-- **The Problem**: A spun-down instance causes a 50-second cold start delay on the first evaluator visit.
-- **The Solution**: An external automated ping service ([cron-job.org](https://cron-job.org)) transmits a lightweight HTTP GET request to `https://arthlens-n6ah.onrender.com/health` every **14 minutes**. This maintains the container in an active, memory-resident state 24/7 without incurring hosting fees.
-
-### Domainless Email Delivery via Port 443
-Because cloud providers block outbound SMTP ports (25, 465, 587) on standard instances, ArthLens communicates with Brevo's HTTPS REST API v3 over standard **Port 443**. This guarantees password reset emails and 2FA OTP codes reach public Gmail and corporate domains without DNS custom domain gating.
-
----
-
-## 13. Local Quickstart & Execution Guide
-
-### Prerequisites
-- Python 3.11+
-- Node.js 18+ (npm 9+)
-- PostgreSQL 16+ (or Docker Compose)
-
-### Option A: One-Command Local Launch (Windows)
-```powershell
-# Boots PostgreSQL cluster, runs migrations, seeds demo accounts, and launches API & UI:
-.\run-local.ps1 -Wait
-
-# Cleanly stop all background services and release port bindings:
-.\stop-local.ps1
-```
-
-### Option B: Linux / macOS Launch
-```bash
-chmod +x ./start.sh ./stop.sh
-./start.sh
-
-# To cleanly shut down:
-./stop.sh
-```
-
-### Option C: Manual Multi-Terminal Launch
-
-```bash
-# Terminal 1: Backend
-cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -e .
-alembic upgrade head
-python scripts/seed_demo_accounts.py
-uvicorn arthlens.api.app:create_app --factory --host 127.0.0.1 --port 8000 --reload
-
-# Terminal 2: Frontend
-cd frontend
-npm install
-npm run dev  # Running on http://localhost:3000
-```
-
-### Default Seed Accounts
-| Role | Email | Password | Permissions |
-|---|---|---|---|
-| **System Administrator** | `admin@arthlens.org` | `Password123!` | Global tenant control, quota management, user lifecycle |
-| **Business Owner** | `entrepreneur@arthlens.org` | `Password123!` | Full workspace ownership, staged action confirmation |
-| **Financial Steward** | `steward@arthlens.org` | `Password123!` | Invoicing, Khata entries, statement analysis, scenario planning |
-
----
-
-## 14. Verification & Test Suite Audit
-
-ArthLens is validated by an extensive automated quality assurance harness:
+**Structured design (SD).** Convert the central transformation above into a *structure chart*. The top-level control module is invoice creation. Its subordinate responsibilities are validate input, calculate totals, update stock, save the invoice, update receivables and post the journal. This is a functional decomposition of [the service](backend/arthlens/services/business_service.py), not a claim that each responsibility is a separate Python function.
 
 ```text
-================================ TEST SUITE AUDIT SUMMARY ================================
-Backend Unit, Contract & Integration Tests: 164 PASSED (100% green)
-Agentic Copilot Financial Eval Tests:       PASSED (NPV, CAGR, Inflation, Tool DAG verified)
-Frontend Vitest Component Tests:            22 PASSED (100% green)
-Playwright Full-Stack Browser Journeys:     8 / 8 PASSED (Zero layout overflow down to 375px)
-Cross-Tenant IDOR Security Boundary Guard:  PASSED (403 Forbidden verified)
-Production API Schema Lockdown:             PASSED (404 on /openapi.json and /docs)
-Email Delivery Providers:                   Brevo HTTPS API v3 (Port 443) + Resend HTTPS + SMTP
-==========================================================================================
+create_sales_invoice
+├── check role, workspace, products and customer credit
+├── build invoice lines and calculate totals
+└── execute one transaction
+    ├── deduct tracked stock and record its cost
+    ├── persist invoice and items
+    ├── update customer receivable
+    └── post balanced journal entries
 ```
 
----
+Top-down design starts with the operator's goal and partitions the work as above. Bottom-up design starts with reusable, independently testable operations such as amount rounding and journal balance validation. Functional design explains how data is transformed. Object-oriented design explains which object owns each value or rule. Cohesion improves when scenario-version logic stays together in its service. Coupling remains important where the commerce service coordinates several repositories. A shared transaction and integration tests make that dependency explicit. See the [architecture](docs/ARCHITECTURE.md), [database design](docs/DATABASE_DESIGN.md) and [decision records](docs/DECISIONS.md).
 
-## 15. Academic Handover & Team Credits
+## 5. Object-oriented design
 
-- **Course:** Object-Oriented Methodology (OOM)
-- **Project Title:** ArthLens (अर्थLens) — Sovereign Financial Operating System & Decision Intelligence Platform
-- **Submission Date:** October 2026
-- **Architecture & Lead Developer:** Ayush
-- **Repository:** [https://github.com/ayush-mg/arthlens](https://github.com/ayush-mg/arthlens)
-- **Live Frontend:** [https://arthlens-two.vercel.app](https://arthlens-two.vercel.app)
-- **Live Backend:** [https://arthlens-n6ah.onrender.com](https://arthlens-n6ah.onrender.com)
+### Financial rules as design specifications
 
----
+| Rule | Worked example or acceptance condition | Owner in the implementation |
+|---|---|---|
+| Monetary precision | In INR, constructing `Money` from the decimal string `"12.345"` gives ₹12.35 using half-up rounding. Adding amounts in different currencies raises an error. | [Money](backend/arthlens/domain/business.py) |
+| Stock valuation | Ten units costing ₹60 each plus ten at ₹80 give 20 units valued at ₹1,400. The weighted-average unit cost is ₹70. A subsequent sale of two tracked units captures ₹140 of cost. | [InventoryBalance](backend/arthlens/domain/business.py) and [sales posting](backend/arthlens/services/business_service.py) |
+| Journal balance | A ₹200 credit sale with zero tax debits receivables and credits revenue by ₹200. A separate posting debits cost of goods sold and credits inventory at the sale-time cost. Each journal entry must balance on its own. | [JournalEntry](backend/arthlens/domain/business.py) |
+| Scenario reproducibility | Store the version, baseline snapshot, distribution assumptions, iteration count and seed with the run. Replaying those inputs provides a comparison against the recorded result. | [ScenarioService](backend/arthlens/services/scenario_service.py) |
 
-<div align="center">
-<b>अर्थLens — Know the numbers. Move with intent.</b><br>
-<i>Built with mathematical rigor, domain purity, and uncompromising Object-Oriented design.</i>
-</div>
+### Object-oriented principles in the implementation
+
+| Principle | Concrete example | Why it matters |
+|---|---|---|
+| Classes, instances and construction | Each `SalesInvoiceItem` instance has its own quantity, price and discount. `Money.__post_init__` normalises an amount to two decimal places. | Construction establishes the monetary representation used by subsequent calculations. |
+| Encapsulation | `SalesInvoice.record_payment()` updates the paid amount and payment status. `InventoryBalance.apply_deduction()` checks the quantity. | Callers can reuse a rule through a named operation. Persistence and access checks still belong to the service. |
+| Abstraction | `UserRepository` defines a persistence contract. `ILLMClient` defines the model-client boundary. | Callers can depend on the operation without knowing the storage or provider details. |
+| Inheritance | `PostgresUserRepository` implements `UserRepository`. `UserAlreadyExistsError` specialises `RepositoryError`. | Implementations share a contract and callers can handle a family of failures. |
+| Polymorphism | Gemini, deterministic and replay clients implement the model-client interface. | The same caller can use a live provider for a demonstration and a repeatable client for tests. |
+
+Composition appears in the invoice and its line items. Association appears in the optional invoice-to-customer link. A workspace groups users through membership records. A user has an identity independent of any one membership, an example of aggregation at the domain level. [Domain entities](backend/arthlens/domain/business.py) · [Repository contracts](backend/arthlens/domain/repositories.py) · [Provider implementations](backend/arthlens/llm/provider.py)
+
+## 6. UML models
+
+### Use cases and actors
+
+```mermaid
+flowchart LR
+    Owner[Workspace owner]
+    Clerk[Accountant]
+    Analyst[Authorised analyst]
+    subgraph ArthLens
+      M([Manage members])
+      S([Issue credit invoice])
+      R([Record purchase return])
+      F([Review financial position])
+      D([Replay scenario])
+    end
+    Owner --- M
+    Owner --- F
+    Clerk --- S
+    Clerk --- R
+    Analyst --- F
+    Analyst --- D
+```
+
+This is an actor/use-case view. The role matrix defines the precise API permissions for each operation.
+
+### Class diagram — sales model
+
+```mermaid
+classDiagram
+    class Customer {
+        +name
+        +current_balance
+        +add_receivable(amount)
+    }
+    class SalesInvoice {
+        +invoice_number
+        +total_amount
+        +paid_amount
+        +record_payment(amount)
+    }
+    class SalesInvoiceItem {
+        +quantity
+        +unit_price
+        +calculate_total()
+    }
+    class Product {
+        +sku
+        +selling_price
+    }
+    class Money {
+        +amount
+        +currency
+        +from_decimal(value)
+    }
+    Customer "0..1" -- "0..*" SalesInvoice : billed customer
+    SalesInvoice "1" *-- "1..*" SalesInvoiceItem : issued lines
+    SalesInvoiceItem "0..*" --> "0..1" Product : tracked product
+    SalesInvoice ..> Money : totals
+    SalesInvoiceItem ..> Money : pricing
+```
+
+### Sequence — issuing a credit sale
+
+```mermaid
+sequenceDiagram
+    actor Operator
+    participant API as Business API
+    participant S as BusinessService
+    participant DB as PostgreSQL
+    Operator->>API: Submit invoice and quantities
+    API->>S: Create sales invoice
+    S->>S: Verify access, calculate totals, check credit
+    S->>DB: Begin transaction and lock stock
+    alt Sufficient stock and credit
+        S->>DB: Deduct stock and record cost basis
+        S->>DB: Save invoice and update receivable
+        S->>DB: Post journal entries and commit
+        S-->>API: Saved invoice
+        API-->>Operator: Invoice details
+    else Validation or posting fails in transaction
+        S->>DB: Roll back changes
+        API-->>Operator: Error
+    end
+```
+
+### Sequence — investigating and confirming an action
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant A as Business agent
+    participant T as Tool registry
+    participant P as Action service
+    User->>A: Investigate a workspace question
+    A->>T: Request evidence with validated arguments
+    T-->>A: Workspace-scoped result
+    A-->>User: Explain findings
+    A->>P: Propose a supported action
+    P-->>User: Pending proposal
+    alt User confirms with permission
+        User->>P: Confirm proposal
+        P-->>User: Confirmed action and result
+    else User rejects
+        User->>P: Reject proposal
+        P-->>User: Rejected action
+    end
+```
+
+### Activity — handling a historical cost gap
+
+```mermaid
+flowchart TD
+    A([Start]) --> B[Find a movement with missing cost]
+    B --> C{Source evidence available?}
+    C -->|Yes| D[Reconstruct supported cost]
+    C -->|No| E{Authorised attestation available?}
+    E -->|No| F[Keep movement unresolved]
+    E -->|Yes| G[Record attestation and reason]
+    D --> H[Persist reconciliation and history]
+    G --> H
+    H --> I([Review updated balance])
+    F --> J([Await evidence])
+```
+
+### State models — invoice and agent proposal
+
+```mermaid
+stateDiagram-v2
+    [*] --> ISSUED : credit sale
+    [*] --> PAID : cash sale
+    ISSUED --> PARTIALLY_PAID : partial receipt
+    PARTIALLY_PAID --> PARTIALLY_PAID : further partial receipt
+    ISSUED --> PAID : full receipt
+    PARTIALLY_PAID --> PAID : balance settled
+```
+
+This invoice view isolates issuance and settlement. The domain also defines draft, overdue and cancelled statuses. The separate action lifecycle below follows the actual persisted statuses. Confirmation holds a row lock while applying the action and recording its result.
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING_CONFIRMATION : propose
+    PENDING_CONFIRMATION --> CONFIRMED : confirm and apply
+    PENDING_CONFIRMATION --> REJECTED : reject
+    CONFIRMED --> [*]
+    REJECTED --> [*]
+```
+
+## 7. Planning, estimation and control
+
+The following is a **proposed six-week baseline for a three-person course team**. Weeks are relative to kickoff. The [historical project plan](docs/PROJECT_PLAN.md) describes dependency order separately. These estimates and work packages are not a timesheet or a record of individual contributions.
+
+| Week | Work package and dependency | Reviewable milestone |
+|---|---|---|
+| 1 | Define users, scope, constraints and acceptance examples with the team. | Reviewed SRS and use cases, including a rejected sale. |
+| 2 | Model domain entities and API contracts. Establish authenticated workspace and database baseline. | Class diagram, schema migration and role checks. |
+| 3 | Implement purchases, credit sales, returns and journal posting on that foundation. | Demonstrate a correct posting and a complete rollback. |
+| 4 | Build financial analysis, scenario replay and goals from operational records. | Reproduce one calculation and one seeded result. |
+| 5 | Integrate the agent, approvals and reports. Exercise browser and API paths. | Show that proposal alone creates no goal. Export and inspect a report. |
+| 6 | Run regression tests, review accessibility, rehearse a clean deployment and triage outstanding defects. | Test record, risks, maintenance plan and evaluation demo. |
+
+A practical division is one workstream for requirements and domain flows, one for application and data services, and one for interface and system testing. Rotate review between workstreams. At each checkpoint, compare accepted use cases with planned use cases, record unresolved defects by severity and move dependent tasks when a prerequisite fails. A feature is complete when the model, code, test and user-facing behaviour agree.
+
+### Size and effort measurement
+
+These are measured examples at source revision `2891aaf`. The scope is deliberately small so a reviewer can repeat the count.
+
+| Python source file | Physical LOC | Lexical tokens | Function definitions |
+|---|---:|---:|---:|
+| [Domain entities](backend/arthlens/domain/business.py) | 777 | 4,113 | 45 |
+| [Scenario service](backend/arthlens/services/scenario_service.py) | 234 | 2,002 | 14 |
+| [Action service](backend/arthlens/services/agent_action_service.py) | 258 | 2,112 | 9 |
+
+LOC includes blank lines and comments. Token count uses Python's tokenizer, excluding comments, encoding, indentation, newline and end markers. Function count includes synchronous and asynchronous definitions, methods and nested functions from the Python syntax tree. These measures describe size, not quality or productivity. A function-point estimate would separately count user-visible inputs (invoice submission), outputs (report), queries (Khata lookup), logical files (invoices) and external interfaces. Function definitions are not function points.
+
+**COCOMO classroom estimate.** The three measured files total 1.269 physical KLOC. Using this as a rough size proxy in Basic COCOMO's organic mode gives effort ≈ `2.4 × 1.269^1.05 = 3.08 person-months` and duration ≈ `2.5 × 3.08^0.38 = 3.83 months`. A money estimate would multiply effort by a stated cost per person-month. Physical LOC includes non-executable lines, and the sample excludes the frontend, database and integration work. The result illustrates the model, not observed team effort or a forecast for the six-week plan. For scheduling, estimate work packages, account for dependencies and revise after each milestone.
+
+## 8. Risk, reliability and quality assurance
+
+| Risk | Design or control | Evidence or next measurement |
+|---|---|---|
+| A partial sale leaves stock and ledgers inconsistent | Shared transaction, balance validation and rollback | Exercise a shortage on the second line and compare pre/post balances. |
+| Concurrent returns exceed the purchased quantity | Validate source quantity under transactional controls | Run the concurrent returns case in the [integrity suite](backend/tests/integration/test_business_transaction_integrity.py). |
+| A valid user reads another workspace | Scope queries and check permissions at the service/API boundary | [Tenant tests](backend/tests/integration/test_agent_tenant_security.py) and [role matrix](backend/tests/contract/test_rbac_matrix.py). |
+| Missing cost distorts gross margin | Preserve movement cost evidence and reconciliation history | Inspect an unresolved movement and its reviewed adjustment. [Cost service](backend/arthlens/services/inventory_cost_service.py) |
+| Provider output changes between runs | Exercise deterministic paths and inspect provenance before accepting tool inputs | [Agent evaluations](backend/tests/agent_eval/test_agent_investigation_eval.py). Evaluate live-provider behaviour separately. |
+| A schema change breaks an existing installation | Version migrations and exercise upgrades on a disposable database | [Migration tests](backend/tests/integration/test_migrations.py). Rehearse restore on a separate copy before release. |
+
+**Quality attributes.** Reliability concerns whether a completed operation meets its contract over repeated use. Security adds identity, authorisation and tenant isolation. Maintainability depends on clear ownership of rules, migration history and regression tests. For usability, ask a first-time operator to enter a credit sale and find the resulting due balance without help. For performance, measure p95 invoice latency and failure rate under a stated concurrency level, database size and hardware configuration. The latter two are proposed evaluations.
+
+**Reliability metrics and models.** Track failed valid requests / total valid requests, time between service failures and mean time to restore. Keep rejected invalid inputs separate from service failures. Availability can be estimated from uptime / observation time. A reliability-growth model such as Musa–Okumoto could fit cumulative failures against execution time during repeated release testing. It requires a consistent workload and failure log. The suite pass count alone supplies neither an uptime figure nor a fitted model.
+
+**Process quality.** The ISO 9000 family provides a framework for quality management. In this project, traceability, review records and corrective actions are examples of evidence one could inspect against a quality process. ISO 9001 certification would require an external assessment. The SEI Capability Maturity Model distinguishes initial, repeatable, defined, managed and optimising processes. Versioned tests show repeatable work. A defined release procedure, trend measurements and documented improvements would support assessment of later stages. No certification or maturity rating is claimed. [Risk register](docs/RISK_REGISTER.md) · [Test strategy](docs/TEST_STRATEGY.md)
+
+## 9. Verification, validation and test plan
+
+**Verification** asks whether the implementation satisfies a specification. **Validation** asks whether the resulting workflow solves the operator's problem. Checking that a journal balances verifies an invariant. Asking an accountant to trace an unpaid invoice to the correct Khata entry validates the workflow.
+
+| Test case and level | Setup and input | Expected observation and evidence |
+|---|---|---|
+| Unit · monetary arithmetic | Generate amounts, construct value objects and compose additions, subtractions or integer multiplications. | Values stay quantised to two decimals and satisfy the tested arithmetic properties. [Property tests](backend/tests/unit/test_money_property_invariants.py) |
+| Contract · workspace roles | Repeat the same operation as an allowed and a restricted role. | The permission decision matches the role/operation matrix. [Contract tests](backend/tests/contract/test_rbac_matrix.py) |
+| Integration · atomic sale | Seed stock for the first invoice line and insufficient stock for a later line. | Invoice creation fails and earlier stock deductions are rolled back. [Transaction tests](backend/tests/integration/test_business_transaction_integrity.py) |
+| Integration · schema evolution | Start at a supported predecessor and upgrade an isolated database. | The expected revision, columns and tables exist. [Migration tests](backend/tests/integration/test_migrations.py) |
+| System · business lifecycle | Create a workspace, record commercial events, analyse finances and export. | Outputs remain linked across the complete journey. [Lifecycle test](backend/tests/e2e/test_full_platform_lifecycle.py) |
+| Browser and agent validation | Exercise authentication and operations in a browser. Separately supply an incomplete request to the agent. | Browser journeys reach user-visible results. The agent asks for missing data or retains a proposal pending confirmation. [Playwright](frontend/e2e) · [Agent eval](backend/tests/agent_eval/test_agent_investigation_eval.py) |
+
+**Testing strategies.** Bottom-up integration starts with money, inventory and journal rules, then adds repositories and a real database. Top-down integration starts from a user or HTTP request and substitutes a controlled provider. The browser journey joins the layers. Functional testing asserts visible outcomes such as the exported report. Structural testing selects branches such as cash versus credit or the exception path after a stock deduction. Branch coverage would need an instrumented run and a stated denominator.
+
+**Inspection and debugging.** In a code review of a purchase return, trace the original purchase line, quantity limit, transaction boundary and journal posting. For a reported mismatch, capture a minimal fixture, reproduce it against the same schema, inspect stock movements and journal lines, isolate the first inconsistent write, fix the responsible layer and retain the fixture as a regression test. An internal seeded walkthrough is a suitable alpha exercise. A beta would ask representative operators to use a trial workspace and record task failures before release. Formal alpha/beta results are not documented here.
+
+**Recorded results.** The [test report dated 12 November 2026](docs/TEST_PLAN_AND_RESULTS.md) records **291 backend tests**, **23 Vitest tests**, **5 Playwright tests** and **7 smoke checks** passing in the recorded local configurations. The backend result used the deterministic provider. The report records different results under Gemini. These figures identify the historical baseline and should be updated with the revision and environment after a fresh run.
+
+## 10. Local launch, release and maintenance
+
+Use Python and Node versions aligned with [CI](.github/workflows/ci.yml) (Python 3.14 and Node 20 in that configuration). Provide PostgreSQL/PostGIS through Docker or the supported local Windows installation. Configure development values from the [root environment example](.env.example) and [frontend example](frontend/.env.example). Keep real credentials out of version control.
+
+From the repository root on Windows, install dependencies once and start the application:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e "./backend[dev]"
+npm ci --prefix frontend
+.\run-local.ps1 -Wait
+```
+
+Open the client at `http://localhost:3000`. The [launcher](run-local.ps1) checks the database, applies migrations, seeds local demo accounts and starts the services. Stop them from another terminal with `.\stop-local.ps1`. The [deployment environment example](deployment/env.example) and [preflight script](scripts/deployment_preflight.py) describe the release configuration.
+
+For local verification, configure a **dedicated test database** using the [backend test configuration](backend/tests/conftest.py). In the repository virtual environment, run:
+
+```powershell
+$env:LLM_PROVIDER = "deterministic"
+.\.venv\Scripts\python.exe -m pytest backend/tests -v
+```
+
+From `frontend/`, run `npm test -- --run` and `npm run build`. For Playwright, install Chromium with `npx playwright install chromium` and follow the [browser test configuration](frontend/playwright.config.ts). Record the commit, provider, migration head, environment and failures alongside the result.
+
+On Linux or macOS with Docker Compose available, the repository provides [start.sh](start.sh) and [stop.sh](stop.sh). From the project root use `bash start.sh` to launch the stack and `bash stop.sh` to stop it. The [smoke checks](deployment/smoke/run_smoke_checks.py) exercise a running deployment. Review their environment and account settings before running them against a disposable workspace.
+
+| Maintenance category | ArthLens example | Change and release control |
+|---|---|---|
+| Corrective | A partial return allocates the wrong tax amount. | Reproduce with a minimal purchase, fix the allocation, rerun return and ledger tests. |
+| Adaptive | Identity-provider configuration or the database platform changes. | Update configuration and preflight together, then test login or upgrade against a representative environment. |
+| Perfective | Operators need a more informative goal deviation report. | Agree on the expected output, extend the goal service, update the report and test the full workflow. |
+| Preventive | Older stock movements lack cost provenance. | Detect incomplete records, retain evidence for reconciliation and test historical replay. |
+
+**Maintenance model and reuse.** A quick fix may restore a screen while leaving its report inconsistent. Prefer iterative enhancement with impact analysis, a regression test, a reviewed migration where necessary, and an updated handover. Reuse the money and journal rules across commercial operations. Reuse scenario snapshots for repeatable analysis. Reverse engineering here means tracing an existing route through service calls, database relationships and tests to recover its actual design. Re-engineering uses that recovered model to change the system safely, as in adding reconciliation records for legacy movements. [Maintenance plan](docs/MAINTENANCE_PLAN.md) · [Engineering handover](docs/ENGINEERING_HANDOVER.md)
+
+**Configuration management.** Git revisions identify source baselines, the npm lockfile pins frontend dependency resolution, and [Alembic revisions](backend/migrations/versions) order database changes. Review a change as one configuration item across code, schema, API contract, tests and documentation. Before deployment, check environment configuration and schema compatibility. After deployment, verify readiness and one end-to-end operation. For recovery, identify the compatible application version and rehearse database restoration on a copy before relying on the procedure.
+
+## 11. Evaluation walkthrough and team
+
+1. **Show the requirement.** Open a seeded workspace and select an inventory-tracked product. Note its starting quantity, unit cost and the customer's opening balance.
+2. **Follow a credit sale.** With ten units at a unit cost of ₹60, sell two at ₹100 each with zero tax and discount. Expect eight units left, ₹200 added to receivables, ₹120 cost of goods sold and ₹80 gross profit on the sale. The revenue entry and cost entry must each balance. Stock additions use weighted-average cost, and the sale captures the unit cost at movement time.
+3. **Test a failure.** Request more units than remain. Check that the invoice, stock and journal history did not change. Relate this check to the sequence diagram and the rollback integration test.
+4. **Show reproducibility and approval.** Run and replay a seeded scenario. Propose a goal through the agent, inspect its pending state, confirm it and open the resulting resource.
+5. **Close the trace.** Export a report and show the requirement, code path and test that support one reported figure. Use the [demo guide](docs/DEMO_GUIDE.md) for additional journeys.
+
+| Team member | Roll number |
+|---|---|
+| Abhay Pratap Singh | IIT2025109 |
+| Ayush Mishra | IIT2025108 |
+| Mayank Puri | IIT2025104 |
